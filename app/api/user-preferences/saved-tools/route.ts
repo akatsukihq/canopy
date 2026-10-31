@@ -1,5 +1,6 @@
 import { getSession } from "@/lib/auth/session.ts";
 import { captureException } from "@sentry/core";
+import { logError } from "@/lib/observability/logger.ts";
 import { z } from "zod";
 import { getPublicToolListings } from "@/lib/tool-framework/catalog";
 import { changeSavedTools, getSavedTools } from "@/lib/user-preferences/savedTools";
@@ -52,6 +53,7 @@ export async function GET(request: Request) {
     });
   } catch (error) {
     captureException(error);
+    logError("api.saved_tools.read_failed", error);
     return json({ error: "Couldn’t load saved tools. Please try again." }, 503);
   }
 }
@@ -84,6 +86,7 @@ export async function POST(request: Request) {
     return json({ userId: session.user.id, savedTools });
   } catch (error) {
     captureException(error);
+    logError("api.saved_tools.write_failed", error);
     return json({ error: "Couldn’t confirm the update. Reload Saved and try again." }, 503);
   }
 }

@@ -19,6 +19,7 @@ import { ToolError, type ToolRun } from "@/lib/tool-framework/run";
 import { parseSettings } from "@/lib/tool-framework/settings";
 import type { ToolSpec } from "@/lib/tool-framework/spec";
 import { errorMessage } from "@/utils/errorMessage";
+import { log, logError } from "@/lib/observability/logger.ts";
 
 type ToolRequestBody = {
   readonly text?: unknown;
@@ -47,8 +48,9 @@ function readRun(module: unknown): ToolRun<never> {
 }
 
 /** Return the error message without serializing its stack or other properties. */
-function toFailure(error: unknown): NextResponse {
+function toFailure(error: unknown, fields: Record<string, unknown>): NextResponse {
   if (error instanceof ToolError) {
+    log("warn", "api.tool.rejected", { ...fields, code: error.code });
     return NextResponse.json(
       {
         error: {
@@ -62,6 +64,7 @@ function toFailure(error: unknown): NextResponse {
     );
   }
   captureException(error);
+  logError("api.tool.failed", error, fields);
   return NextResponse.json(
     {
       error: {
@@ -74,8 +77,12 @@ function toFailure(error: unknown): NextResponse {
 }
 
 export async function POST(request: Request, { params }: { params: Promise<{ key: string }> }): Promise<NextResponse> {
+  const startedAt = performance.now();
+  const fields: Record<string, unknown> = {};
+  const elapsed = () => Math.round(performance.now() - startedAt);
   try {
     const { key } = await params;
+    fields.tool = key;
     // `key` is untrusted and is about to become part of a module path.
     if (!TOOL_SLUG_PATTERN.test(key)) {
       throw new ToolError("unknown-tool", "This tool is not available.");
@@ -86,6 +93,7 @@ export async function POST(request: Request, { params }: { params: Promise<{ key
     const clientKey = request.headers.get("x-forwarded-for")?.split(",", 1)[0]?.trim() || "unknown-client";
     const rateLimit = checkRateLimit(`${key}:${clientKey}`);
     if (!rateLimit.allowed) {
+      log("warn", "api.tool.rate_limited", { tool: key, retryAfterSeconds: rateLimit.retryAfterSeconds });
       return NextResponse.json(
         {
           error: {
@@ -138,8 +146,9 @@ export async function POST(request: Request, { params }: { params: Promise<{ key
       },
     });
 
+    log("info", "api.tool.completed", { tool: key, durationMs: elapsed() });
     return NextResponse.json({ result });
   } catch (error) {
-    return toFailure(error);
+    return toFailure(error, { ...fields, durationMs: elapsed() });
   }
 }

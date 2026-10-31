@@ -3,6 +3,7 @@ import { requirePermission } from "@/lib/admin/index.ts";
 import { db, eq, invoiceTemplatesTable } from "@/db/index.ts";
 import { errorMessage } from "@/utils/errorMessage";
 import { captureException } from "@sentry/core";
+import { logError } from "@/lib/observability/logger.ts";
 
 export async function GET(request: Request, { params }: { params: Promise<{ id: string }> }) {
   try {
@@ -12,6 +13,7 @@ export async function GET(request: Request, { params }: { params: Promise<{ id: 
     } catch (error) {
       if (error instanceof AuthServiceError) {
         captureException(error);
+        logError("api.admin.template_export.auth_failed", error);
         return Response.json({ error: errorMessage(error, "Authentication service unavailable") }, { status: 503 });
       }
       throw error;
@@ -51,6 +53,7 @@ export async function GET(request: Request, { params }: { params: Promise<{ id: 
     );
   } catch (error) {
     captureException(error);
+    logError("api.admin.template_export.failed", error);
     return Response.json({ error: errorMessage(error, "Unable to export template") }, { status: 500 });
   }
 }

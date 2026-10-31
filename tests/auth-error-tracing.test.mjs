@@ -45,7 +45,10 @@ test("authentication reports unexpected and server errors while keeping expected
   const errors = [cause, new APIError("INTERNAL_SERVER_ERROR", { cause }), new APIError(503, { cause })];
   for (const error of errors) expect(report(error)).toBe(undefined);
   expect(state.captured).toEqual(errors);
-  expect(log.mock.calls.map((args) => args)).toEqual(errors.map(() => ["Authentication request failed"]));
+  const lines = log.mock.calls.map(([line]) => JSON.parse(line));
+  expect(lines.map(({ level, event }) => [level, event])).toEqual(errors.map(() => ["error", "auth.request_failed"]));
+  // The connection detail in the message must not reach the log.
+  expect(JSON.stringify(lines)).not.toContain("connection details");
 
   log.mockRestore();
 });

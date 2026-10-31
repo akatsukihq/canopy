@@ -2,6 +2,7 @@ import { getPublicToolListings } from "@/lib/tool-framework/catalog";
 import { searchTools } from "@/lib/tool-catalog/index";
 import { errorMessage } from "@/utils/errorMessage";
 import { captureException } from "@sentry/core";
+import { logError } from "@/lib/observability/logger.ts";
 import { defaultLocale, isLocale } from "@/lib/i18n/config";
 
 // Curated discovery order; names, URLs and availability still come from the public catalog.
@@ -59,6 +60,7 @@ export async function GET(request: Request) {
     return Response.json({ results });
   } catch (error) {
     captureException(error);
+    logError("api.tools.search.failed", error);
     return Response.json({ error: errorMessage(error, "Unable to search tools") }, { status: 500 });
   }
 }

@@ -14,6 +14,7 @@ import {
 } from "../../db/index.ts";
 import { betterAuth, type BetterAuthOptions } from "better-auth";
 import { captureException } from "@sentry/core";
+import { log, logError } from "../observability/logger.ts";
 import { drizzleAdapter } from "better-auth/adapters/drizzle";
 import { APIError, createAuthMiddleware, isAPIError } from "better-auth/api";
 import { oneTimeToken } from "better-auth/plugins/one-time-token";
@@ -42,7 +43,7 @@ async function notifyPasswordChanged(email: string): Promise<void> {
     });
   } catch {
     // The password is already saved; notification failure must not interrupt session revocation.
-    console.error("Unable to send password-change confirmation email");
+    log("error", "auth.password_change_email_failed");
   }
 }
 
@@ -99,7 +100,7 @@ export const auth = betterAuth({
     onError(error) {
       if (isAPIError(error) && error.statusCode < 500) return;
       captureException(error);
-      console.error("Authentication request failed");
+      logError("auth.request_failed", error);
     },
   },
   database: (options: BetterAuthOptions) =>

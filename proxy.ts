@@ -9,6 +9,7 @@ import {
   isSharedSubdomainPath,
 } from "./lib/routing/subdomains.ts";
 import appConfig from "./lib/config/config.ts";
+import { logError } from "./lib/observability/logger.ts";
 import createIntlMiddleware from "next-intl/middleware";
 import { routing } from "./lib/i18n/routing";
 import { isPublicPagePath } from "./lib/i18n/config";
@@ -34,6 +35,7 @@ async function checkAccountAccess(request: NextRequest, redirectOrigin: string):
       query: { disableCookieCache: true, disableRefresh: true },
     });
   } catch (error) {
+    logError("proxy.account_check_failed", error, { method: request.method, path: pathname });
     return NextResponse.json(
       { error: errorMessage(error, "Unable to check account access. Please try again.") },
       { status: 503, headers: { "Cache-Control": "no-store" } },

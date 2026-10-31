@@ -2,6 +2,7 @@ import { TOOL_CATEGORIES } from "@/lib/tool-framework/categories";
 import { getPublicToolListings } from "@/lib/tool-framework/catalog";
 import { errorMessage } from "@/utils/errorMessage";
 import { captureException } from "@sentry/core";
+import { logError } from "@/lib/observability/logger.ts";
 import { defaultLocale, isLocale, localizeHref } from "@/lib/i18n/config";
 import { getCommonMessages } from "@/lib/i18n/messages";
 
@@ -38,6 +39,7 @@ export async function GET(request?: Request) {
     return Response.json({ groups });
   } catch (error) {
     captureException(error);
+    logError("api.tools.ecosystem.failed", error);
     return Response.json({ error: errorMessage(error, "Unable to load tool categories") }, { status: 500 });
   }
 }
