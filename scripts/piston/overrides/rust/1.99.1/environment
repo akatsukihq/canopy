@@ -1,0 +1,3 @@
+#!/usr/bin/env bash
+export PATH=$PWD/rust-1.99.1-aarch64-unknown-linux-gnu/rustc/bin/:$PATH
+export RUST_INSTALL_LOC=$PWD/rust-1.99.1-aarch64-unknown-linux-gnu

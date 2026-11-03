@@ -1,0 +1,4 @@
+#!/usr/bin/env bash
+
+shift # Discard main filename
+./a.out "$@"

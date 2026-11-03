@@ -1,0 +1,11 @@
+{
+  "language": "dotnet",
+  "version": "8.0.427",
+  "provides": [
+    {
+      "language": "csharp",
+      "aliases": ["c#", "cs", "csharp.net", "dotnet-csharp"],
+      "limit_overrides": { "max_process_count": 128 }
+    }
+  ]
+}

@@ -1,0 +1,12 @@
+{
+  "language": "gcc",
+  "version": "12.2.0",
+  "provides": [
+    { "language": "c17", "aliases": ["c", "gcc"] },
+    { "language": "c11", "aliases": [] },
+    { "language": "c23", "aliases": [] },
+    { "language": "c++20", "aliases": ["c++", "cpp", "g++"] },
+    { "language": "c++17", "aliases": [] },
+    { "language": "c++23", "aliases": [] }
+  ]
+}

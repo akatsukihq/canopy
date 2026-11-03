@@ -1,0 +1,5 @@
+#!/usr/bin/env bash
+
+# rustc needs the stdlib to link against (see upstream compile); aarch64 paths. 2024 edition, as `cargo new` uses.
+rustc --edition 2024 -o binary -L ${RUST_INSTALL_LOC}/rustc/lib -L ${RUST_INSTALL_LOC}/rust-std-aarch64-unknown-linux-gnu/lib/rustlib/aarch64-unknown-linux-gnu/lib "$@"
+chmod +x binary

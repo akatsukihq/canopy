@@ -1,0 +1,7 @@
+#!/usr/bin/env bash
+
+mv $1 $1.go
+filename=*.go
+shift
+# No network in the sandbox: never fetch a toolchain or modules. GOCACHE comes from environment.
+HOME=$PWD GOTOOLCHAIN=local GOTELEMETRY=off GOPROXY=off go run $filename "$@"

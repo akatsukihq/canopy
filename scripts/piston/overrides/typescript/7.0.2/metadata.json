@@ -1,0 +1,5 @@
+{
+  "language": "typescript",
+  "version": "7.0.2",
+  "aliases": ["ts", "node-ts", "tsc", "typescript7", "ts7"]
+}
