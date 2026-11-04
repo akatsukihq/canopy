@@ -31,7 +31,7 @@ afterEach(() => {
 });
 
 test("exports the supported providers", () => {
-  expect(AI_PROVIDERS).toEqual(["openai", "anthropic"]);
+  expect(AI_PROVIDERS).toEqual(["openai", "anthropic", "compatible"]);
 });
 
 test("OpenAI model list keeps chat models only, sorted and deduplicated", async () => {
@@ -92,8 +92,8 @@ test("other upstream failures never expose the key or body", async () => {
   expect(unreachable.message).not.toContain(KEY);
 });
 
-test("an explicit API key configures each provider without env", () => {
-  for (const provider of AI_PROVIDERS) {
+test("an explicit API key configures each keyed provider without env", () => {
+  for (const provider of ["openai", "anthropic"]) {
     expect(new AIClient(provider).getCapabilities().configured).toBe(false);
     expect(new AIClient(provider, { apiKey: KEY }).getCapabilities()).toMatchObject({ provider, configured: true });
   }
@@ -137,4 +137,38 @@ test("Anthropic generate uses the supplied key and model", async () => {
   const headers = new Headers(calls[0].options.headers);
   expect(headers.get("x-api-key")).toBe(KEY);
   expect(JSON.parse(calls[0].options.body)).toMatchObject({ model: "claude-test" });
+});
+
+test("OpenAI-compatible model list uses the base URL and sends a key only when given", async () => {
+  mockFetch(() => json({ data: [{ id: "llama-3" }, { id: "qwen" }, { id: "llama-3" }] }));
+  expect(await listModels("compatible", "", undefined, "http://localhost:11434/v1/")).toEqual(["llama-3", "qwen"]);
+  expect(calls[0].url).toBe("http://localhost:11434/v1/models");
+  expect(calls[0].options.headers).toEqual({});
+  await listModels("compatible", KEY, undefined, "https://openrouter.ai/api/v1");
+  expect(calls[1].options.headers).toEqual({ authorization: `Bearer ${KEY}` });
+  await expect(listModels("compatible", KEY)).rejects.toBeInstanceOf(AIError);
+});
+
+test("OpenAI-compatible is configured by base URL and model, not by key", () => {
+  const ready = new AIClient("compatible", { baseUrl: "http://localhost:11434/v1", model: "llama-3", apiKey: "" });
+  expect(ready.getCapabilities()).toMatchObject({ configured: true, webSearch: false, images: false });
+  expect(new AIClient("compatible", { baseUrl: "", model: "llama-3" }).getCapabilities().configured).toBe(false);
+});
+
+test("OpenAI-compatible generate posts chat completions to the base URL", async () => {
+  mockFetch(() =>
+    json({
+      id: "chatcmpl-1",
+      object: "chat.completion",
+      created: 1,
+      model: "llama-3",
+      choices: [{ index: 0, message: { role: "assistant", content: "Hi" }, finish_reason: "stop" }],
+      usage: { prompt_tokens: 1, completion_tokens: 1, total_tokens: 2 },
+    }),
+  );
+  const client = new AIClient("compatible", { baseUrl: "http://localhost:11434/v1", model: "llama-3" });
+  const result = await client.generate({ messages: [{ role: "user", content: "Hello" }] });
+  expect(result.text).toBe("Hi");
+  expect(calls[0].url).toBe("http://localhost:11434/v1/chat/completions");
+  expect(JSON.parse(calls[0].options.body).model).toBe("llama-3");
 });

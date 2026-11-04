@@ -28,7 +28,7 @@ type Definition = {
   kind: "boolean" | "choice" | "number" | "text" | "secret" | "model";
   schema: z.ZodType<RuntimeSettingValue>;
   options?: readonly string[];
-  provider?: "openai" | "anthropic";
+  provider?: "openai" | "anthropic" | "compatible";
   /** Shown beside a number input. */
   unit?: string;
   /** Text inputs: browser keyboard and validation hint. */
@@ -63,8 +63,8 @@ export const RUNTIME_SETTINGS = {
     kind: "choice",
     label: "Active provider",
     description: "Provider used for new assistant runs. Existing conversations keep the provider they started with.",
-    schema: z.enum(["openai", "anthropic"]),
-    options: ["openai", "anthropic"],
+    schema: z.enum(["openai", "anthropic", "compatible"]),
+    options: ["openai", "anthropic", "compatible"],
     env: () => config.ai.provider,
   },
   "ai.openai.apiKey": {
@@ -80,7 +80,7 @@ export const RUNTIME_SETTINGS = {
     kind: "model",
     provider: "openai",
     label: "Chat model",
-    description: "Model for assistant runs. Load models lists what this key can use.",
+    description: "Model for assistant runs.",
     schema: modelSchema,
     env: () => config.ai.openai.model,
   },
@@ -106,7 +106,7 @@ export const RUNTIME_SETTINGS = {
     kind: "model",
     provider: "anthropic",
     label: "Chat model",
-    description: "Model for assistant runs. Load models lists what this key can use.",
+    description: "Model for assistant runs.",
     schema: modelSchema,
     env: () => env("ANTHROPIC_MODEL") || "claude-sonnet-5-5",
   },
@@ -118,6 +118,44 @@ export const RUNTIME_SETTINGS = {
     description: "Model that writes short titles for blog briefs. A small, fast model is enough.",
     schema: modelSchema,
     env: () => env("ANTHROPIC_TITLE_MODEL") || env("ANTHROPIC_MODEL") || "claude-haiku-5-5",
+  },
+  "ai.compatible.baseUrl": {
+    group: "ai",
+    kind: "text",
+    format: "plain",
+    label: "Base URL",
+    description: "OpenAI-compatible API root, for example https://openrouter.ai/api/v1 or http://localhost:11434/v1.",
+    schema: plainText(500).refine(
+      (value) => value === "" || (/^https?:\/\/\S+$/.test(value) && URL.canParse(value)),
+      "Enter an http(s) URL, such as https://api.example.com/v1.",
+    ),
+    env: () => env("OPENAI_COMPATIBLE_BASE_URL"),
+  },
+  "ai.compatible.apiKey": {
+    group: "ai",
+    kind: "secret",
+    label: "API key",
+    description: "Optional: leave empty for endpoints that need no key, such as a local server.",
+    schema: secretSchema,
+    env: () => env("OPENAI_COMPATIBLE_API_KEY"),
+  },
+  "ai.compatibleModel": {
+    group: "ai",
+    kind: "model",
+    provider: "compatible",
+    label: "Chat model",
+    description: "Model for assistant runs.",
+    schema: modelSchema,
+    env: () => env("OPENAI_COMPATIBLE_MODEL"),
+  },
+  "ai.compatibleTitleModel": {
+    group: "ai",
+    kind: "model",
+    provider: "compatible",
+    label: "Title model",
+    description: "Model that writes short titles for blog briefs. A small, fast model is enough.",
+    schema: modelSchema,
+    env: () => env("OPENAI_COMPATIBLE_TITLE_MODEL") || env("OPENAI_COMPATIBLE_MODEL"),
   },
   "email.provider": {
     group: "email",
@@ -310,6 +348,10 @@ export const PROVIDER_CHOICES = {
   "ai.provider": {
     openai: { label: "OpenAI", required: ["ai.openai.apiKey", "ai.openaiModel", "ai.titleModel"] },
     anthropic: { label: "Anthropic", required: ["ai.anthropic.apiKey", "ai.anthropicModel", "ai.anthropicTitleModel"] },
+    compatible: {
+      label: "OpenAI-compatible",
+      required: ["ai.compatible.baseUrl", "ai.compatibleModel", "ai.compatibleTitleModel"],
+    },
   },
   "email.provider": {
     cloudflare: {

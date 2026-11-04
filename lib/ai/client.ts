@@ -3,15 +3,17 @@ import { z } from "zod";
 import { AIError, normalizeAIError } from "./errors.ts";
 import type { AIProviderName } from "./models.ts";
 import { AnthropicProvider } from "./providers/anthropic.ts";
+import { CompatibleProvider } from "./providers/compatible.ts";
 import { OpenAIProvider } from "./providers/openai.ts";
 import type { AIFileInput, AIProvider, AIRequest, AIStreamEvent } from "./types.ts";
 
 const providers: Record<AIProviderName, (options: AIClientOptions) => AIProvider> = {
   openai: (options) => new OpenAIProvider(options.model, options.apiKey),
   anthropic: (options) => new AnthropicProvider(options.model, options.apiKey),
+  compatible: (options) => new CompatibleProvider(options.model, options.apiKey, options.baseUrl),
 };
 /** Omitted values fall back to the provider's environment configuration. */
-export type AIClientOptions = { model?: string; apiKey?: string };
+export type AIClientOptions = { model?: string; apiKey?: string; /** `compatible` only. */ baseUrl?: string };
 const content = z.discriminatedUnion("type", [
   z.object({ type: z.literal("text"), text: z.string() }),
   z.object({ type: z.literal("image"), fileId: z.string().min(1), mimeType: z.string().startsWith("image/") }),

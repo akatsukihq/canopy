@@ -15,7 +15,7 @@ import {
   toast,
 } from "@/components/ui/index.tsx";
 import { useActionState, useEffect, useState, type FormEvent, type ReactNode } from "react";
-import { saveSettingsAction, type SettingsActionState } from "../actions";
+import { listModelsAction, saveSettingsAction, type SettingsActionState } from "../actions";
 import type { GroupTest } from "../lib/sections";
 import { ProviderActions, providerHint, type ProviderState } from "./ProviderActions";
 import { SettingRow, SettingsSection } from "./SettingRow";
@@ -27,6 +27,8 @@ export type SettingField = {
   /** `secret` values never reach the browser: `value` is "" and typing replaces the saved one. */
   kind: "boolean" | "choice" | "number" | "text" | "secret" | "model";
   format?: "email" | "plain";
+  /** Shown for reference only; never edited or saved. */
+  readOnly?: boolean;
   /** Model fields: whose model list to suggest. */
   provider?: string;
   /** Secrets only: whether a value applies now (saved here or from the environment). */
@@ -88,6 +90,29 @@ export function SettingsForm({
   const [localErrors, setLocalErrors] = useState<Record<string, string>>({});
   const [state, action, pending] = useActionState(saveSettingsAction, IDLE);
   const [models, setModels] = useState<Record<string, string[]>>({});
+  const [loadingModels, setLoadingModels] = useState<string[]>([]);
+
+  // Fill model dropdowns for every AI provider whose key is already saved.
+  useEffect(() => {
+    if (!canEdit) return;
+    let cancelled = false;
+    const providers = groups.flatMap((group) => {
+      return group.test === "ai" && group.provider && !group.provider.missing.length ? [group.provider.value] : [];
+    });
+    setLoadingModels(providers);
+    for (const provider of providers) {
+      void listModelsAction(provider, "").then((result) => {
+        if (cancelled) return;
+        if (result.models) setModels((current) => ({ ...current, [provider]: result.models ?? [] }));
+        setLoadingModels((current) => current.filter((name) => name !== provider));
+      });
+    }
+    return () => {
+      cancelled = true;
+    };
+    // Once per mount; the page remounts the form after a save.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
   const dirty = fields.filter((field) => drafts[field.key] !== field.value);
   const errors = { ...(state.status === "error" ? state.fieldErrors : undefined), ...localErrors };
 
@@ -159,13 +184,13 @@ export function SettingsForm({
             </div>
           ) : null
         }
-        className="mb-0 shrink-0"
+        className="mb-0 shrink-0 sm:items-start"
         description={canEdit ? description : `${description} You can view these settings but not change them.`}
         title={title}
       />
       <form
         action={action}
-        className="grid min-h-0 max-w-4xl flex-1 content-start gap-4 overflow-y-auto overscroll-contain pb-2"
+        className="min-h-0 flex-1 overflow-y-auto overscroll-contain pb-2"
         id={FORM_ID}
         onSubmit={onSubmit}
       >
@@ -174,6 +199,25 @@ export function SettingsForm({
           const provider = group.provider;
           const hint = provider ? providerHint(provider, dirty.length > 0, group.test) : null;
           const apiKeyField = group.fields.find((field) => field.kind === "secret");
+          const baseUrlField = group.fields.find((field) => field.key.endsWith(".baseUrl"));
+          // A lone on/off setting needs no row: its switch lives in the card header.
+          const toggle = group.fields.length === 1 && group.fields[0].kind === "boolean" ? group.fields[0] : null;
+          if (toggle)
+            return (
+              <SettingsSection
+                actions={
+                  <Switch
+                    aria-label={toggle.label}
+                    checked={(drafts[toggle.key] ?? toggle.defaultValue) === "true"}
+                    disabled={!canEdit}
+                    onCheckedChange={(checked) => set(toggle.key, String(checked))}
+                  />
+                }
+                description={toggle.description}
+                key={group.title}
+                title={toggle.label}
+              />
+            );
           return (
             <SettingsSection
               actions={
@@ -182,6 +226,7 @@ export function SettingsForm({
                     canEdit={canEdit}
                     dirty={dirty.length > 0}
                     draftApiKey={apiKeyField ? (drafts[apiKeyField.key] ?? "") : undefined}
+                    draftBaseUrl={baseUrlField ? (drafts[baseUrlField.key] ?? "") : undefined}
                     onModels={(list) => setModels((current) => ({ ...current, [provider.value]: list }))}
                     provider={provider}
                     test={group.test}
@@ -196,6 +241,7 @@ export function SettingsForm({
                 <FieldRow
                   canEdit={canEdit}
                   models={field.provider ? models[field.provider] : undefined}
+                  modelsLoading={field.provider ? loadingModels.includes(field.provider) : false}
                   changed={drafts[field.key] !== field.value}
                   draft={drafts[field.key] ?? null}
                   error={errors[field.key]}
@@ -219,8 +265,10 @@ function FieldRow({
   error,
   field,
   models,
+  modelsLoading,
   onChange,
 }: {
+  modelsLoading?: boolean;
   canEdit: boolean;
   /** Model ids loaded with this provider's key, offered as suggestions. */
   models?: string[];
@@ -230,6 +278,7 @@ function FieldRow({
   field: SettingField;
   onChange: (value: string | null) => void;
 }) {
+  const editable = canEdit && !field.readOnly;
   const id = `setting-${field.key}`;
   const errorId = `${id}-error`;
   const resetting = draft === null;
@@ -240,12 +289,12 @@ function FieldRow({
     field.kind === "boolean" ? (
       <Switch
         checked={value === "true"}
-        disabled={!canEdit}
+        disabled={!editable}
         id={id}
         onCheckedChange={(checked) => onChange(String(checked))}
       />
     ) : field.kind === "choice" ? (
-      <Select disabled={!canEdit} onValueChange={onChange} value={value}>
+      <Select disabled={!editable} onValueChange={onChange} value={value}>
         <SelectTrigger className="w-full" id={id} {...invalid}>
           <SelectValue />
         </SelectTrigger>
@@ -260,16 +309,16 @@ function FieldRow({
     ) : field.kind === "secret" ? (
       <Input
         autoComplete="off"
-        disabled={!canEdit}
+        disabled={!editable}
         id={id}
         onChange={(event) => onChange(event.target.value)}
         placeholder={
           resetting
-            ? "Saved key is removed on save"
+            ? "Removed on save"
             : field.overridden
-              ? "Saved here. Type to replace it"
+              ? "Saved. Type to replace"
               : field.secretSet
-                ? "Set from the environment. Type to override it"
+                ? "From environment"
                 : "Not set"
         }
         spellCheck={false}
@@ -278,30 +327,24 @@ function FieldRow({
         {...invalid}
       />
     ) : field.kind === "model" ? (
-      <>
-        <Input
-          autoComplete="off"
-          disabled={!canEdit}
-          id={id}
-          list={models?.length ? `${id}-models` : undefined}
-          onChange={(event) => onChange(event.target.value)}
-          spellCheck={false}
-          value={value}
-          {...invalid}
-        />
-        {models?.length ? (
-          <datalist id={`${id}-models`}>
-            {models.map((model) => (
-              <option key={model} value={model} />
-            ))}
-          </datalist>
-        ) : null}
-      </>
+      <Select disabled={!editable} onValueChange={onChange} value={value}>
+        <SelectTrigger className="w-full" id={id} {...invalid}>
+          <SelectValue placeholder="Choose a model" />
+        </SelectTrigger>
+        <SelectContent>
+          {/* The saved model stays selectable even if the key no longer lists it. */}
+          {[...new Set([value, ...(models ?? [])].filter(Boolean))].map((model) => (
+            <SelectItem key={model} value={model}>
+              {model}
+            </SelectItem>
+          ))}
+        </SelectContent>
+      </Select>
     ) : (
       <div className="relative">
         <Input
           className={field.unit ? "pr-20" : undefined}
-          disabled={!canEdit}
+          disabled={!editable}
           id={id}
           inputMode={field.kind === "number" ? "decimal" : field.format === "plain" ? "text" : "email"}
           onChange={(event) => onChange(event.target.value)}
@@ -334,7 +377,7 @@ function FieldRow({
   return (
     <SettingRow
       actions={
-        canEdit && undo ? (
+        editable && undo ? (
           <Button
             className="h-6 px-2 text-xs"
             onClick={() => onChange(resetting || changed ? field.value : null)}
@@ -349,8 +392,9 @@ function FieldRow({
       changed={changed}
       description={[
         field.description,
-        field.kind === "model" && !models?.length
-          ? "Type a model id, or use Test & load models to pick one."
+        field.kind === "model" && modelsLoading ? "Loading models…" : null,
+        field.kind === "model" && !modelsLoading && !models?.length
+          ? "Save a key, then Test & load models to list them."
           : null,
         field.store === "runtime" && field.overridden ? `Default: ${shown(field, field.defaultValue ?? "")}.` : null,
       ]

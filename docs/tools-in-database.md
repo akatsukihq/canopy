@@ -33,7 +33,8 @@ owner folder yet; no LFS archive was made (git history holds the deleted files).
   changes, written in a single transaction (a rejected value saves nothing). The
   env or code value is the default; "Use default" deletes the override. Audited
   as `platform-setting.edit`; secrets are audited as `[secret]`, never by value.
-- **Providers** — AI (OpenAI, Anthropic) and email (Cloudflare, Resend, SMTP)
+- **Providers** — AI (OpenAI, Anthropic, any OpenAI-compatible endpoint by
+  base URL with an optional key) and email (Cloudflare, Resend, SMTP)
   each keep their own saved key and settings. "Make active" (with a confirm)
   switches `ai.provider` / `email.provider`, and is allowed only when that
   provider's required settings have values (`PROVIDER_CHOICES`). AI "Test & load
@@ -44,8 +45,9 @@ owner folder yet; no LFS archive was made (git history holds the deleted files).
   `SETTINGS_ENCRYPTION_KEY` (32+ chars, setting key as AAD) and never sent back
   to the browser. Without that env var, keys can only come from env. Changing
   the key makes saved secrets unreadable (they fall back to env); re-enter them.
-- Env-only configuration (database, Redis, auth, OAuth, analytics, Cloudinary
-  cloud name) is not shown in Admin; it cannot be changed there.
+- Env-only configuration (database, Redis, auth, OAuth, analytics) is not shown
+  in Admin. The Cloudinary cloud name is shown read-only: blog images store only
+  their public id, so changing it would break every existing image.
 
 ## Summary
 

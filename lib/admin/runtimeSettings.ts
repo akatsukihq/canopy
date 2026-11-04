@@ -153,7 +153,7 @@ export type RuntimeSettingView = {
   options: string[];
   unit?: string;
   format?: "email" | "plain";
-  provider?: "openai" | "anthropic";
+  provider?: "openai" | "anthropic" | "compatible";
   /** Always "" for secrets: their values never leave the server. */
   value: RuntimeSettingValue;
   /** For secrets, "set" or "" instead of the value. */
@@ -175,7 +175,7 @@ export async function getRuntimeSettingsCardProps(canEdit: boolean) {
       options?: readonly string[];
       unit?: string;
       format?: "email" | "plain";
-      provider?: "openai" | "anthropic";
+      provider?: "openai" | "anthropic" | "compatible";
     } = entry;
     const state = effective[key as keyof typeof effective];
     const secret = definition.kind === "secret";

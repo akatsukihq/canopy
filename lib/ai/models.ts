@@ -2,7 +2,7 @@ import "server-only";
 import { z } from "zod";
 import { AIError } from "./errors.ts";
 
-export const AI_PROVIDERS = ["openai", "anthropic"] as const;
+export const AI_PROVIDERS = ["openai", "anthropic", "compatible"] as const;
 export type AIProviderName = (typeof AI_PROVIDERS)[number];
 
 const TIMEOUT_MS = 10_000;
@@ -33,14 +33,31 @@ async function fetchPage(url: string, headers: Record<string, string>, signal: A
   return parsed.data;
 }
 
-/** Lists the chat-capable model ids the key can use, sorted and deduplicated. */
-export async function listModels(provider: AIProviderName, apiKey: string, signal?: AbortSignal): Promise<string[]> {
+/**
+ * Lists the chat-capable model ids the key can use, sorted and deduplicated.
+ * `baseUrl` is required for `compatible`, whose key is optional.
+ */
+export async function listModels(
+  provider: AIProviderName,
+  apiKey: string,
+  signal?: AbortSignal,
+  baseUrl?: string,
+): Promise<string[]> {
   if (!AI_PROVIDERS.includes(provider)) throw new AIError("CAPABILITY", "This AI provider is not supported.", 400);
-  if (!apiKey.trim()) throw new AIError("VALIDATION", "Provide an API key.", 400);
+  if (provider !== "compatible" && !apiKey.trim()) throw new AIError("VALIDATION", "Provide an API key.", 400);
   const timeout = AbortSignal.timeout(TIMEOUT_MS);
   const combined = signal ? AbortSignal.any([signal, timeout]) : timeout;
   const ids: string[] = [];
-  if (provider === "openai") {
+  if (provider === "compatible") {
+    if (!baseUrl?.trim()) throw new AIError("VALIDATION", "Provide the endpoint base URL.", 400);
+    // Endpoints differ in what they list; offer everything they return.
+    const body = await fetchPage(
+      `${baseUrl.trim().replace(/\/+$/, "")}/models`,
+      apiKey.trim() ? { authorization: `Bearer ${apiKey.trim()}` } : {},
+      combined,
+    );
+    ids.push(...body.data.map((model) => model.id));
+  } else if (provider === "openai") {
     const body = await fetchPage(
       "https://api.openai.com/v1/models",
       { authorization: `Bearer ${apiKey}` },

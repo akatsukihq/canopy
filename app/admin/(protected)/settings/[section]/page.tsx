@@ -6,6 +6,7 @@ import { requirePagePermission } from "@/lib/admin/access";
 import { getUserAuthorization } from "@/lib/admin/index.ts";
 import { getRuntimeSettingsCardProps, type RuntimeSettingView } from "@/lib/admin/runtimeSettings.ts";
 import { hasPermission } from "@/lib/authorization/index.ts";
+import config from "@/lib/config/config.ts";
 import {
   loadRuntimeSettings,
   missingProviderSettings,
@@ -89,6 +90,26 @@ function runtimeField(setting: RuntimeSettingView): SettingField {
   };
 }
 
+/**
+ * Read-only: blog images store only their Cloudinary public id, so every image URL
+ * is built from this name. Changing it would break all existing images.
+ */
+function cloudNameField(): SettingField {
+  const value = config.cloudinary.cloudName?.trim() ?? "";
+  return {
+    key: "uploads.cloudinary.cloudName",
+    store: "runtime",
+    kind: "text",
+    format: "plain",
+    readOnly: true,
+    label: "Cloud name",
+    description: value
+      ? "Set by CLOUDINARY_CLOUD_NAME. Fixed here because every saved image URL is built from it; changing it breaks existing images."
+      : "Not set. Add CLOUDINARY_CLOUD_NAME to the environment to enable uploads.",
+    value,
+  };
+}
+
 /** Whether a provider group is active and what it still needs; no secret values leave here. */
 function providerState(settings: RuntimeSettings, provider: GroupProvider): ProviderState {
   const choices: Record<string, { label: string }> = PROVIDER_CHOICES[provider.setting];
@@ -127,7 +148,10 @@ export default async function SettingsSectionPage({ params }: { params: Promise<
       return {
         title: group.title,
         description: extra.description,
-        fields: extra.keys.flatMap((key) => fields.get(key) ?? []),
+        fields: [
+          ...(group.title === "Cloudinary" ? [cloudNameField()] : []),
+          ...extra.keys.flatMap((key) => fields.get(key) ?? []),
+        ],
         provider: settings && extra.provider ? providerState(settings, extra.provider) : undefined,
         test: extra.test,
       };

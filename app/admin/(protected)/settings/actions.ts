@@ -98,14 +98,25 @@ export async function activateProviderAction(setting: string, provider: string):
  * Lists the models a key can use. `apiKey` is the unsaved key typed in the form;
  * empty uses the saved one. Doubles as the AI connection test.
  */
-export async function listModelsAction(provider: string, apiKey: string): Promise<ProviderActionState> {
+export async function listModelsAction(
+  provider: string,
+  apiKey: string,
+  baseUrl = "",
+): Promise<ProviderActionState> {
   return measureServerAction<ProviderActionState>("admin.settings.listModelsAction", async () => {
     try {
       await requireSettingsEditor();
-      if (provider !== "openai" && provider !== "anthropic") throw new Error("Unknown AI provider.");
-      const key = apiKey.trim() || aiCredentials(await loadRuntimeSettings(), provider).apiKey;
-      if (!key) return { status: "error", message: "Add an API key first." };
-      const models = await listModels(provider, key);
+      if (provider !== "openai" && provider !== "anthropic" && provider !== "compatible")
+        throw new Error("Unknown AI provider.");
+      const saved = aiCredentials(await loadRuntimeSettings(), provider);
+      const key = apiKey.trim() || saved.apiKey;
+      const url = baseUrl.trim() || ("baseUrl" in saved ? saved.baseUrl : "");
+      if (provider === "compatible") {
+        // Same check the setting applies on save; the draft has not been validated yet.
+        if (!url || !/^https?:\/\/\S+$/.test(url) || !URL.canParse(url))
+          return { status: "error", message: "Add an http(s) base URL first." };
+      } else if (!key) return { status: "error", message: "Add an API key first." };
+      const models = await listModels(provider, key, undefined, url);
       return {
         status: "success",
         message: models.length ? `Key works. ${models.length} models available.` : "Key works, but it lists no chat models.",

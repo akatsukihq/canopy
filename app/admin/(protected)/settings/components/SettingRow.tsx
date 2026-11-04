@@ -1,5 +1,16 @@
 import type { ReactNode } from "react";
-import { Caption, Card, H2, Label, P } from "@/components/ui/index.tsx";
+import { Info } from "lucide-react";
+import {
+  Caption,
+  Card,
+  H2,
+  Label,
+  P,
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from "@/components/ui/index.tsx";
 import { cn } from "@/components/ui/lib/utils.ts";
 
 /** One setting: label row, then the control, then help text (replaced by the error when there is one). */
@@ -35,11 +46,12 @@ export function SettingRow({
   return (
     <li
       className={cn(
-        "flex min-w-0 flex-col gap-2 border-l-2 bg-card px-4 py-3 transition-colors",
-        changed ? "border-primary bg-primary/5" : "border-transparent",
+        "flex min-w-0 flex-col gap-1.5 rounded-md px-2 py-1.5 transition-colors",
+        inline && "col-span-full",
+        changed && "bg-primary/5 ring-1 ring-primary/40",
       )}
     >
-      <div className="flex min-h-7 items-center gap-2">
+      <div className="flex min-h-6 items-center gap-1.5">
         {id ? (
           <Label className="font-medium" htmlFor={id}>
             {label}
@@ -47,20 +59,30 @@ export function SettingRow({
         ) : (
           <P className="font-medium">{label}</P>
         )}
+        <Tooltip>
+          <TooltipTrigger asChild>
+            <button
+              aria-label={`About ${label}`}
+              className="rounded-full text-muted-foreground outline-none hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring"
+              type="button"
+            >
+              <Info aria-hidden="true" className="size-3.5" />
+            </button>
+          </TooltipTrigger>
+          <TooltipContent className="max-w-xs">{description}</TooltipContent>
+        </Tooltip>
         {status}
-        <div className="ml-auto flex shrink-0 items-center gap-1">
+        <div className={"ml-auto flex shrink-0 items-center gap-1"}>
           {actions}
           {inline ? children : null}
         </div>
       </div>
-      {inline ? null : <div className="min-w-0">{children}</div>}
+      {inline ? null : <div className="min-w-0 [&_button[role=combobox]]:h-8 [&_input]:h-8">{children}</div>}
       {error ? (
         <Caption className="block text-xs text-destructive" id={errorId} role="alert">
           {error}
         </Caption>
-      ) : (
-        <Caption className="block text-xs text-muted-foreground">{description}</Caption>
-      )}
+      ) : null}
       {details}
     </li>
   );
@@ -74,15 +96,19 @@ export function SettingsSection({
   title,
 }: {
   actions?: ReactNode;
-  children: ReactNode;
+  children?: ReactNode;
   description?: ReactNode;
   /** Omit to render the rows without a header (the page title already says it). */
   title?: string;
 }) {
   return (
-    <Card aria-label={title ?? "Settings"} className="min-w-0 gap-0 overflow-hidden p-0 shadow-none" role="region">
+    <Card
+      aria-label={title ?? "Settings"}
+      className="mb-4 min-w-0 break-inside-avoid gap-0 overflow-hidden p-0 shadow-none"
+      role="region"
+    >
       {title ? (
-        <div className="flex flex-wrap items-center gap-x-3 gap-y-2 border-b border-border bg-muted/40 px-4 py-2.5">
+        <div className="flex flex-wrap items-center gap-x-3 gap-y-2 bg-muted/40 px-4 py-2.5 [&:not(:last-child)]:border-b [&:not(:last-child)]:border-border">
           <div className="min-w-0 flex-1">
             <H2 className="text-sm font-semibold">{title}</H2>
             {description ? <Caption className="block text-muted-foreground">{description}</Caption> : null}
@@ -90,7 +116,11 @@ export function SettingsSection({
           {actions}
         </div>
       ) : null}
-      <ul className="divide-y divide-border">{children}</ul>
+      {children ? (
+        <TooltipProvider>
+          <ul className="grid grid-cols-[repeat(auto-fill,minmax(16rem,1fr))] gap-x-4 gap-y-2 p-3">{children}</ul>
+        </TooltipProvider>
+      ) : null}
     </Card>
   );
 }

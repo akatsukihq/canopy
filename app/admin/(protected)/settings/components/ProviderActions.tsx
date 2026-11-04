@@ -32,6 +32,7 @@ export function ProviderActions({
   canEdit,
   dirty,
   draftApiKey,
+  draftBaseUrl,
   onModels,
   provider,
   test,
@@ -41,6 +42,8 @@ export function ProviderActions({
   dirty: boolean;
   /** AI only: the unsaved key typed in this group, tried before the saved one. */
   draftApiKey?: string;
+  /** OpenAI-compatible only: the unsaved base URL. */
+  draftBaseUrl?: string;
   onModels: (models: string[]) => void;
   provider: ProviderState;
   test?: GroupTest;
@@ -53,7 +56,7 @@ export function ProviderActions({
     startTest(async () => {
       const result =
         test === "ai"
-          ? await listModelsAction(provider.value, draftApiKey ?? "")
+          ? await listModelsAction(provider.value, draftApiKey ?? "", draftBaseUrl ?? "")
           : await testEmailAction(provider.value);
       if (result.models) onModels(result.models);
       report(result);
@@ -94,8 +97,8 @@ export function ProviderActions({
             <AlertDialogHeader>
               <AlertDialogTitle>Switch to {provider.label}?</AlertDialogTitle>
               <AlertDialogDescription>
-                Every request from now on uses {provider.label} with its saved settings. The current provider keeps
-                its settings, so you can switch back at any time.
+                Every request from now on uses {provider.label} with its saved settings. The current provider keeps its
+                settings, so you can switch back at any time.
               </AlertDialogDescription>
             </AlertDialogHeader>
             <AlertDialogFooter>
@@ -117,6 +120,9 @@ export function ProviderActions({
 export function providerHint(provider: ProviderState, dirty: boolean, test?: GroupTest): string | null {
   if (provider.active) return null;
   if (provider.missing.length) return `To make it active, save: ${provider.missing.join(", ")}.`;
-  if (dirty) return test === "email" ? "Save or discard your changes to test or switch." : "Save or discard your changes to switch.";
+  if (dirty)
+    return test === "email"
+      ? "Save or discard your changes to test or switch."
+      : "Save or discard your changes to switch.";
   return null;
 }

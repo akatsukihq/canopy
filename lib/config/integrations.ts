@@ -11,9 +11,16 @@ import { loadRuntimeSettings, type RuntimeSettings } from "./runtimeSettings.ts"
 
 const text = (settings: RuntimeSettings, key: keyof RuntimeSettings) => String(settings[key].value ?? "").trim();
 
-export type AIProviderName = "openai" | "anthropic";
+export type AIProviderName = "openai" | "anthropic" | "compatible";
 
 export function aiCredentials(settings: RuntimeSettings, provider: AIProviderName) {
+  if (provider === "compatible")
+    return {
+      apiKey: text(settings, "ai.compatible.apiKey"),
+      chatModel: text(settings, "ai.compatibleModel"),
+      titleModel: text(settings, "ai.compatibleTitleModel"),
+      baseUrl: text(settings, "ai.compatible.baseUrl"),
+    };
   return provider === "anthropic"
     ? {
         apiKey: text(settings, "ai.anthropic.apiKey"),
@@ -28,7 +35,8 @@ export function aiCredentials(settings: RuntimeSettings, provider: AIProviderNam
 }
 
 export function activeAIProvider(settings: RuntimeSettings): AIProviderName {
-  return settings["ai.provider"].value === "anthropic" ? "anthropic" : "openai";
+  const value = settings["ai.provider"].value;
+  return value === "anthropic" || value === "compatible" ? value : "openai";
 }
 
 /**
@@ -39,11 +47,12 @@ export async function createAIClient(provider?: string, purpose: "chat" | "title
   const settings = await loadRuntimeSettings();
   const name = provider ?? activeAIProvider(settings);
   // Unknown names reach AIClient, which rejects them with a CAPABILITY error.
-  if (name !== "openai" && name !== "anthropic") return new AIClient(name);
+  if (name !== "openai" && name !== "anthropic" && name !== "compatible") return new AIClient(name);
   const credentials = aiCredentials(settings, name);
   return new AIClient(name, {
     apiKey: credentials.apiKey,
     model: purpose === "title" ? credentials.titleModel : credentials.chatModel,
+    baseUrl: "baseUrl" in credentials ? credentials.baseUrl : undefined,
   });
 }
 

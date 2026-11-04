@@ -52,6 +52,13 @@ export const SETTINGS_SECTIONS = [
         provider: { setting: "ai.provider", value: "anthropic" },
         test: "ai",
       },
+      {
+        title: "OpenAI-compatible",
+        description: "Any endpoint with the OpenAI Chat Completions API: OpenRouter, Groq, vLLM, Ollama. Text and tools only.",
+        keys: ["ai.compatible.baseUrl", "ai.compatible.apiKey", "ai.compatibleModel", "ai.compatibleTitleModel"],
+        provider: { setting: "ai.provider", value: "compatible" },
+        test: "ai",
+      },
     ],
   },
   {
