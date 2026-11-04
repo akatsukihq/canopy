@@ -73,6 +73,7 @@ test("system roles match the protected user and admin contracts", () => {
     features: { view: true, edit: true, toggle: true },
     users: { view: true, suspend: true, assignRoles: true },
     roles: { view: true, create: true, edit: true, delete: true },
+    settings: { view: true, edit: true },
     audit: { view: true },
   });
   expect(Object.isFrozen(SYSTEM_ROLES)).toBe(true);
@@ -103,6 +104,7 @@ test("every supported permission has resource and action help text", () => {
     "features",
     "users",
     "roles",
+    "settings",
     "audit",
   ]);
 

@@ -6,6 +6,13 @@ import type { ToolSpec } from "./spec";
 /** Platform-wide caps from `system_limits`, keyed by limit name. */
 export type SystemLimits = Readonly<Record<string, number>>;
 
+/**
+ * The limits this module reads from the database. The other `system_limits`
+ * rows are still enforced by the constants in `./limits.ts`, so Admin shows
+ * them read-only.
+ */
+export const DATABASE_SYSTEM_LIMITS: readonly string[] = ["platform_max_bytes", "max_editable_text_chars"];
+
 type LimitCheck = { readonly path: string; readonly value: number | undefined; readonly limit: string };
 
 /** One database read per request; admin edits apply on the next request. */

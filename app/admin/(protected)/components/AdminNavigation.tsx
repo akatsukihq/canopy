@@ -2,7 +2,7 @@
 
 import { SidebarNavItem } from "@/components/ui/index.tsx";
 import { appHref, subdomainHref } from "@/lib/routing/subdomains.ts";
-import { FileText, Newspaper, Flag, History, LayoutDashboard, Palette, ShieldCheck, Users, Wrench } from "lucide-react";
+import { FileText, Newspaper, Flag, History, LayoutDashboard, Palette, Settings, ShieldCheck, Users, Wrench } from "lucide-react";
 import { useSelectedLayoutSegment } from "next/navigation";
 
 const links = [
@@ -14,6 +14,7 @@ const links = [
   { href: "/admin/audit", label: "Audit history", icon: History },
   { href: "/admin/design-system", label: "Design system", icon: Palette },
   { href: "/admin/blog", label: "Blog posts", icon: Newspaper },
+  { href: "/admin/settings", label: "Settings", icon: Settings },
 ] as const;
 
 export function AdminNavigation() {
