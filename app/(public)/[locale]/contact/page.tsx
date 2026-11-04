@@ -1,4 +1,4 @@
-import config from "@/lib/config/config.ts";
+import { loadRuntimeSettings } from "@/lib/config/runtimeSettings.ts";
 import { Display, Muted, Overline, Strong, Text, TextLink } from "@/components/ui/index.tsx";
 import type { Metadata } from "next";
 import { Clock3, LifeBuoy, Mail } from "lucide-react";
@@ -22,7 +22,7 @@ export default async function ContactPage() {
   const t = await getTranslations("Contact");
   const requestedLocale = await getLocale();
   const locale = isLocale(requestedLocale) ? requestedLocale : "en";
-  const supportEmail = config.email.supportEmail?.trim();
+  const supportEmail = String((await loadRuntimeSettings())["site.supportEmail"].value);
 
   return (
     <PublicInfoChrome>

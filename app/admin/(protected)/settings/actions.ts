@@ -30,7 +30,7 @@ export async function updateSystemLimitAction(
         value,
         updatedAt: String(formData.get("updatedAt") ?? ""),
       });
-      revalidatePath("/admin/settings");
+      revalidatePath("/admin/settings", "layout");
       return { status: "success", message: "Limit saved.", updatedAt: saved.updatedAt };
     } catch (error) {
       if (error instanceof SystemLimitValueError) {
@@ -60,7 +60,7 @@ export async function updateRuntimeSettingAction(
     const value = reset ? null : raw === "true" ? true : raw === "false" ? false : raw;
     try {
       await updateRuntimeSetting(await getActorUserId(), String(formData.get("key") ?? ""), value);
-      revalidatePath("/admin/settings");
+      revalidatePath("/admin/settings", "layout");
       return { status: "success", message: reset ? "Reverted to the environment value." : "Setting saved." };
     } catch (error) {
       if (error instanceof RuntimeSettingValueError) {

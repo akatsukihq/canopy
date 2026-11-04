@@ -124,3 +124,29 @@ test("rejects unlisted values, unknown keys, and missing permission without writ
     { edit: false },
   );
 });
+
+test("rate limits and support email: form strings are coerced and bounded", async () => {
+  await withDatabase(async (writes) => {
+    await updateRuntimeSetting("u1", "traffic.toolRequestsPerMinute", "45");
+    expect(writes.find((w) => w.kind === "insert").values).toMatchObject({ value: 45 });
+  });
+  for (const bad of ["0", "121", "2.5", "", "lots"]) {
+    await withDatabase(async (writes) => {
+      await expect(updateRuntimeSetting("u1", "traffic.toolRequestsPerMinute", bad)).rejects.toBeInstanceOf(
+        RuntimeSettingValueError,
+      );
+      expect(writes).toEqual([]);
+    });
+  }
+  await withDatabase(async (writes) => {
+    await updateRuntimeSetting("u1", "site.supportEmail", "  help@example.com ");
+    expect(writes.find((w) => w.kind === "insert").values).toMatchObject({ value: "help@example.com" });
+  });
+  await withDatabase(async () => {
+    await expect(updateRuntimeSetting("u1", "site.supportEmail", "not an email")).rejects.toBeInstanceOf(
+      RuntimeSettingValueError,
+    );
+  });
+  const resolved = resolveRuntimeSettings(new Map([["traffic.codeRunsPerMinute", 500]]));
+  expect(resolved["traffic.codeRunsPerMinute"]).toMatchObject({ value: 10, source: "env" });
+});

@@ -15,6 +15,7 @@ import { captureException } from "@sentry/core";
 
 import { CODE_LANGUAGES } from "@/lib/code-execution/languages";
 import { checkRateLimit } from "@/lib/rateLimit";
+import { loadRuntimeSettings } from "@/lib/config/runtimeSettings.ts";
 import type { ToolResult } from "@/lib/tool-framework/result";
 import { ToolError, type ToolRun } from "@/lib/tool-framework/run";
 import { parseSettings } from "@/lib/tool-framework/settings";
@@ -24,7 +25,6 @@ import { log, logError } from "@/lib/observability/logger.ts";
 
 /** Code execution is far costlier than other tools, so it gets its own, tighter bucket. */
 const CODE_BODY_MAX_BYTES = 256 * 1024;
-const CODE_EXEC_LIMIT_PER_MINUTE = 10;
 
 type ToolRequestBody = {
   readonly text?: unknown;
@@ -91,9 +91,10 @@ export async function POST(request: Request, { params }: { params: Promise<{ key
     // ponytail: no trusted proxy-set header is documented in this repo (no caddy/deploy config), so the
     // spoofable first hop stays; a spoofer can mint buckets, bounded by the engine semaphore. Switch to
     // the header the front proxy overwrites once task 6 documents it.
+    const runtime = await loadRuntimeSettings();
     const rateLimit = Object.hasOwn(CODE_LANGUAGES, key)
-      ? checkRateLimit(`code-exec:${clientKey}`, { limit: CODE_EXEC_LIMIT_PER_MINUTE })
-      : checkRateLimit(`${key}:${clientKey}`);
+      ? checkRateLimit(`code-exec:${clientKey}`, { limit: Number(runtime["traffic.codeRunsPerMinute"].value) })
+      : checkRateLimit(`${key}:${clientKey}`, { limit: Number(runtime["traffic.toolRequestsPerMinute"].value) });
     if (!rateLimit.allowed) {
       log("warn", "api.tool.rate_limited", { tool: key, retryAfterSeconds: rateLimit.retryAfterSeconds });
       return NextResponse.json(

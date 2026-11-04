@@ -1,10 +1,24 @@
 /** Admin edits to `platform_settings`: overrides for the runtime-settings allowlist. */
 import { db, eq, platformSettingsTable } from "../../db/index.ts";
-import { RUNTIME_SETTINGS, isRuntimeSettingKey, loadRuntimeSettings } from "../config/runtimeSettings.ts";
+import {
+  RUNTIME_SETTINGS,
+  isRuntimeSettingKey,
+  loadRuntimeSettings,
+  type RuntimeSettingGroup,
+  type RuntimeSettingValue,
+} from "../config/runtimeSettings.ts";
 import { requireTransactionPermission, writeAudit } from "./adminMutations.ts";
 
 /** A rejected value, shown beside the field. */
 export class RuntimeSettingValueError extends Error {}
+
+function invalidMessage(key: keyof typeof RUNTIME_SETTINGS): string {
+  const definition = RUNTIME_SETTINGS[key];
+  if (definition.kind === "number") return `Enter a whole number. ${definition.description.split(". ").pop()}`;
+  if (definition.kind === "text") return "Enter a valid email address, or leave it empty.";
+  if (definition.kind === "boolean") return "Choose on or off.";
+  return "Choose one of the listed values.";
+}
 
 /** Save an override, or pass `null` to clear it and fall back to the environment value. */
 export async function updateRuntimeSetting(actorUserId: string, key: string, value: unknown | null): Promise<void> {
@@ -13,8 +27,20 @@ export async function updateRuntimeSetting(actorUserId: string, key: string, val
     if (!isRuntimeSettingKey(key)) throw new Error(`${key} cannot be changed here.`);
     let next: unknown = null;
     if (value !== null) {
-      const parsed = RUNTIME_SETTINGS[key].schema.safeParse(value);
-      if (!parsed.success) throw new RuntimeSettingValueError("Choose one of the listed values.");
+      const definition = RUNTIME_SETTINGS[key];
+      // Forms post strings; numbers and text are normalised here so every caller gets the same rules.
+      const input =
+        typeof value !== "string"
+          ? value
+          : definition.kind === "number"
+            ? value.trim() === ""
+              ? Number.NaN
+              : Number(value)
+            : definition.kind === "text"
+              ? value.trim()
+              : value;
+      const parsed = definition.schema.safeParse(input);
+      if (!parsed.success) throw new RuntimeSettingValueError(invalidMessage(key));
       next = parsed.data;
     }
     const [current] = await transaction
@@ -43,12 +69,14 @@ export async function updateRuntimeSetting(actorUserId: string, key: string, val
 
 export type RuntimeSettingView = {
   key: string;
+  group: RuntimeSettingGroup;
   label: string;
   description: string;
-  kind: "boolean" | "choice";
+  kind: "boolean" | "choice" | "number" | "text";
   options: string[];
-  value: boolean | string;
-  envValue: boolean | string;
+  unit?: string;
+  value: RuntimeSettingValue;
+  envValue: RuntimeSettingValue;
   source: "env" | "admin";
 };
 
@@ -60,9 +88,11 @@ export async function getRuntimeSettingsCardProps(canEdit: boolean) {
     const options: string[] = "options" in definition ? [...definition.options] : [];
     return {
       key,
+      group: definition.group,
       label: definition.label,
       description: definition.description,
-      kind: options.length ? "choice" : "boolean",
+      kind: definition.kind,
+      unit: "unit" in definition ? definition.unit : undefined,
       // The env default may be unlisted; show it so the select can display it.
       options: options.length && !options.includes(String(state.value)) ? [String(state.value), ...options] : options,
       value: state.value,
