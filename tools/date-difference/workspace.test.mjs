@@ -1,7 +1,8 @@
+import { toolSpec } from "../../tests/helpers/toolSpec.mjs";
 // @vitest-environment jsdom
 import assert from "node:assert/strict";
 import { beforeEach, test, vi } from "vitest";
-import definition from "./definition.ts";
+const definition = await toolSpec("date-difference");
 import { run } from "./run.ts";
 import { setupReactTools, fill, click, button, field } from "../../tests/helpers/react-tools.mjs";
 import { mountWorkspace, choose } from "../../tests/helpers/tool-workspace.mjs";

@@ -1,6 +1,7 @@
+import { toolSpec } from "../../tests/helpers/toolSpec.mjs";
 // @vitest-environment jsdom
 import RatingWorkspace from "./workspace.tsx";
-import ratingSpec from "./definition.ts";
+const ratingSpec = await toolSpec("domain-rating-checker");
 import React, { act, useState } from "react";
 import { Blob as NodeBlob } from "node:buffer";
 import { beforeEach, expect, test, vi } from "vitest";

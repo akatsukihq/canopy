@@ -1,7 +1,8 @@
+import { toolSpec } from "../../tests/helpers/toolSpec.mjs";
 import assert from "node:assert/strict";
 import { test } from "vitest";
 import { parseSettings } from "../../lib/tool-framework/settings.ts";
-import sitemapDefinition from "./definition.ts";
+const sitemapDefinition = await toolSpec("sitemap-generator");
 import { run as sitemap } from "./run.ts";
 import { readFile } from "node:fs/promises";
 

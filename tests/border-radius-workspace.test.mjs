@@ -1,3 +1,4 @@
+import { toolSpec } from "./helpers/toolSpec.mjs";
 // @vitest-environment jsdom
 import React, { act, useState } from "react";
 import { createRoot } from "react-dom/client";
@@ -6,7 +7,7 @@ import { getCommonMessages } from "../lib/i18n/messages.ts";
 import { extractToolMessages, toolMessageTree } from "../lib/tool-framework/translations.ts";
 import { afterEach, beforeEach, expect, test, vi } from "vitest";
 import BorderRadiusWorkspace from "../tools/border-radius-generator/workspace.tsx";
-import definition from "../tools/border-radius-generator/definition.ts";
+const definition = await toolSpec("border-radius-generator");
 import { run } from "../tools/border-radius-generator/run.ts";
 
 vi.mock("@/components/ResultSurface", () => ({

@@ -1,7 +1,8 @@
+import { toolSpec } from "../../tests/helpers/toolSpec.mjs";
 import assert from "node:assert/strict";
 import { test } from "vitest";
 import { parseSettings } from "../../lib/tool-framework/settings.ts";
-import metaDefinition from "./definition.ts";
+const metaDefinition = await toolSpec("meta-tag-generator");
 import { run as metaTags } from "./run.ts";
 import { readFile } from "node:fs/promises";
 

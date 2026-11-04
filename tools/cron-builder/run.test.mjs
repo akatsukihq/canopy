@@ -1,7 +1,8 @@
+import { toolSpec } from "../../tests/helpers/toolSpec.mjs";
 import assert from "node:assert/strict";
 import { test } from "vitest";
 import { parseSettings } from "../../lib/tool-framework/settings.ts";
-import cronDefinition from "./definition.ts";
+const cronDefinition = await toolSpec("cron-builder");
 import { run as buildCron } from "./run.ts";
 
 const context = (definition, text = "", settings = {}, secondary = "") => ({

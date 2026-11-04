@@ -1,6 +1,7 @@
+import { toolSpec } from "../../tests/helpers/toolSpec.mjs";
 // @vitest-environment jsdom
 import { beforeEach, expect, test, vi } from "vitest";
-import definition from "./definition.ts";
+const definition = await toolSpec("lorem-ipsum-generator");
 import { run } from "./run.ts";
 import Workspace from "./workspace.tsx";
 import { setupReactTools, fill, click, button, field, waitFor } from "../../tests/helpers/react-tools.mjs";

@@ -1,8 +1,9 @@
+import { toolSpec } from "./helpers/toolSpec.mjs";
 // @vitest-environment jsdom
 import React from "react";
 import { expect, test, vi } from "vitest";
 import { ResultView, ResultActions } from "../components/ResultView.tsx";
-import definition from "../tools/json-formatter/definition.ts";
+const definition = await toolSpec("json-formatter");
 import { setupReactTools, mountTool, click, waitFor } from "./helpers/react-tools.mjs";
 setupReactTools();
 const messages = { "runtime.status": "स्थिति", "runtime.ok": "सफल", "runtime.retry": "फिर प्रयास करें" };

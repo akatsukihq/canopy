@@ -1,6 +1,7 @@
+import { toolSpec } from "../../tests/helpers/toolSpec.mjs";
 // @vitest-environment jsdom
 import { vi } from "vitest";
-import definition from "./definition.ts";
+const definition = await toolSpec("json-escape");
 import { run } from "./run.ts";
 import { setupReactTools } from "../../tests/helpers/react-tools.mjs";
 import { testJsonWorkspace } from "../../tests/helpers/json-generic-workspace.mjs";

@@ -1,3 +1,4 @@
+import { toolSpec } from "../../tests/helpers/toolSpec.mjs";
 // @vitest-environment jsdom
 import { Blob as NodeBlob } from "node:buffer";
 import React, { act } from "react";
@@ -5,7 +6,7 @@ import { createRoot } from "react-dom/client";
 import { afterEach, beforeEach, expect, test, vi } from "vitest";
 
 import { ResultSurface } from "../../components/ResultSurface.tsx";
-import definition from "./definition.ts";
+const definition = await toolSpec("markdown-to-html");
 
 vi.mock("@/components/content/CodeEditor", () => ({
   CodeEditor: ({ value, "aria-label": label }) =>

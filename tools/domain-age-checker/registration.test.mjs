@@ -1,8 +1,9 @@
+import { toolSpec } from "../../tests/helpers/toolSpec.mjs";
 import { afterEach, expect, test, vi } from "vitest";
 
 import { run } from "./run.ts";
 import { createDomainSummary } from "./preview.ts";
-import definition from "./definition.ts";
+const definition = await toolSpec("domain-age-checker");
 import { createTranslator } from "next-intl";
 import { extractToolMessages, formatToolMessage, toolMessageTree } from "../../lib/tool-framework/translations.ts";
 

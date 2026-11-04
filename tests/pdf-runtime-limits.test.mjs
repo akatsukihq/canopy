@@ -1,6 +1,7 @@
+import { toolSpec } from "./helpers/toolSpec.mjs";
 import { expect, test } from "vitest";
 import compressPdf from "../tools/compress-pdf/run.worker.ts";
-import imageToPdf from "../tools/image-to-pdf/definition.ts";
+const imageToPdf = await toolSpec("image-to-pdf");
 import { run as createPdfFromImages } from "../tools/image-to-pdf/run.worker.ts";
 
 const MIB = 1024 * 1024;

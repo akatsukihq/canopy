@@ -1,7 +1,9 @@
 BEGIN;
 
 -- The tool definition (formerly tools/<key>/definition.ts) lives on its row.
-ALTER TABLE managed_tools ADD COLUMN IF NOT EXISTS spec JSONB;
+-- JSON, not JSONB: JSONB reorders object keys, and settings.fields order is
+-- the order the settings panel renders.
+ALTER TABLE managed_tools ADD COLUMN IF NOT EXISTS spec JSON;
 
 DO $$
 BEGIN
@@ -11,7 +13,7 @@ BEGIN
       AND conrelid = 'managed_tools'::regclass
   ) THEN
     ALTER TABLE managed_tools ADD CONSTRAINT managed_tools_spec_object_check
-      CHECK (spec IS NULL OR jsonb_typeof(spec) = 'object');
+      CHECK (spec IS NULL OR json_typeof(spec) = 'object');
   END IF;
 END;
 $$;

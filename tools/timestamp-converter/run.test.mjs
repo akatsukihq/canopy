@@ -1,8 +1,9 @@
+import { toolSpec } from "../../tests/helpers/toolSpec.mjs";
 import assert from "node:assert/strict";
 import { execFileSync } from "node:child_process";
 import { test, afterEach, vi } from "vitest";
 import { parseSettings } from "../../lib/tool-framework/settings.ts";
-import timestampDefinition from "./definition.ts";
+const timestampDefinition = await toolSpec("timestamp-converter");
 import { run as timestamp } from "./run.ts";
 
 const context = (definition, text = "", settings = {}, secondary = "") => ({

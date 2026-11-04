@@ -1,11 +1,12 @@
+import { toolSpec } from "./helpers/toolSpec.mjs";
 // @vitest-environment jsdom
 import { Blob as NodeBlob, File as NodeFile } from "node:buffer";
 import React from "react";
 import { beforeEach, expect, test, vi } from "vitest";
 import { FileProcessorWorkspace } from "../components/FileProcessorWorkspace.tsx";
 import { readArtifact } from "../lib/tool-framework/artifacts.ts";
-import splitPdfSpec from "../tools/split-pdf/definition.ts";
-import compressImageSpec from "../tools/compress-image/definition.ts";
+const splitPdfSpec = await toolSpec("split-pdf");
+const compressImageSpec = await toolSpec("compress-image");
 import { button, click, mountTool, setupReactTools, waitFor } from "./helpers/react-tools.mjs";
 
 vi.mock("../lib/tool-framework/hooks.ts", () => ({ loadToolHooks: async () => ({}) }));

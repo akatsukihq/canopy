@@ -1,8 +1,9 @@
+import { toolSpec } from "./helpers/toolSpec.mjs";
 import { test, expect, vi, afterEach, onTestFinished } from "vitest";
 import redis from "redis";
 import { Cache, closeRedis } from "../lib/cache/index.ts";
 import { catalogCache } from "../lib/tool-framework/catalogCache.ts";
-import jsonFormatterSpec from "../tools/json-formatter/definition.ts";
+const jsonFormatterSpec = await toolSpec("json-formatter");
 
 import { ADMIN_ACCESS } from "../lib/authorization/index.ts";
 import {

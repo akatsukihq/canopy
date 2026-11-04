@@ -1,10 +1,11 @@
+import { toolSpec } from "../../tests/helpers/toolSpec.mjs";
 // @vitest-environment jsdom
 import { act } from "react";
 import { expect, test, vi } from "vitest";
 import { setupReactTools, fill, click, button, field, waitFor } from "../../tests/helpers/react-tools.mjs";
 import { mountWorkspace, selectView, press } from "../../tests/helpers/json-workspaces.mjs";
 import ViewerWorkspace from "./workspace.tsx";
-import viewerDefinition from "./definition.ts";
+const viewerDefinition = await toolSpec("json-viewer");
 import { run as viewJson } from "./run.worker.ts";
 
 vi.mock("@/components/content/CodeEditor", async () => ({

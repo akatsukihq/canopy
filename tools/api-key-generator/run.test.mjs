@@ -1,7 +1,8 @@
+import { toolSpec } from "../../tests/helpers/toolSpec.mjs";
 import assert from "node:assert/strict";
 import { test, afterEach, vi } from "vitest";
 import { parseSettings } from "../../lib/tool-framework/settings.ts";
-import apiDefinition from "./definition.ts";
+const apiDefinition = await toolSpec("api-key-generator");
 import { run as apiKeys } from "./run.ts";
 
 const context = (definition, text = "", settings = {}, secondary = "") => ({

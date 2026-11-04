@@ -1,3 +1,4 @@
+import { toolSpec } from "./helpers/toolSpec.mjs";
 import assert from "node:assert/strict";
 import { execFileSync } from "node:child_process";
 import { readdirSync } from "node:fs";
@@ -12,7 +13,7 @@ const { clearDraft, loadDraft, saveDraft } = await import("../lib/code-execution
 const { shortVersion } = await import("../lib/code-execution/definition.ts");
 const { TOOL_CATEGORIES } = await import("../lib/tool-framework/categories.ts");
 
-const sqlDefinition = (await import("../tools/sql-compiler/definition.ts")).default;
+const sqlDefinition = await toolSpec("sql-compiler");
 
 const folders = readdirSync(path.join(root, "tools"))
   .filter((name) => name.endsWith("-compiler") && name !== "sql-compiler" && name !== "html-compiler")
@@ -79,12 +80,6 @@ describe("compiler tool folders", () => {
       vi.doUnmock("@/lib/code-execution/run");
     });
   }
-
-  test("definitions load under plain Node (the seed's filesystem walk)", () => {
-    const script = `const k=${JSON.stringify(keys)};for(const n of k){const m=await import('./tools/'+n+'/definition.ts');if(m.default.toolId!=='devtools.'+n)throw new Error(n)}console.log(k.length)`;
-    const out = execFileSync(process.execPath, ["--input-type=module", "-e", script], { cwd: root, encoding: "utf8" });
-    assert.equal(out.trim(), String(keys.length));
-  });
 });
 
 describe("shortVersion", () => {

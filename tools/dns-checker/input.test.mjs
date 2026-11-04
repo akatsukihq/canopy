@@ -1,9 +1,10 @@
+import { toolSpec } from "../../tests/helpers/toolSpec.mjs";
 // @vitest-environment jsdom
 import React, { act, useState } from "react";
 import { createRoot } from "react-dom/client";
 import { afterEach, beforeEach, expect, test, vi } from "vitest";
 import DnsCheckerWorkspace from "./workspace.tsx";
-import definition from "./definition.ts";
+const definition = await toolSpec("dns-checker");
 
 vi.mock("@/components/ResultSurface", () => ({ ResultSurface: () => null }));
 vi.mock("@/components/FileProcessorWorkspace", () => ({ FileProcessorWorkspace: () => null }));

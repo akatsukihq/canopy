@@ -1,3 +1,4 @@
+import { toolSpec } from "./helpers/toolSpec.mjs";
 // @vitest-environment jsdom
 import { Blob as NodeBlob, File as NodeFile } from "node:buffer";
 import React, { act } from "react";
@@ -5,8 +6,8 @@ import { createTranslator } from "next-intl";
 import { getCommonMessages } from "../lib/i18n/messages.ts";
 import { beforeEach, expect, test, vi } from "vitest";
 import { ImageConversionWorkspace } from "../app/media/components/ImageConversionWorkspace.tsx";
-import pngJpg from "../tools/png-to-jpg/definition.ts";
-import pngWebp from "../tools/png-to-webp/definition.ts";
+const pngJpg = await toolSpec("png-to-jpg");
+const pngWebp = await toolSpec("png-to-webp");
 import { readArtifact } from "../lib/tool-framework/artifacts.ts";
 import { button, click, field, fill, mountTool, setupReactTools, waitFor } from "./helpers/react-tools.mjs";
 

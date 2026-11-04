@@ -1,7 +1,8 @@
+import { toolSpec } from "./helpers/toolSpec.mjs";
 import { describe, expect, test } from "vitest";
 import { highlightCode, createCodeHighlightBudget } from "../lib/markdown/codeHighlight.ts";
 import { parseSettings } from "../lib/tool-framework/settings.ts";
-import definition from "../tools/markdown-previewer/definition.ts";
+const definition = await toolSpec("markdown-previewer");
 import { run, renderMarkdownPreview } from "../tools/markdown-previewer/run.worker.ts";
 
 async function preview(markdown, settings = {}) {

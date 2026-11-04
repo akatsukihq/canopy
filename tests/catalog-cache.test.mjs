@@ -1,8 +1,9 @@
+import { toolSpec } from "./helpers/toolSpec.mjs";
 import redis from "redis";
 import { beforeEach, expect, test, vi } from "vitest";
 import { catalogCache } from "@/lib/tool-framework/catalogCache.ts";
-import markdownDefinition from "../tools/markdown-previewer/definition.ts";
-import jsonDefinition from "../tools/json-formatter/definition.ts";
+const markdownDefinition = await toolSpec("markdown-previewer");
+const jsonDefinition = await toolSpec("json-formatter");
 import { extractToolMessages, escapeToolText } from "../lib/tool-framework/translations.ts";
 import { getPaperworkToolMessages } from "../lib/paperwork/toolMessages.ts";
 
@@ -485,9 +486,9 @@ test("full public discovery retains every valid published locale for sitemap cov
 
 test("related tools prioritize curated cards, then unique category matches, without validating neighbor runtimes", async () => {
   const [whitespaceDefinition, duplicateDefinition, sorterDefinition] = await Promise.all([
-    import("../tools/whitespace-remover/definition.ts").then((module) => module.default),
-    import("../tools/duplicate-line-remover/definition.ts").then((module) => module.default),
-    import("../tools/text-sorter/definition.ts").then((module) => module.default),
+    toolSpec("whitespace-remover"),
+    toolSpec("duplicate-line-remover"),
+    toolSpec("text-sorter"),
   ]);
   const target = row("devtools", "markdown-previewer");
   const curated = row("devtools", "json-formatter", { order: 99 });

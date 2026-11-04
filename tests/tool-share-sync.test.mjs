@@ -1,10 +1,11 @@
+import { toolSpec } from "./helpers/toolSpec.mjs";
 // @vitest-environment jsdom
 import React, { act } from "react";
 import { beforeEach, afterEach, expect, test, vi } from "vitest";
 import { setupReactTools, mountTool } from "./helpers/react-tools.mjs";
 import { useToolShare } from "../lib/tool-framework/useToolShare.ts";
 import { decodeToolShare, encodeToolShare } from "../lib/tool-framework/toolShare.ts";
-import queryBuilderSpec from "../tools/url-query-builder/definition.ts";
+const queryBuilderSpec = await toolSpec("url-query-builder");
 
 setupReactTools();
 const spec = {

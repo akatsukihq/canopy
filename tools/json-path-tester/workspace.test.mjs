@@ -1,10 +1,11 @@
+import { toolSpec } from "../../tests/helpers/toolSpec.mjs";
 // @vitest-environment jsdom
 import { act } from "react";
 import { expect, test, vi } from "vitest";
 import { setupReactTools, fill, click, button, field, waitFor } from "../../tests/helpers/react-tools.mjs";
 import { mountWorkspace, selectView, press } from "../../tests/helpers/json-workspaces.mjs";
 import PathWorkspace from "./workspace.tsx";
-import pathDefinition from "./definition.ts";
+const pathDefinition = await toolSpec("json-path-tester");
 import { run as queryJson } from "./run.ts";
 
 vi.mock("@/components/content/CodeEditor", async () => ({

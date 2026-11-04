@@ -1,8 +1,9 @@
+import { toolSpec } from "../../tests/helpers/toolSpec.mjs";
 // @vitest-environment jsdom
 import assert from "node:assert/strict";
 import { createElement } from "react";
 import { beforeEach, test, vi } from "vitest";
-import definition from "./definition.ts";
+const definition = await toolSpec("utm-builder");
 import { run } from "./run.ts";
 import Workspace from "./workspace.tsx";
 import { setupReactTools, fill, click, button, field, mountTool } from "../../tests/helpers/react-tools.mjs";

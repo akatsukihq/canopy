@@ -1,10 +1,11 @@
+import { toolSpec } from "../../tests/helpers/toolSpec.mjs";
 // @vitest-environment jsdom
 import assert from "node:assert/strict";
 import { Blob as NodeBlob } from "node:buffer";
 import React, { act, useState } from "react";
 import { test, vi } from "vitest";
 import Workspace from "./workspace.tsx";
-import definition from "./definition.ts";
+const definition = await toolSpec("diagram-generator");
 import { setupReactTools, mountTool, fill, click, button, field } from "../../tests/helpers/react-tools.mjs";
 
 vi.mock("@/components/FileProcessorWorkspace", () => ({ FileProcessorWorkspace: () => null }));

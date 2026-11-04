@@ -1,10 +1,11 @@
+import { toolSpec } from "./helpers/toolSpec.mjs";
 // @vitest-environment jsdom
 import { Blob as NodeBlob, File as NodeFile } from "node:buffer";
 import React, { act, useState } from "react";
 import { afterEach, beforeEach, expect, test, vi } from "vitest";
 import { FileProcessorWorkspace } from "../components/FileProcessorWorkspace.tsx";
 import { toast } from "../components/ui/index.tsx";
-import imageToPdfSpec from "../tools/image-to-pdf/definition.ts";
+const imageToPdfSpec = await toolSpec("image-to-pdf");
 import { button, click, mountTool, setupReactTools, waitFor } from "./helpers/react-tools.mjs";
 
 vi.mock("../lib/tool-framework/hooks.ts", () => ({ loadToolHooks: async () => ({}) }));

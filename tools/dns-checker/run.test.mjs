@@ -1,3 +1,4 @@
+import { toolSpec } from "../../tests/helpers/toolSpec.mjs";
 import { afterEach, beforeEach, describe, expect, test, vi } from "vitest";
 let fetchMock;
 beforeEach(() => {
@@ -17,7 +18,7 @@ const context = (text = "example.com", settings = {}, signal = new AbortControll
 });
 const response = (data, status = 200) => new Response(JSON.stringify(data), { status });
 import { run as dns } from "./run.ts";
-import dnsSpec from "./definition.ts";
+const dnsSpec = await toolSpec("dns-checker");
 import { parseSettings } from "../../lib/tool-framework/settings.ts";
 const dnsContext = (settings = {}, signal) => context("example.com", parseSettings(dnsSpec.settings, settings), signal);
 

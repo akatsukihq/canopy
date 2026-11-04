@@ -1,6 +1,7 @@
+import { toolSpec } from "../../tests/helpers/toolSpec.mjs";
 // @vitest-environment jsdom
 import AgeWorkspace from "./workspace.tsx";
-import ageSpec from "./definition.ts";
+const ageSpec = await toolSpec("domain-age-checker");
 import React, { act, useState } from "react";
 import { Blob as NodeBlob } from "node:buffer";
 import { beforeEach, expect, test, vi } from "vitest";

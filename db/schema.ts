@@ -9,6 +9,7 @@ import {
   foreignKey,
   index,
   integer,
+  json,
   jsonb,
   pgTable,
   primaryKey,
@@ -237,7 +238,8 @@ export const managedToolsTable = pgTable(
     order: integer("sort_order").default(0).notNull(),
     translations: jsonb("translations").$type<ToolTranslations>().default({}).notNull(),
     /** The tool definition; untrusted JSON, validated where it is loaded. */
-    spec: jsonb("spec").$type<unknown>(),
+    // json, not jsonb: jsonb reorders keys and settings.fields order is render order.
+    spec: json("spec").$type<unknown>(),
     enabled: boolean("enabled").default(false).notNull(),
     archived: boolean("archived").default(false).notNull(),
     createdAt: timestamp("created_at").defaultNow().notNull(),
@@ -247,7 +249,7 @@ export const managedToolsTable = pgTable(
     unique("managed_tools_app_slug_unique").on(table.app, table.slug),
     unique("managed_tools_app_sort_order_unique").on(table.app, table.order),
     check("managed_tools_translations_object_check", sql`jsonb_typeof(${table.translations}) = 'object'`),
-    check("managed_tools_spec_object_check", sql`${table.spec} IS NULL OR jsonb_typeof(${table.spec}) = 'object'`),
+    check("managed_tools_spec_object_check", sql`${table.spec} IS NULL OR json_typeof(${table.spec}) = 'object'`),
   ],
 );
 

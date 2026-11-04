@@ -1,3 +1,4 @@
+import { toolSpec } from "./helpers/toolSpec.mjs";
 import assert from "node:assert/strict";
 import { test } from "vitest";
 import { parseSettings } from "../lib/tool-framework/settings.ts";
@@ -81,7 +82,7 @@ test("translated diff metadata preserves source, canonical line kinds and exact 
 });
 
 test("QR alternative text translates without interpreting or changing encoded input or artifact bytes", async () => {
-  const { default: definition } = await import("../tools/qr-code-generator/definition.ts");
+  const definition = await toolSpec("qr-code-generator");
   const { run } = await import("../tools/qr-code-generator/run.ts");
   const content = "https://example.com/?value={name}";
   const result = await run(context(definition, content));

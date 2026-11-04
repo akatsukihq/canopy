@@ -10,7 +10,7 @@ removed (after an LFS archive). A tool folder keeps only code and its icon:
 `run.ts` / `run.worker.ts`, `workspace.tsx`, tests, and `icon.svg`.
 
 - **Definition** (identity, input, settings, trigger, capabilities, labels,
-  content, messages) → new `managed_tools.spec` JSONB, edited in Admin.
+  content, messages) → new `managed_tools.spec` JSON column, edited in Admin.
 - **Translations** → `managed_tools.translations` (unchanged). English is still
   derived from the spec with the existing `extractToolMessages`.
 - **Release to production** → a generated SQL script per tool, run directly in prod.
@@ -34,7 +34,7 @@ removed (after an LFS archive). A tool folder keeps only code and its icon:
 
 Migration `0009-tool-spec`:
 
-- `managed_tools.spec jsonb` — the full `ToolSpec` that `definition.ts` exports
+- `managed_tools.spec json` (not jsonb: jsonb reorders keys, and `settings.fields` order is render order) — the full `ToolSpec` that `definition.ts` exports
   today (`toolId`, `app`, `category`, `input`, `settings`, `trigger`,
   `capabilities`, `sharing`, `workbenchMark`, `labels`, `content`, `messages`, …).
 - `loadSpec(definitionKey)` reads `spec` from the row instead of importing a file.

@@ -1,10 +1,11 @@
+import { toolSpec } from "./helpers/toolSpec.mjs";
 // @vitest-environment jsdom
 import React, { act } from "react";
 import { afterEach, beforeEach, expect, test, vi } from "vitest";
 import { button, click, field, fill, mountTool, setupReactTools } from "./helpers/react-tools.mjs";
 import ToolPage from "../components/ToolPage.tsx";
-import slugSpec from "../tools/slug-generator/definition.ts";
-import contrastSpec from "../tools/contrast-checker/definition.ts";
+const slugSpec = await toolSpec("slug-generator");
+const contrastSpec = await toolSpec("contrast-checker");
 import { run as runSlug } from "../tools/slug-generator/run.ts";
 import { run as runContrast } from "../tools/contrast-checker/run.ts";
 import { decodeToolShare, encodeToolShare } from "../lib/tool-framework/toolShare.ts";

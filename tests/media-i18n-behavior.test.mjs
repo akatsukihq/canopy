@@ -1,3 +1,4 @@
+import { allToolSpecs, toolSpec } from "./helpers/toolSpec.mjs";
 import { File } from "node:buffer";
 import { expect, test } from "vitest";
 import { PDFDocument } from "pdf-lib";
@@ -7,14 +8,14 @@ import { extractToolMessages, formatToolMessage, validateToolTranslation } from 
 import { validateMediaSignature, validatePdfSelection } from "../lib/tool-framework/media/validation.ts";
 import { checkedPages } from "../lib/tool-framework/media/pdfDocument.ts";
 import { splitPageGroups } from "../tools/split-pdf/groups.ts";
-import splitSpec from "../tools/split-pdf/definition.ts";
-import reorderSpec from "../tools/reorder-pdf-pages/definition.ts";
-import watermarkSpec from "../tools/watermark-pdf/definition.ts";
-import compressSpec from "../tools/compress-pdf/definition.ts";
-import imagePdfSpec from "../tools/image-to-pdf/definition.ts";
-import cropSpec from "../tools/crop-image/definition.ts";
-import cropPdfSpec from "../tools/crop-pdf/definition.ts";
-import deleteSpec from "../tools/delete-pdf-pages/definition.ts";
+const splitSpec = await toolSpec("split-pdf");
+const reorderSpec = await toolSpec("reorder-pdf-pages");
+const watermarkSpec = await toolSpec("watermark-pdf");
+const compressSpec = await toolSpec("compress-pdf");
+const imagePdfSpec = await toolSpec("image-to-pdf");
+const cropSpec = await toolSpec("crop-image");
+const cropPdfSpec = await toolSpec("crop-pdf");
+const deleteSpec = await toolSpec("delete-pdf-pages");
 import reorderPdf from "../tools/reorder-pdf-pages/run.worker.ts";
 import watermarkPdf from "../tools/watermark-pdf/run.worker.ts";
 import compressPdf from "../tools/compress-pdf/run.worker.ts";
@@ -64,9 +65,7 @@ async function pdfFile() {
   return { id: "source", name: source.name, mime: source.type, size: source.size, source };
 }
 
-const mediaDefinitions = Object.values(
-  import.meta.glob("../tools/*/definition.ts", { eager: true, import: "default" }),
-).filter((spec) => spec.app === "media");
+const mediaDefinitions = (await allToolSpecs()).filter((spec) => spec.app === "media");
 const mediaWorkers = import.meta.glob("../tools/*/run.worker.ts");
 
 test("every Media tool has a publishable native ICU contract and a declared empty-input failure", async () => {

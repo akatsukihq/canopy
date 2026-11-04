@@ -1,7 +1,8 @@
+import { toolSpec } from "../../tests/helpers/toolSpec.mjs";
 import assert from "node:assert/strict";
 import { test } from "vitest";
 import { parseSettings } from "../../lib/tool-framework/settings.ts";
-import testerDefinition from "./definition.ts";
+const testerDefinition = await toolSpec("regex-tester");
 import { run as testRegex } from "./run.ts";
 import { readFile } from "node:fs/promises";
 

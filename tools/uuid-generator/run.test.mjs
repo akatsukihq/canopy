@@ -1,6 +1,7 @@
+import { toolSpec } from "../../tests/helpers/toolSpec.mjs";
 import assert from "node:assert/strict";
 import { parseSettings } from "../../lib/tool-framework/settings.ts";
-import definition from "./definition.ts";
+const definition = await toolSpec("uuid-generator");
 import { run } from "./run.ts";
 
 const { test } = await import(process.env.VITEST ? "vitest" : "node:test");

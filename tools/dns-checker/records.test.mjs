@@ -1,5 +1,6 @@
+import { toolSpec } from "../../tests/helpers/toolSpec.mjs";
 import { afterEach, beforeEach, expect, test, vi } from "vitest";
-import definition from "./definition.ts";
+const definition = await toolSpec("dns-checker");
 import { run } from "./run.ts";
 import { CSV_PREVIEW_ROWS } from "../../lib/tool-framework/limits.ts";
 

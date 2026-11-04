@@ -1,3 +1,4 @@
+import { toolSpec } from "./helpers/toolSpec.mjs";
 import { afterEach, expect, test, vi } from "vitest";
 import { auditEventsTable, db, managedToolsTable } from "../db/index.ts";
 import {
@@ -344,7 +345,7 @@ test("Paperwork admin translation source includes per-host interface and shared 
 });
 
 test("English publication round-trips configured examples without changing their inputs or settings", async () => {
-  const { default: gradient } = await import("../tools/gradient-generator/definition.ts");
+  const gradient = await toolSpec("gradient-generator");
   const { resolveContent } = await import("../lib/tool-framework/content.ts");
   const { toolContentTable } = await import("../db/index.ts");
   specFixture.value = { ...gradient, toolId: TOOL_ID };
@@ -375,7 +376,7 @@ test.each([
   },
   { contentDoc: null, seoTitle: "Unpublished SEO title", keywords: ["unpublished-keyword"] },
 ])("English publication leaves an authored content draft unpublished and unchanged: %j", async (draft) => {
-  const { default: gradient } = await import("../tools/gradient-generator/definition.ts");
+  const gradient = await toolSpec("gradient-generator");
   const { resolveContent } = await import("../lib/tool-framework/content.ts");
   const { applyToolMessages } = await import("../lib/tool-framework/translations.ts");
   const { toolContentTable } = await import("../db/index.ts");

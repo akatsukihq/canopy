@@ -1,3 +1,4 @@
+import { toolSpec } from "../../tests/helpers/toolSpec.mjs";
 // @vitest-environment jsdom
 import React, { act } from "react";
 import { Blob as NodeBlob } from "node:buffer";
@@ -13,7 +14,7 @@ import {
   TextEditorBoundary,
 } from "../../tests/helpers/react-tools.mjs";
 import ToolPage from "../../components/ToolPage.tsx";
-import spec from "./definition.ts";
+const spec = await toolSpec("dns-checker");
 import { choose, openSettings } from "../../tests/helpers/tool-workspace.mjs";
 
 vi.mock("@/components/FileProcessorWorkspace", () => ({ FileProcessorWorkspace: () => null }));

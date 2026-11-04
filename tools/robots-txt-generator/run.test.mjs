@@ -1,7 +1,8 @@
+import { toolSpec } from "../../tests/helpers/toolSpec.mjs";
 import assert from "node:assert/strict";
 import { test } from "vitest";
 import { parseSettings } from "../../lib/tool-framework/settings.ts";
-import robotsDefinition from "./definition.ts";
+const robotsDefinition = await toolSpec("robots-txt-generator");
 import { run as robots } from "./run.ts";
 import { readFile } from "node:fs/promises";
 

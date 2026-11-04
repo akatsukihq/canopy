@@ -1,10 +1,11 @@
+import { toolSpec } from "../../tests/helpers/toolSpec.mjs";
 // @vitest-environment jsdom
 import { expect, test, vi } from "vitest";
 import { setupReactTools, fill, click, button, field, waitFor } from "../../tests/helpers/react-tools.mjs";
 import { mountWorkspace, selectView } from "../../tests/helpers/json-workspaces.mjs";
 import { choose, openSettings } from "../../tests/helpers/tool-workspace.mjs";
 import FormatterWorkspace from "./workspace.tsx";
-import formatterDefinition from "./definition.ts";
+const formatterDefinition = await toolSpec("json-formatter");
 import { run as formatJson } from "./run.worker.ts";
 
 vi.mock("@/components/content/CodeEditor", async () => ({
