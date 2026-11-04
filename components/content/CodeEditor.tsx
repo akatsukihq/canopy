@@ -10,6 +10,8 @@ import { cn } from "@/components/ui/lib/utils.ts";
 
 export interface CodeEditorHandle {
   focus(): void;
+  /** Replace the selection (or insert at the cursor) as a normal user edit, then focus. */
+  insertText(text: string): void;
   readonly scrollDOM: HTMLElement;
   scrollToLine(line: number, column?: number): void;
 }
@@ -52,6 +54,8 @@ export interface CodeEditorProps extends Pick<
   placeholder?: string;
   showLineNumbers?: boolean;
   colorPreviews?: boolean;
+  /** Render simple ICU arguments like `{name}` as atomic chips; the text itself is unchanged. */
+  placeholderChips?: boolean;
   wrap?: "soft" | "hard" | "off";
   onCaretChange?: (position: { line: number; column: number }) => void;
   onScroll?: (scroller: HTMLElement) => void;

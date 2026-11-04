@@ -1,9 +1,15 @@
 "use client";
 
-import { CodeEditor } from "@/components/content/CodeEditor.tsx";
+import { CodeEditor, type CodeEditorHandle } from "@/components/content/CodeEditor.tsx";
 import {
   Button,
+  ButtonGroup,
   Caption,
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
   Field,
   Input,
   Select,
@@ -15,7 +21,7 @@ import {
   toast,
 } from "@/components/ui/index.tsx";
 import { appHref } from "@/lib/routing/subdomains.ts";
-import { Copy, Eye, Save, Trash2, Upload } from "lucide-react";
+import { Braces, Code2, Copy, Eye, ListChecks, Save, Trash2, Upload } from "lucide-react";
 import { useActionState, useEffect, useMemo, useRef, useState } from "react";
 import { categoriesForApp, TOOL_CATEGORIES, type ToolApp } from "../../../../../../lib/tool-framework/categories";
 import { parseToolSpec } from "../../../../../../lib/tool-framework/specSchema";
@@ -46,6 +52,68 @@ function parseJson(text: string): { ok: true; value: unknown } | { ok: false; is
 function withKey(source: Obj, key: string, value: unknown): Obj {
   if (value === undefined) return Object.fromEntries(Object.entries(source).filter(([name]) => name !== key));
   return { ...source, [key]: value };
+}
+
+const PLACEHOLDER = /\{([A-Za-z_][\w.]*)\}/g;
+const PLACEHOLDER_NAME = /^[A-Za-z_][\w.]*$/;
+
+/** Simple ICU arguments already used anywhere in the spec, sorted. */
+function placeholderNames(text: string): string[] {
+  return [...new Set(Array.from(text.matchAll(PLACEHOLDER), (match) => match[1]))].sort();
+}
+
+function PlaceholderMenu({ names, onInsert }: { names: readonly string[]; onInsert: (name: string) => void }) {
+  const [custom, setCustom] = useState("");
+  const valid = PLACEHOLDER_NAME.test(custom);
+  return (
+    <DropdownMenu>
+      <DropdownMenuTrigger asChild>
+        <Button size="sm" type="button" variant="outline">
+          <Braces aria-hidden="true" /> Insert placeholder
+        </Button>
+      </DropdownMenuTrigger>
+      <DropdownMenuContent align="start" className="w-64" onCloseAutoFocus={(event) => event.preventDefault()}>
+        {names.length ? (
+          names.map((name) => (
+            <DropdownMenuItem key={name} onSelect={() => onInsert(name)}>
+              <span className="rounded bg-accent px-1.5 font-mono text-xs text-primary">{name}</span>
+            </DropdownMenuItem>
+          ))
+        ) : (
+          <Caption className="px-2 py-1.5 text-muted-foreground">No placeholders in this spec yet.</Caption>
+        )}
+        <DropdownMenuSeparator />
+        <div className="flex gap-2 p-1" onKeyDown={(event) => event.stopPropagation()}>
+          <Input
+            aria-invalid={custom !== "" && !valid}
+            aria-label="New placeholder name"
+            className="h-8"
+            onChange={(event) => setCustom(event.target.value.trim())}
+            onKeyDown={(event) => {
+              if (event.key === "Enter" && valid) {
+                event.preventDefault();
+                onInsert(custom);
+                setCustom("");
+              }
+            }}
+            placeholder="newName"
+            value={custom}
+          />
+          <Button
+            disabled={!valid}
+            onClick={() => {
+              onInsert(custom);
+              setCustom("");
+            }}
+            size="sm"
+            type="button"
+          >
+            Add
+          </Button>
+        </div>
+      </DropdownMenuContent>
+    </DropdownMenu>
+  );
 }
 
 function IssueList({ id, issues }: { id: string; issues: readonly string[] }) {
@@ -274,6 +342,7 @@ export function ToolDefinitionEditor({
   const [discardState, discard, discarding] = useActionState(discardToolSpecDraftAction, IDLE);
   const textRef = useRef(text);
   const file = useRef<HTMLInputElement>(null);
+  const editor = useRef<CodeEditorHandle>(null);
   textRef.current = text;
 
   const parsed = useMemo(() => parseJson(text), [text]);
@@ -284,6 +353,7 @@ export function ToolDefinitionEditor({
   }, [parsed]);
   const issues = liveIssues.length ? liveIssues : serverIssues;
   const dirty = text !== baseline;
+  const placeholders = useMemo(() => placeholderNames(text), [text]);
 
   useEffect(() => {
     if (saveState.status === "idle") return;
@@ -375,11 +445,28 @@ export function ToolDefinitionEditor({
       <div className="flex shrink-0 flex-wrap items-center gap-2">
         {status}
         <Tabs onValueChange={(value) => setView(value as View)} value={view}>
-          <TabsList aria-label="Definition view" variant="segmented">
-            <TabsTrigger value="json">JSON</TabsTrigger>
-            <TabsTrigger value="form">Form</TabsTrigger>
+          <TabsList asChild className="gap-0 border-0 p-0">
+            <ButtonGroup aria-label="Definition view">
+              {(["json", "form"] as const).map((option) => (
+                <Button
+                  asChild
+                  className="data-[state=active]:bg-accent data-[state=active]:text-primary"
+                  key={option}
+                  size="sm"
+                  variant="outline"
+                >
+                  <TabsTrigger className="flex-none after:hidden" value={option}>
+                    {option === "json" ? <Code2 aria-hidden="true" /> : <ListChecks aria-hidden="true" />}
+                    {option === "json" ? "JSON" : "Form"}
+                  </TabsTrigger>
+                </Button>
+              ))}
+            </ButtonGroup>
           </TabsList>
         </Tabs>
+        {view === "json" ? (
+          <PlaceholderMenu names={placeholders} onInsert={(name) => editor.current?.insertText(`{${name}}`)} />
+        ) : null}
         <div className="ml-auto flex flex-wrap items-center gap-2">
           <Button onClick={copy} size="sm" type="button" variant="outline">
             <Copy aria-hidden="true" /> Copy JSON
@@ -437,7 +524,9 @@ export function ToolDefinitionEditor({
                   aria-invalid={issues.length > 0}
                   aria-label="Tool definition JSON"
                   className="h-full"
+                  editorRef={editor}
                   language="json"
+                  placeholderChips
                   onChange={setText}
                   value={text}
                   wrap="soft"
