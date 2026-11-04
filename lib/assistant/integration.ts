@@ -50,7 +50,7 @@ export interface AssistantIntegration {
     attachments: StoredAttachment[];
     proposals: AssistantProposal[];
     signal: AbortSignal;
-  }): AIRequest;
+  }): AIRequest | Promise<AIRequest>;
   partialText?(output: unknown, request: AssistantRunRequest): string | undefined;
   validateResult(
     result: AIResult,

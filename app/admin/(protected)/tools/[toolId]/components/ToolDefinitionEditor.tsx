@@ -25,6 +25,7 @@ import { EXPAND_BUTTON, ExpandLabel, PlaceholderMenu } from "./PlaceholderMenu.t
 import { appHref } from "@/lib/routing/subdomains.ts";
 import { Code2, Copy, Eye, ListChecks, Save, Trash2, Upload, UploadCloud } from "lucide-react";
 import { HeaderActions } from "./HeaderActions";
+import { useAssistantTarget } from "./ToolAssistantContext.tsx";
 import { startTransition, useActionState, useEffect, useMemo, useRef, useState } from "react";
 import { categoriesForApp, TOOL_CATEGORIES, type ToolApp } from "../../../../../../lib/tool-framework/categories";
 import { parseToolSpec } from "../../../../../../lib/tool-framework/specSchema";
@@ -290,6 +291,8 @@ export function ToolDefinitionEditor({
   const file = useRef<HTMLInputElement>(null);
   const editor = useRef<CodeEditorHandle>(null);
   textRef.current = text;
+
+  useAssistantTarget({ section: "definition", values: { spec: text }, apply: (_key, value) => setText(String(value)) });
 
   const parsed = useMemo(() => parseJson(text), [text]);
   const liveIssues = useMemo<readonly string[]>(() => {

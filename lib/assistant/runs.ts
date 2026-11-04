@@ -539,7 +539,7 @@ export function createAssistantRuns(integration: AssistantIntegration, storage: 
             )
             .catch(() => undefined);
           const proposals: AssistantProposal[] = [];
-          const providerRequest = integration.buildRequest({ run, ...context, proposals, signal: abort.signal });
+          const providerRequest = await integration.buildRequest({ run, ...context, proposals, signal: abort.signal });
           providerRequest.metadata = { ...providerRequest.metadata, feature: integration.key, runId: run.id };
           const { "ai.openaiModel": chatModel } = await loadRuntimeSettings();
           for await (const event of new AIClient(run.provider, { model: String(chatModel.value) }).stream(

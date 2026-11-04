@@ -926,6 +926,47 @@ function toolContentCategory(value: unknown): CategoryKey | null {
   return category;
 }
 
+function assertRelatedToolIds(ids: readonly string[], toolId: string, knownToolIds: ReadonlySet<string>): void {
+  for (const relatedToolId of ids) {
+    if (relatedToolId === toolId) {
+      throw new Error("A tool cannot be related to itself.");
+    }
+    if (!knownToolIds.has(relatedToolId)) {
+      throw new Error(`Related tools must be tool ids, not slugs: ${relatedToolId} is not registered.`);
+    }
+  }
+}
+
+/**
+ * Why `value` could not be saved as this one content field, using the same
+ * rules as {@link updateToolContent}; undefined when it can.
+ */
+export function toolContentFieldError(
+  toolId: string,
+  field: (typeof CONTENT_FIELDS)[number] | (typeof CONTENT_DOC_KEYS)[number],
+  value: unknown,
+  knownToolIds: ReadonlySet<string>,
+): string | undefined {
+  try {
+    if (field === "contentDoc") return "Suggest the document fields one at a time.";
+    if (field === "category") {
+      if (toolContentCategory(value) === null) throw new Error("Choose a category.");
+    } else if (field === "seoTitle" || field === "seoDescription") {
+      const label = field === "seoTitle" ? "SEO title" : "SEO description";
+      if (optionalText(value, label, field === "seoTitle" ? 160 : 320) === null) throw new Error(`${label} is empty.`);
+    } else if (field === "keywords") {
+      if (optionalTextList(value, "Tool keywords", 24, 60) === null) throw new Error("Suggest at least one keyword.");
+    } else {
+      const parsed = contentDocEditSchema.shape[field].safeParse(value);
+      if (!parsed.success) throw new Error(parsed.error.issues[0]?.message ?? "Invalid value.");
+      if (field === "relatedToolIds") assertRelatedToolIds((parsed.data ?? []) as string[], toolId, knownToolIds);
+    }
+    return undefined;
+  } catch (error) {
+    return error instanceof Error ? error.message : "Invalid value.";
+  }
+}
+
 function toolContentDoc(
   value: unknown,
   toolId: string,
@@ -947,14 +988,7 @@ function toolContentDoc(
     throw new Error(`Tool content document is invalid: ${parsed.error.issues[0]?.message ?? "unknown shape"}.`);
   }
 
-  for (const relatedToolId of parsed.data.relatedToolIds ?? []) {
-    if (relatedToolId === toolId) {
-      throw new Error("A tool cannot be related to itself.");
-    }
-    if (!knownToolIds.has(relatedToolId)) {
-      throw new Error(`Related tools must be tool ids, not slugs: ${relatedToolId} is not registered.`);
-    }
-  }
+  assertRelatedToolIds(parsed.data.relatedToolIds ?? [], toolId, knownToolIds);
 
   // Stamped with the version the resolver understands; an unversioned or stale
   // document falls back to the code content instead of going live.

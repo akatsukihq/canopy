@@ -38,6 +38,7 @@ import {
 import { TOOL_CATEGORIES, type CategoryKey } from "../../../../../../lib/tool-framework/categories";
 import { publishToolContentAction, saveToolContentAction, type ToolContentActionState } from "../../actions";
 import { HeaderActions } from "./HeaderActions";
+import { useAssistantTarget } from "./ToolAssistantContext.tsx";
 
 const IDLE: ToolContentActionState = { status: "idle", message: "" };
 
@@ -333,6 +334,16 @@ function CatalogForm({
   const [keywords, setKeywords] = useState<string[]>([...(stored.keywords ?? [])]);
   const [seoTitle, setSeoTitle] = useState(stored.seoTitle ?? "");
   const [seoDescription, setSeoDescription] = useState(stored.seoDescription ?? "");
+  useAssistantTarget({
+    section: "overview",
+    values: { category, keywords, seoTitle, seoDescription },
+    apply: (key, value) => {
+      if (key === "category") setCategory(String(value));
+      else if (key === "keywords" && Array.isArray(value)) setKeywords(value.map(String));
+      else if (key === "seoTitle") setSeoTitle(String(value));
+      else if (key === "seoDescription") setSeoDescription(String(value));
+    },
+  });
   const storedDoc = contentRecord(stored.contentDoc ?? inherited.contentDoc);
   const inheritedCategory =
     CATEGORY_OPTIONS.find((option) => option.key === inherited.category)?.label ?? inherited.category;
@@ -841,6 +852,31 @@ function ContentDocumentForm({ inherited, relatedTools, stored, toolId }: Omit<T
     })),
     relatedToolIds: related.map((item) => item.value),
   };
+
+  useAssistantTarget({
+    section: "content",
+    values: current,
+    apply: (key, value) => {
+      const list = Array.isArray(value) ? value : [];
+      if (key === "howToUse") setHowToUse(list.map((entry) => ({ id: itemId("how"), value: String(entry) })));
+      else if (key === "limitations")
+        setLimitations(list.map((entry) => ({ id: itemId("limitation"), value: String(entry) })));
+      else if (key === "faq") setFaq(list.map((entry) => ({ id: itemId("faq"), q: entry.q, a: entry.a })));
+      else if (key === "examples")
+        setExamples(
+          list.map((entry) => ({
+            id: itemId("example"),
+            label: entry.label,
+            text: entry.text,
+            secondary: entry.secondary ?? "",
+          })),
+        );
+      else if (key === "relatedToolIds")
+        setRelated(list.map((entry) => ({ id: itemId("related"), value: String(entry) })));
+      else return;
+      setOverrideDoc(true);
+    },
+  });
 
   const sectionCounts = useMemo(
     () => ({

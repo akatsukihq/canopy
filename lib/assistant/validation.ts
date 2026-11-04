@@ -19,6 +19,12 @@ export const assistantId = z
   .min(1)
   .max(100)
   .regex(/^[a-zA-Z0-9_-]+$/);
+/** Resource ids may be dotted domain keys such as tool ids (`devtools.json-formatter`). */
+export const assistantResourceId = z
+  .string()
+  .min(1)
+  .max(100)
+  .regex(/^[a-zA-Z0-9_.-]+$/);
 export const settingsSchema = z.record(z.string(), z.unknown());
 export const threadPatchSchema = z
   .object({
@@ -43,7 +49,7 @@ const runRequestSchema = z
     operation: assistantId,
     agentId: assistantId.optional(),
     message: z.string().trim().max(8000),
-    resourceId: assistantId.optional(),
+    resourceId: assistantResourceId.optional(),
     threadId: assistantId.optional(),
     inputMessageId: assistantId.optional(),
     context: z.record(z.string(), z.unknown()).optional(),

@@ -1,12 +1,12 @@
 import { createAssistantService } from "@/lib/assistant/service.ts";
 import { AssistantError } from "@/lib/assistant/validation.ts";
-import { toolTranslationAssistantIntegration } from "@/lib/tool-framework/translationAssistant.ts";
+import { toolAssistantIntegration } from "@/lib/tool-framework/toolAssistant.ts";
 import { blogAssistantIntegration } from "@/lib/blog/assistantIntegration.ts";
 
 // Feature registration belongs at the application boundary, never in Assistant core.
 const services = new Map([
   ["blog", createAssistantService(blogAssistantIntegration)],
-  ["tool-translations", createAssistantService(toolTranslationAssistantIntegration)],
+  ["tool-admin", createAssistantService(toolAssistantIntegration)],
 ]);
 
 export function getAssistantService(integrationKey: string) {

@@ -2,7 +2,7 @@
 
 import { Fragment, useActionState, useEffect, useRef, useState, type KeyboardEvent, type ReactNode } from "react";
 import { ChevronDown, ChevronRight, FileText, Folder, FolderOpen } from "lucide";
-import { Braces, Filter, Search, Sparkles, X } from "lucide-react";
+import { Braces, Filter, Search, X } from "lucide-react";
 import { MorphIcon } from "morphicons/react";
 import { CodeEditor, type CodeEditorHandle } from "@/components/content/CodeEditor.tsx";
 import {
@@ -43,7 +43,7 @@ import {
   type ToolTranslations,
 } from "@/lib/tool-framework/translations.ts";
 import { PlaceholderMenu } from "./PlaceholderMenu.tsx";
-import { ToolTranslationAssistantPanel } from "./ToolTranslationAssistantPanel.tsx";
+import { useAssistantTarget } from "./ToolAssistantContext.tsx";
 import { saveToolTranslationAction, type ToolTranslationActionState } from "../../actions";
 
 const PLACEHOLDER = /\{([A-Za-z_][\w.]*)\}/g;
@@ -1120,17 +1120,13 @@ export function ToolTranslationsForm({
   translations,
   updatedAt,
   enabled,
-  assistantOwnerId,
 }: {
   toolId: string;
   englishMessages: ToolMessages;
   translations: ToolTranslations;
   updatedAt: string;
   enabled: boolean;
-  /** Signed-in admin; the AI helper is hidden without it. */
-  assistantOwnerId?: string;
 }) {
-  const [assistantOpen, setAssistantOpen] = useState(false);
   const [activeKey, setActiveKey] = useState<string | null>(null);
   const [locale, setLocale] = useState<Locale>("en");
   const [drafts, setDrafts] = useState<ToolTranslations>({
@@ -1156,6 +1152,13 @@ export function ToolTranslationsForm({
         messages: { ...previous[locale]?.messages, [key]: value },
       },
     }));
+  useAssistantTarget({
+    section: "translations",
+    values: current.messages,
+    apply: (key, value) => setMessage(key, String(value)),
+    locale,
+    activeKey,
+  });
 
   return (
     <section
@@ -1187,25 +1190,6 @@ export function ToolTranslationsForm({
                   ))}
                 </Select>
               </Field>
-              {assistantOwnerId ? (
-                <TooltipProvider>
-                  <Tooltip>
-                    <TooltipTrigger asChild>
-                      <Button
-                        aria-expanded={assistantOpen}
-                        aria-label="AI translation helper"
-                        onClick={() => setAssistantOpen((open) => !open)}
-                        size="icon"
-                        type="button"
-                        variant={assistantOpen ? "secondary" : "outline"}
-                      >
-                        <Sparkles />
-                      </Button>
-                    </TooltipTrigger>
-                    <TooltipContent>AI translation helper</TooltipContent>
-                  </Tooltip>
-                </TooltipProvider>
-              ) : null}
             </div>
           }
           dirty={dirty}
@@ -1246,23 +1230,6 @@ export function ToolTranslationsForm({
           updatedAt={version}
         />
       </div>
-      {assistantOwnerId && assistantOpen ? (
-        <aside
-          aria-label="AI translation helper"
-          className="flex min-h-0 w-[340px] shrink-0 flex-col overflow-hidden rounded-md border border-border"
-        >
-          <ToolTranslationAssistantPanel
-            activeKey={activeKey}
-            english={source}
-            locale={locale}
-            messages={current.messages}
-            onApply={setMessage}
-            onClose={() => setAssistantOpen(false)}
-            ownerId={assistantOwnerId}
-            toolId={toolId}
-          />
-        </aside>
-      ) : null}
     </section>
   );
 }
