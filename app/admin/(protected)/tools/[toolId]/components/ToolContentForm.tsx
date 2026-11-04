@@ -8,11 +8,14 @@ import {
   Label,
   Muted,
   P,
+  ActionMenuButton,
   AlertBanner,
   Button,
+  DropdownMenuItem,
   Input,
   OrderableList,
   Select,
+  StatusBadge,
   Textarea,
   Tooltip,
   TooltipContent,
@@ -21,10 +24,20 @@ import {
   toast,
   type OrderableItemState,
 } from "@/components/ui/index.tsx";
-import { GripVertical, Plus, RotateCcw, Search, Trash2, X } from "lucide-react";
-import { useActionState, useId, useMemo, useState, type ReactElement } from "react";
+import { GripVertical, Plus, RotateCcw, Save, Search, Trash2, UploadCloud, X } from "lucide-react";
+import {
+  startTransition,
+  useActionState,
+  useId,
+  useMemo,
+  useRef,
+  useState,
+  type ReactElement,
+  type ReactNode,
+} from "react";
 import { TOOL_CATEGORIES, type CategoryKey } from "../../../../../../lib/tool-framework/categories";
-import { saveToolContentAction, type ToolContentActionState } from "../../actions";
+import { publishToolContentAction, saveToolContentAction, type ToolContentActionState } from "../../actions";
+import { HeaderActions } from "./HeaderActions";
 
 const IDLE: ToolContentActionState = { status: "idle", message: "" };
 
@@ -58,6 +71,9 @@ export interface ToolContentFormProps {
   readonly inherited: InheritedContentView;
   readonly relatedTools: readonly { readonly id: string; readonly name: string }[];
   readonly section: "catalog" | "content";
+  /** Catalog only: whether saved content can be published, and the panel shown beside the fields. */
+  readonly hasDraftContent?: boolean;
+  readonly leading?: ReactNode;
   readonly stored: StoredContentView;
   readonly toolId: string;
 }
@@ -285,7 +301,13 @@ function KeywordTagInput({
   );
 }
 
-function CatalogForm({ inherited, stored, toolId }: Omit<ToolContentFormProps, "relatedTools" | "section">) {
+function CatalogForm({
+  hasDraftContent = false,
+  inherited,
+  leading,
+  stored,
+  toolId,
+}: Omit<ToolContentFormProps, "relatedTools" | "section">) {
   const formId = useId();
   const [, action, pending] = useActionState(async (previous: ToolContentActionState, data: FormData) => {
     const next = await saveToolContentAction(previous, data);
@@ -293,6 +315,20 @@ function CatalogForm({ inherited, stored, toolId }: Omit<ToolContentFormProps, "
     if (next.status === "error") toast.error(next.message, { id: `${formId}-feedback` });
     return next;
   }, IDLE);
+  const form = useRef<HTMLFormElement>(null);
+  const [, publish, publishing] = useActionState(async (previous: ToolContentActionState, data: FormData) => {
+    const next = await publishToolContentAction(previous, data);
+    if (next.status === "success") toast.success(next.message);
+    if (next.status === "error") toast.error(next.message);
+    return next;
+  }, IDLE);
+  const busy = pending || publishing;
+  function togglePublished(): void {
+    const data = new FormData();
+    data.set("toolId", toolId);
+    data.set("published", String(!stored.published));
+    startTransition(() => publish(data));
+  }
   const [category, setCategory] = useState(stored.category ?? "");
   const [keywords, setKeywords] = useState<string[]>([...(stored.keywords ?? [])]);
   const [seoTitle, setSeoTitle] = useState(stored.seoTitle ?? "");
@@ -302,92 +338,96 @@ function CatalogForm({ inherited, stored, toolId }: Omit<ToolContentFormProps, "
     CATEGORY_OPTIONS.find((option) => option.key === inherited.category)?.label ?? inherited.category;
 
   return (
-    <form action={action} aria-labelledby={`${formId}-heading`} className="grid gap-4">
-      <input name="toolId" type="hidden" value={toolId} />
-      <HiddenDocument content={storedDoc} override={asRecord(stored.contentDoc) !== null} />
+    <TooltipProvider>
+      <div className="grid items-start gap-x-6 gap-y-4 md:grid-cols-[11rem_minmax(0,1fr)]">
+        {leading ?? <div className="hidden md:block" />}
+        <form action={action} aria-labelledby={`${formId}-heading`} className="contents" ref={form}>
+          <input name="toolId" type="hidden" value={toolId} />
+          <HiddenDocument content={storedDoc} override={asRecord(stored.contentDoc) !== null} />
 
-      <div>
-        <div className="flex flex-wrap items-center justify-between gap-3">
-          <H3 id={`${formId}-heading`}>Catalog &amp; SEO</H3>
-          <Button loading={pending} type="submit">
-            {pending ? "Saving…" : "Save changes"}
-          </Button>
-        </div>
-        <Muted className="mt-1" id={`${formId}-guidance`}>
-          Blank fields use defaults.{" "}
-          {stored.published ? "Saved changes go live immediately." : "Save, then publish to go live."}
-        </Muted>
-      </div>
+          <div className="grid min-w-0 gap-4">
+            <div>
+              <div className="flex flex-wrap items-center justify-between gap-3">
+                <H3 id={`${formId}-heading`}>Catalog &amp; SEO</H3>
+                <StatusBadge variant={stored.published ? "success" : hasDraftContent ? "warning" : "neutral"}>
+                  {stored.published ? "Published" : hasDraftContent ? "Draft" : "Default"}
+                </StatusBadge>
+              </div>
+              <Muted className="mt-1" id={`${formId}-guidance`}>
+                Blank fields use defaults.{" "}
+                {stored.published ? "Saved changes go live immediately." : "Save, then publish to go live."}
+              </Muted>
+            </div>
 
-      <TooltipProvider>
-        <div className="grid gap-x-5 gap-y-3 sm:grid-cols-2">
-          <div className="grid min-w-0 content-start gap-1.5">
-            <FieldHeader
-              defaultValue={inheritedCategory}
-              htmlFor={`${formId}-category`}
-              label="Category"
-              onRevert={() => setCategory("")}
-              overridden={Boolean(category)}
-            />
-            <Select
-              aria-describedby={`${formId}-guidance`}
-              id={`${formId}-category`}
-              name="category"
-              onChange={(event) => setCategory(event.target.value)}
-              value={category}
-            >
-              <option value="">Default: {inheritedCategory || "None"}</option>
-              {CATEGORY_OPTIONS.map((option) => (
-                <option key={option.key} value={option.key}>
-                  {option.label}
-                </option>
-              ))}
-            </Select>
+            <div className="grid gap-x-5 gap-y-3 sm:grid-cols-2">
+              <div className="grid min-w-0 content-start gap-1.5">
+                <FieldHeader
+                  defaultValue={inheritedCategory}
+                  htmlFor={`${formId}-category`}
+                  label="Category"
+                  onRevert={() => setCategory("")}
+                  overridden={Boolean(category)}
+                />
+                <Select
+                  aria-describedby={`${formId}-guidance`}
+                  id={`${formId}-category`}
+                  name="category"
+                  onChange={(event) => setCategory(event.target.value)}
+                  value={category}
+                >
+                  <option value="">Default: {inheritedCategory || "None"}</option>
+                  {CATEGORY_OPTIONS.map((option) => (
+                    <option key={option.key} value={option.key}>
+                      {option.label}
+                    </option>
+                  ))}
+                </Select>
+              </div>
+
+              <div className="grid min-w-0 content-start gap-1.5">
+                <FieldHeader
+                  count={`${keywords.length} / 24`}
+                  defaultValue={inherited.keywords.join(", ")}
+                  htmlFor={`${formId}-keywords`}
+                  label="Keywords"
+                  onRevert={() => setKeywords([])}
+                  overridden={keywords.length > 0}
+                />
+                <input name="keywords" type="hidden" value={keywords.join(", ")} />
+                <KeywordTagInput
+                  describedBy={`${formId}-guidance ${formId}-keywords-help`}
+                  id={`${formId}-keywords`}
+                  onChange={setKeywords}
+                  placeholder={inherited.keywords.join(", ") || "Add keyword, then press Enter"}
+                  values={keywords}
+                />
+                <span className="sr-only" id={`${formId}-keywords-help`}>
+                  Press Enter or comma to add a keyword.
+                </span>
+              </div>
+
+              <div className="grid min-w-0 content-start gap-1.5 sm:col-span-2">
+                <FieldHeader
+                  count={`${seoTitle.length} / 160`}
+                  defaultValue={inherited.seoTitle}
+                  htmlFor={`${formId}-seo-title`}
+                  label="SEO title"
+                  onRevert={() => setSeoTitle("")}
+                  overridden={Boolean(seoTitle.trim())}
+                />
+                <Input
+                  aria-describedby={`${formId}-guidance`}
+                  id={`${formId}-seo-title`}
+                  maxLength={160}
+                  name="seoTitle"
+                  onChange={(event) => setSeoTitle(event.target.value)}
+                  placeholder={inherited.seoTitle || "Page title in search results"}
+                  value={seoTitle}
+                />
+              </div>
+            </div>
           </div>
-
-          <div className="grid min-w-0 content-start gap-1.5">
-            <FieldHeader
-              count={`${keywords.length} / 24`}
-              defaultValue={inherited.keywords.join(", ")}
-              htmlFor={`${formId}-keywords`}
-              label="Keywords"
-              onRevert={() => setKeywords([])}
-              overridden={keywords.length > 0}
-            />
-            <input name="keywords" type="hidden" value={keywords.join(", ")} />
-            <KeywordTagInput
-              describedBy={`${formId}-guidance ${formId}-keywords-help`}
-              id={`${formId}-keywords`}
-              onChange={setKeywords}
-              placeholder={inherited.keywords.join(", ") || "Add keyword, then press Enter"}
-              values={keywords}
-            />
-            <span className="sr-only" id={`${formId}-keywords-help`}>
-              Press Enter or comma to add a keyword.
-            </span>
-          </div>
-
-          <div className="grid min-w-0 content-start gap-1.5 sm:col-span-2">
-            <FieldHeader
-              count={`${seoTitle.length} / 160`}
-              defaultValue={inherited.seoTitle}
-              htmlFor={`${formId}-seo-title`}
-              label="SEO title"
-              onRevert={() => setSeoTitle("")}
-              overridden={Boolean(seoTitle.trim())}
-            />
-            <Input
-              aria-describedby={`${formId}-guidance`}
-              id={`${formId}-seo-title`}
-              maxLength={160}
-              name="seoTitle"
-              onChange={(event) => setSeoTitle(event.target.value)}
-              placeholder={inherited.seoTitle || "Page title in search results"}
-              value={seoTitle}
-            />
-          </div>
-
-          <div className="grid min-w-0 content-start gap-1.5 sm:col-span-2">
+          <div className="grid min-w-0 content-start gap-1.5 md:col-span-2">
             <FieldHeader
               count={`${seoDescription.length} / 320`}
               defaultValue={inherited.seoDescription}
@@ -408,9 +448,24 @@ function CatalogForm({ inherited, stored, toolId }: Omit<ToolContentFormProps, "
               value={seoDescription}
             />
           </div>
-        </div>
-      </TooltipProvider>
-    </form>
+        </form>
+        <HeaderActions>
+          <ActionMenuButton
+            disabled={busy}
+            icon={<Save aria-hidden="true" />}
+            label="Content actions"
+            loading={busy}
+            menuLabel="More content actions"
+            primaryAction={{ label: "Save changes", onClick: () => form.current?.requestSubmit() }}
+            size="sm"
+          >
+            <DropdownMenuItem disabled={!stored.published && !hasDraftContent} onSelect={togglePublished}>
+              <UploadCloud aria-hidden="true" /> {stored.published ? "Return to draft" : "Publish saved content"}
+            </DropdownMenuItem>
+          </ActionMenuButton>
+        </HeaderActions>
+      </div>
+    </TooltipProvider>
   );
 }
 
@@ -746,6 +801,7 @@ function RelatedToolsEditor({
 }
 
 function ContentDocumentForm({ inherited, relatedTools, stored, toolId }: Omit<ToolContentFormProps, "section">) {
+  const formId = useId();
   const [state, action, pending] = useActionState(saveToolContentAction, IDLE);
   const inheritedDoc = contentRecord(inherited.contentDoc);
   const initialDoc = contentRecord(stored.contentDoc ?? inherited.contentDoc);
@@ -814,7 +870,7 @@ function ContentDocumentForm({ inherited, relatedTools, stored, toolId }: Omit<T
   }
 
   return (
-    <form action={action} className="flex min-h-0 flex-1 flex-col gap-2 overflow-hidden sm:gap-4">
+    <form action={action} className="flex min-h-0 flex-1 flex-col gap-2 overflow-hidden sm:gap-4" id={formId}>
       <input name="toolId" type="hidden" value={toolId} />
       <HiddenCatalog stored={stored} />
       <HiddenDocument content={current} override={overrideDoc} />
@@ -916,9 +972,11 @@ function ContentDocumentForm({ inherited, relatedTools, stored, toolId }: Omit<T
         {state.status !== "idle" ? (
           <AlertBanner variant={state.status === "success" ? "success" : "error"}>{state.message}</AlertBanner>
         ) : null}
-        <Button className="self-end" loading={pending} onClick={() => setOverrideDoc(true)} size="sm" type="submit">
-          {pending ? "Saving…" : "Save document"}
-        </Button>
+        <HeaderActions>
+          <Button form={formId} loading={pending} onClick={() => setOverrideDoc(true)} size="sm" type="submit">
+            <Save aria-hidden="true" /> {pending ? "Saving…" : "Save document"}
+          </Button>
+        </HeaderActions>
       </div>
     </form>
   );
@@ -926,7 +984,13 @@ function ContentDocumentForm({ inherited, relatedTools, stored, toolId }: Omit<T
 
 export function ToolContentForm(props: ToolContentFormProps): ReactElement {
   return props.section === "catalog" ? (
-    <CatalogForm inherited={props.inherited} stored={props.stored} toolId={props.toolId} />
+    <CatalogForm
+      hasDraftContent={props.hasDraftContent}
+      inherited={props.inherited}
+      leading={props.leading}
+      stored={props.stored}
+      toolId={props.toolId}
+    />
   ) : (
     <ContentDocumentForm
       inherited={props.inherited}

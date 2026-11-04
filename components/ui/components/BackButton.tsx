@@ -12,7 +12,7 @@ type BackButtonProps = { label: string; className?: string } & (
 export function BackButton(props: BackButtonProps) {
   const { label, className } = props;
   const buttonClassName = cn(
-    "group/back bg-transparent text-foreground hover:bg-transparent hover:text-primary focus-visible:text-primary active:bg-transparent active:text-primary",
+    "group/back self-start bg-transparent text-foreground hover:bg-transparent hover:text-primary focus-visible:text-primary active:bg-transparent active:text-primary",
     className,
   );
   const arrow = (

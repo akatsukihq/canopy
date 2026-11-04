@@ -2,6 +2,7 @@
 
 import { CodeEditor, type CodeEditorHandle } from "@/components/content/CodeEditor.tsx";
 import {
+  ActionMenuButton,
   Button,
   ButtonGroup,
   Caption,
@@ -20,9 +21,11 @@ import {
   Textarea,
   toast,
 } from "@/components/ui/index.tsx";
+import { EXPAND_BUTTON, ExpandLabel, PlaceholderMenu } from "./PlaceholderMenu.tsx";
 import { appHref } from "@/lib/routing/subdomains.ts";
-import { Braces, Code2, Copy, Eye, ListChecks, Save, Trash2, Upload } from "lucide-react";
-import { useActionState, useEffect, useMemo, useRef, useState } from "react";
+import { Code2, Copy, Eye, ListChecks, Save, Trash2, Upload, UploadCloud } from "lucide-react";
+import { HeaderActions } from "./HeaderActions";
+import { startTransition, useActionState, useEffect, useMemo, useRef, useState } from "react";
 import { categoriesForApp, TOOL_CATEGORIES, type ToolApp } from "../../../../../../lib/tool-framework/categories";
 import { parseToolSpec } from "../../../../../../lib/tool-framework/specSchema";
 import {
@@ -55,65 +58,10 @@ function withKey(source: Obj, key: string, value: unknown): Obj {
 }
 
 const PLACEHOLDER = /\{([A-Za-z_][\w.]*)\}/g;
-const PLACEHOLDER_NAME = /^[A-Za-z_][\w.]*$/;
 
 /** Simple ICU arguments already used anywhere in the spec, sorted. */
 function placeholderNames(text: string): string[] {
   return [...new Set(Array.from(text.matchAll(PLACEHOLDER), (match) => match[1]))].sort();
-}
-
-function PlaceholderMenu({ names, onInsert }: { names: readonly string[]; onInsert: (name: string) => void }) {
-  const [custom, setCustom] = useState("");
-  const valid = PLACEHOLDER_NAME.test(custom);
-  return (
-    <DropdownMenu>
-      <DropdownMenuTrigger asChild>
-        <Button size="sm" type="button" variant="outline">
-          <Braces aria-hidden="true" /> Insert placeholder
-        </Button>
-      </DropdownMenuTrigger>
-      <DropdownMenuContent align="start" className="w-64" onCloseAutoFocus={(event) => event.preventDefault()}>
-        {names.length ? (
-          names.map((name) => (
-            <DropdownMenuItem key={name} onSelect={() => onInsert(name)}>
-              <span className="rounded bg-accent px-1.5 font-mono text-xs text-primary">{name}</span>
-            </DropdownMenuItem>
-          ))
-        ) : (
-          <Caption className="px-2 py-1.5 text-muted-foreground">No placeholders in this spec yet.</Caption>
-        )}
-        <DropdownMenuSeparator />
-        <div className="flex gap-2 p-1" onKeyDown={(event) => event.stopPropagation()}>
-          <Input
-            aria-invalid={custom !== "" && !valid}
-            aria-label="New placeholder name"
-            className="h-8"
-            onChange={(event) => setCustom(event.target.value.trim())}
-            onKeyDown={(event) => {
-              if (event.key === "Enter" && valid) {
-                event.preventDefault();
-                onInsert(custom);
-                setCustom("");
-              }
-            }}
-            placeholder="newName"
-            value={custom}
-          />
-          <Button
-            disabled={!valid}
-            onClick={() => {
-              onInsert(custom);
-              setCustom("");
-            }}
-            size="sm"
-            type="button"
-          >
-            Add
-          </Button>
-        </div>
-      </DropdownMenuContent>
-    </DropdownMenu>
-  );
 }
 
 function IssueList({ id, issues }: { id: string; issues: readonly string[] }) {
@@ -418,6 +366,10 @@ export function ToolDefinitionEditor({
   }
 
   const busy = saving || publishing || discarding;
+  const form = useRef<HTMLFormElement>(null);
+  function runDraftAction(action: (payload: FormData) => void) {
+    if (form.current) startTransition(() => action(new FormData(form.current!)));
+  }
   const status = dirty ? (
     <StatusBadge variant="warning">Unsaved changes</StatusBadge>
   ) : hasDraft ? (
@@ -428,7 +380,7 @@ export function ToolDefinitionEditor({
   const formSpec = parsed.ok && isObj(parsed.value) ? parsed.value : null;
 
   return (
-    <form className="flex min-h-0 flex-1 flex-col gap-3" onSubmit={(e) => e.preventDefault()}>
+    <form className="flex min-h-0 flex-1 flex-col gap-3" ref={form} onSubmit={(e) => e.preventDefault()}>
       <input name="toolId" type="hidden" value={toolId} />
       <input name="updatedAt" type="hidden" value={version} />
       <input name="spec" type="hidden" value={text} />
@@ -467,52 +419,63 @@ export function ToolDefinitionEditor({
             </ButtonGroup>
           </TabsList>
         </Tabs>
-        {view === "json" ? (
-          <PlaceholderMenu names={placeholders} onInsert={(name) => editor.current?.insertText(`{${name}}`)} />
-        ) : null}
         <div className="ml-auto flex flex-wrap items-center gap-2">
-          <Button onClick={copy} size="sm" type="button" variant="outline">
-            <Copy aria-hidden="true" /> Copy JSON
-          </Button>
-          <Button onClick={() => file.current?.click()} size="sm" type="button" variant="outline">
-            <Upload aria-hidden="true" /> Import JSON
-          </Button>
-          <Button asChild size="sm" variant="outline">
-            <a href={appHref(`/admin/tools/${encodeURIComponent(toolId)}/preview`)} rel="noreferrer" target="_blank">
-              <Eye aria-hidden="true" /> Preview draft
-            </a>
-          </Button>
-          <Button
-            disabled={!hasDraft || busy}
-            formAction={discard}
-            loading={discarding}
-            size="sm"
-            type="submit"
-            variant="outline"
-          >
-            <Trash2 aria-hidden="true" /> Discard draft
-          </Button>
-          <Button
-            disabled={!hasDraft || dirty || busy}
-            formAction={publish}
-            loading={publishing}
-            size="sm"
-            type="submit"
-            variant="secondary"
-          >
-            Publish draft
-          </Button>
-          <Button
-            disabled={!dirty || liveIssues.length > 0 || busy}
-            formAction={save}
-            loading={saving}
-            size="sm"
-            type="submit"
-          >
-            <Save aria-hidden="true" /> Save draft
-          </Button>
+          <ButtonGroup aria-label="JSON tools">
+            {view === "json" ? (
+              <PlaceholderMenu names={placeholders} onInsert={(name) => editor.current?.insertText(`{${name}}`)} />
+            ) : null}
+            <Button className={EXPAND_BUTTON} onClick={copy} size="sm" type="button" variant="outline">
+              <Copy aria-hidden="true" />
+              <ExpandLabel>Copy JSON</ExpandLabel>
+            </Button>
+            <Button
+              className={EXPAND_BUTTON}
+              onClick={() => file.current?.click()}
+              size="sm"
+              type="button"
+              variant="outline"
+            >
+              <Upload aria-hidden="true" />
+              <ExpandLabel>Import JSON</ExpandLabel>
+            </Button>
+            <Button asChild className={EXPAND_BUTTON} size="sm" variant="outline">
+              <a href={appHref(`/admin/tools/${encodeURIComponent(toolId)}/preview`)} rel="noreferrer" target="_blank">
+                <Eye aria-hidden="true" />
+                <ExpandLabel>Preview draft</ExpandLabel>
+              </a>
+            </Button>
+          </ButtonGroup>
         </div>
       </div>
+
+      <HeaderActions>
+        <ActionMenuButton
+          disabled={busy}
+          icon={<Save aria-hidden="true" />}
+          label="Draft actions"
+          loading={saving}
+          menuLabel="More draft actions"
+          primaryAction={{
+            label: "Save draft",
+            onClick: () => runDraftAction(save),
+            disabled: !dirty || liveIssues.length > 0 || busy,
+          }}
+          size="sm"
+        >
+          {/* The menu renders in a portal outside the form, so submit the form's data directly. */}
+          <DropdownMenuItem disabled={!hasDraft || dirty || busy} onSelect={() => runDraftAction(publish)}>
+            <UploadCloud aria-hidden="true" /> Publish draft
+          </DropdownMenuItem>
+          <DropdownMenuSeparator />
+          <DropdownMenuItem
+            className="text-destructive focus:text-destructive"
+            disabled={!hasDraft || busy}
+            onSelect={() => runDraftAction(discard)}
+          >
+            <Trash2 aria-hidden="true" /> Discard draft
+          </DropdownMenuItem>
+        </ActionMenuButton>
+      </HeaderActions>
 
       <IssueList id="definition-issues" issues={issues} />
 

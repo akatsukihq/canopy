@@ -13,6 +13,10 @@ import {
   Overline,
   StatusBadge,
   Toaster,
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
 } from "@/components/ui/index.tsx";
 import { ExternalLink, FileText, Braces, Languages, LayoutDashboard, type LucideIcon } from "lucide-react";
 import Link from "next/link";
@@ -21,7 +25,7 @@ import { requirePagePermission } from "../../../../../lib/admin/access";
 import { iconUploadsConfigured, toolTranslationSource } from "../../../../../lib/admin/adminMutations";
 import { getAdminTools } from "../../../../../lib/tool-framework/manifest";
 import { ToolContentForm } from "./components/ToolContentForm";
-import { ActivationPanel, ToolIdentifier } from "./components/ToolConfigurationPanels";
+import { ToolIdentifier, ToolVisibilitySwitch } from "./components/ToolConfigurationPanels";
 import { DeveloperHandoff } from "../components/DeveloperHandoff";
 import { ToolIconPanel } from "./components/ToolIconPanel";
 import { inheritedContent } from "./toolSpec";
@@ -105,19 +109,43 @@ export default async function ToolContentPage({
         <div className="flex min-w-0 items-center gap-3">
           <BackButton href={appHref("/admin/tools")} label="Back to tool catalog" />
           <div className="min-w-0">
-            <H1>{tool.name}</H1>
+            <div className="flex min-w-0 items-center gap-2">
+              <H1>{tool.name}</H1>
+              {tool.enabled && publicHref ? (
+                <TooltipProvider>
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <Button asChild aria-label="Open public tool" size="icon-sm" variant="ghost">
+                        <a href={publicHref} rel="noreferrer" target="_blank">
+                          <ExternalLink aria-hidden="true" />
+                        </a>
+                      </Button>
+                    </TooltipTrigger>
+                    <TooltipContent>Open public tool</TooltipContent>
+                  </Tooltip>
+                </TooltipProvider>
+              ) : null}
+            </div>
             <Caption className="mt-1 block break-words text-muted-foreground">
               {tool.app} / {tool.slug ?? "No public URL assigned"}
             </Caption>
           </div>
         </div>
-        {tool.enabled && publicHref ? (
-          <Button asChild className="w-fit shrink-0" variant="secondary">
-            <a href={publicHref} rel="noreferrer" target="_blank">
-              Open public tool <ExternalLink aria-hidden="true" />
-            </a>
-          </Button>
-        ) : null}
+        {/* Slot for the definition editor draft actions; keep the id in sync with ToolDefinitionEditor. */}
+        <div className="flex shrink-0 items-center gap-2">
+          <ToolVisibilitySwitch
+            blockedReason={
+              !tool.hasDefinition
+                ? "Deploy the tool definition before enabling it."
+                : !publicHref
+                  ? "Set a public slug before enabling this tool."
+                  : null
+            }
+            enabled={tool.enabled}
+            toolId={tool.id}
+          />
+          <div className="contents" id="tool-header-actions" />
+        </div>
       </header>
 
       <nav aria-label="Tool configuration sections" className="shrink-0 overflow-x-auto border-b border-border">
@@ -139,52 +167,38 @@ export default async function ToolContentPage({
 
       <main className="flex min-h-0 flex-1 flex-col overflow-hidden rounded-xl border border-border bg-card p-4 sm:p-5">
         {section === "overview" ? (
-          <div className="grid min-h-0 flex-1 content-start items-start gap-6 overflow-y-auto overscroll-contain lg:grid-cols-[minmax(0,1fr)_16rem] lg:gap-8">
-            <div className="min-w-0">
-              <ToolContentForm
-                inherited={inheritedView}
-                relatedTools={[]}
-                section="catalog"
-                stored={stored}
-                toolId={tool.id}
-              />
-              <Accordion className="mt-5 border-t border-border" collapsible type="single">
-                <AccordionItem value="technical-details">
-                  <AccordionTrigger>Technical details</AccordionTrigger>
-                  <AccordionContent className="space-y-5">
-                    <div className="flex flex-wrap items-start gap-x-12 gap-y-4">
-                      <ToolIdentifier toolId={tool.id} />
-                      <div>
-                        <Overline className="mb-1 block text-muted-foreground">Code definition</Overline>
-                        <StatusBadge variant={spec ? "success" : "warning"}>
-                          {spec ? "Deployed" : "Missing"}
-                        </StatusBadge>
-                      </div>
-                    </div>
-                    {!spec ? <DeveloperHandoff command={scaffoldCommand} /> : null}
-                  </AccordionContent>
-                </AccordionItem>
-              </Accordion>
-            </div>
-            <aside className="min-w-0 border-t border-border pt-5 lg:border-t-0 lg:border-l lg:pt-0 lg:pl-6">
-              <ActivationPanel
-                enabled={tool.enabled}
-                hasDefinition={tool.hasDefinition}
-                hasDraftContent={tool.hasDraftContent}
-                published={stored.published}
-                publishedAtLabel={stored.publishedAtLabel}
-                publicHref={publicHref}
-                toolId={tool.id}
-              />
-              <div className="mt-3 border-t border-border pt-3">
+          <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain">
+            <ToolContentForm
+              hasDraftContent={tool.hasDraftContent}
+              inherited={inheritedView}
+              leading={
                 <ToolIconPanel
                   iconUrl={tool.iconUrl}
                   name={tool.name}
                   toolId={tool.id}
                   uploadsEnabled={iconUploadsConfigured()}
                 />
-              </div>
-            </aside>
+              }
+              relatedTools={[]}
+              section="catalog"
+              stored={stored}
+              toolId={tool.id}
+            />
+            <Accordion className="mt-5 border-t border-border" collapsible type="single">
+              <AccordionItem value="technical-details">
+                <AccordionTrigger>Technical details</AccordionTrigger>
+                <AccordionContent className="space-y-5">
+                  <div className="flex flex-wrap items-start gap-x-12 gap-y-4">
+                    <ToolIdentifier toolId={tool.id} />
+                    <div>
+                      <Overline className="mb-1 block text-muted-foreground">Code definition</Overline>
+                      <StatusBadge variant={spec ? "success" : "warning"}>{spec ? "Deployed" : "Missing"}</StatusBadge>
+                    </div>
+                  </div>
+                  {!spec ? <DeveloperHandoff command={scaffoldCommand} /> : null}
+                </AccordionContent>
+              </AccordionItem>
+            </Accordion>
           </div>
         ) : null}
 

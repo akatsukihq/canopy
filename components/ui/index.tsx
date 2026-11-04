@@ -588,7 +588,7 @@ export function ToolPageHeader({
             {titleNode}
           </>
         )}
-        {description ? <Muted className="max-w-2xl text-muted-foreground">{description}</Muted> : null}
+        {description ? <Muted className="text-muted-foreground">{description}</Muted> : null}
       </div>
       {actions ? <div className="flex flex-wrap gap-2">{actions}</div> : null}
     </header>
@@ -597,12 +597,15 @@ export function ToolPageHeader({
 
 export function SectionHeading({
   action,
+  back,
   className,
   description,
   eyebrow,
   title,
 }: {
   action?: ReactNode;
+  /** Back control shown on the same row as the title. */
+  back?: ReactNode;
   className?: string;
   description?: ReactNode;
   eyebrow?: ReactNode;
@@ -612,7 +615,14 @@ export function SectionHeading({
     <div className={cn("mb-4 flex items-start justify-between gap-4", className)}>
       <div>
         {eyebrow ? <Overline className="mb-2 block text-primary">{eyebrow}</Overline> : null}
-        <H2 className="text-foreground">{title}</H2>
+        {back ? (
+          <div className="flex items-center gap-2">
+            {back}
+            <H2 className="text-foreground">{title}</H2>
+          </div>
+        ) : (
+          <H2 className="text-foreground">{title}</H2>
+        )}
         {description ? <P className="mt-2 text-muted-foreground">{description}</P> : null}
       </div>
       {action}
