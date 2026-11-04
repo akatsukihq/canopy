@@ -737,6 +737,8 @@ function AssistantPanelInstance({ resourceId, ownerId, integration, onClose }: P
       {assistant.error &&
         !showSettings &&
         !showConversationError &&
+        // An error with nothing else to show is presented once, in the Chat tab's empty state.
+        (timeline.length > 0 || !!assistant.stream || showHistory || !!activeResult) &&
         (!showHistory || assistant.historyStatus !== "error") && (
           <div className="py-2">
             <p role="alert" className="text-caption text-destructive">

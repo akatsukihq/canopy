@@ -1,8 +1,18 @@
 "use client";
 
-import { createContext, useContext, useEffect, useRef, useState, useSyncExternalStore, type ReactNode } from "react";
+import {
+  createContext,
+  type CSSProperties,
+  useContext,
+  useEffect,
+  useRef,
+  useState,
+  useSyncExternalStore,
+  type ReactNode,
+} from "react";
 import { Sparkles } from "lucide-react";
 import { Button, Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/index.tsx";
+import { cn } from "@/components/ui/lib/utils.ts";
 import type { ToolAssistantSection } from "@/lib/tool-framework/toolAssistant";
 import { ToolAssistantPanel, type AssistantTarget } from "./ToolAssistantPanel.tsx";
 
@@ -80,27 +90,30 @@ export function ToolAssistantToggle() {
   const assistant = useToolAssistant();
   if (!assistant) return null;
   return (
-    <TooltipProvider>
-      <Tooltip>
-        <TooltipTrigger asChild>
-          <Button
-            aria-expanded={assistant.open}
-            aria-label="AI assistant"
-            onClick={() => assistant.setOpen(!assistant.open)}
-            size="icon-sm"
-            type="button"
-            variant={assistant.open ? "secondary" : "outline"}
-          >
-            <Sparkles />
-          </Button>
-        </TooltipTrigger>
-        <TooltipContent>AI assistant for this tool</TooltipContent>
-      </Tooltip>
-    </TooltipProvider>
+    <div className="flex items-center rounded-lg bg-muted p-0.5" role="group" aria-label="Panels">
+      <Button
+        aria-controls="tool-assistant"
+        aria-expanded={assistant.open}
+        className={cn(
+          "gap-1.5 rounded-md px-2 font-medium",
+          assistant.open && "bg-accent text-accent-text hover:bg-accent",
+        )}
+        onClick={() => assistant.setOpen(!assistant.open)}
+        size="sm"
+        type="button"
+        variant="ghost"
+      >
+        <Sparkles aria-hidden="true" />
+        Assistant
+      </Button>
+    </div>
   );
 }
 
-/** Lays the page body beside the collapsible assistant panel; closed, it takes no space. */
+/**
+ * The tabs and page body, with the assistant sliding in from the right edge of that area (like the blog
+ * editor). The header stays visible; on wide screens the content makes room instead of sitting underneath.
+ */
 export function ToolAssistantDock({ children }: { children: ReactNode }) {
   const assistant = useToolAssistant();
   const target = useSyncExternalStore(
@@ -108,13 +121,34 @@ export function ToolAssistantDock({ children }: { children: ReactNode }) {
     () => assistant?.store.get() ?? null,
     () => null,
   );
+  const open = assistant?.open ?? false;
+  // Mount on first open so the page does not load assistant history unless it is used; keep it after.
+  const [mounted, setMounted] = useState(false);
+  useEffect(() => {
+    if (open) setMounted(true);
+  }, [open]);
   return (
-    <div className="flex min-h-0 flex-1 gap-3">
-      <div className="flex min-h-0 min-w-0 flex-1 flex-col">{children}</div>
-      {assistant?.open ? (
+    <div className="relative flex min-h-0 flex-1 flex-col overflow-hidden">
+      <div
+        className={cn(
+          "flex min-h-0 flex-1 flex-col gap-3 transition-[padding] duration-300 motion-reduce:transition-none",
+          open && "lg:pr-[366px]",
+        )}
+      >
+        {children}
+      </div>
+      {assistant && mounted ? (
         <aside
-          aria-label="AI assistant"
-          className="flex min-h-0 w-[340px] shrink-0 flex-col overflow-hidden rounded-xl border border-border bg-card"
+          aria-hidden={!open}
+          aria-label="Assistant"
+          className={cn(
+            "absolute inset-y-0 right-0 z-20 flex w-full min-h-0 flex-col overflow-hidden rounded-xl border border-border bg-muted transition-[transform,visibility] duration-300 ease-out motion-reduce:transition-none sm:w-[350px]",
+            open ? "visible translate-x-0" : "invisible translate-x-[105%]",
+          )}
+          id="tool-assistant"
+          // White panel with grey inner surfaces: swap the two surface tokens inside it (the app is light-only; values match globals.css).
+          style={{ "--card": "#f6f7f9", "--muted": "#ffffff" } as CSSProperties}
+          inert={!open}
         >
           <ToolAssistantPanel
             onClose={() => assistant.setOpen(false)}

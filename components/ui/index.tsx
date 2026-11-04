@@ -40,6 +40,7 @@ import { Alert, AlertDescription, AlertTitle } from "./components/alert.tsx";
 import { Badge } from "./components/badge.tsx";
 import { Checkbox as CheckboxControl } from "./components/checkbox.tsx";
 import { Tooltip, TooltipContent, TooltipTrigger } from "./components/tooltip.tsx";
+export { ErrorPage, RouteError, type ErrorPageProps } from "./components/ErrorPage.tsx";
 export { ContentState, ContentState as EmptyState, type ContentStateProps } from "./components/ContentState.tsx";
 import {
   Field as FieldRoot,

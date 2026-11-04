@@ -1,11 +1,16 @@
 name: Build Piston image
 
 # Builds ghcr.io/akatsukihq/canopy-piston (public, no secrets inside) and runs every registry version's starter.
-# Push to a piston/** branch: build + verify only. Manual run: build + verify + publish.
+# Push to a piston/** branch: build + verify only. Push to main (only when Piston files change) or a manual run:
+# build + verify + publish.
 # See docs/code-execution.md and openspec/changes/add-online-compilers/design.md section 1a.
 on:
   push:
-    branches: ["piston/**"]
+    branches: ["piston/**", main]
+    # Applies to main too: other main pushes never build this 7.5 GB image.
+    paths:
+      - "scripts/piston/**"
+      - ".github/workflows/piston-image.yml"
   workflow_dispatch:
     inputs:
       piston_sha:
@@ -99,7 +104,7 @@ jobs:
 
       - name: Push
         id: build
-        if: github.event_name == 'workflow_dispatch'
+        if: github.event_name == 'workflow_dispatch' || github.ref == 'refs/heads/main'
         uses: docker/build-push-action@c3c9e263c25d99ce0380d002d59b67737d91b0dc # v7.4.0
         with:
           context: scripts/piston
@@ -121,7 +126,7 @@ jobs:
             org.opencontainers.image.description=Piston code-execution engine for linux/arm64 with baked-in language packages
 
       - name: Publish digest to job summary
-        if: github.event_name == 'workflow_dispatch'
+        if: github.event_name == 'workflow_dispatch' || github.ref == 'refs/heads/main'
         env:
           DIGEST: ${{ steps.build.outputs.digest }}
           TAG: ${{ steps.meta.outputs.tag }}

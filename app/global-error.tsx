@@ -1,18 +1,13 @@
 "use client";
 
-import { captureException } from "@sentry/nextjs";
-import NextError from "next/error";
-import { useEffect } from "react";
+import { RouteError } from "@/components/ui/index.tsx";
+import "./globals.css";
 
-export default function GlobalError({ error }: { error: Error & { digest?: string } }) {
-  useEffect(() => {
-    captureException(error);
-  }, [error]);
-
+export default function GlobalError(props: { error: Error & { digest?: string }; reset: () => void }) {
   return (
     <html lang="en">
-      <body>
-        <NextError statusCode={0} />
+      <body className="min-h-screen bg-background font-sans text-foreground">
+        <RouteError {...props} />
       </body>
     </html>
   );
