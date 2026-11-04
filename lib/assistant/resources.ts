@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { AIClient } from "../ai/client.ts";
+import { createAIClient } from "../config/integrations.ts";
 import type { StoredRun } from "./integration.ts";
 
 export function attachmentProvider(data: Record<string, unknown>): { name: string; fileId: string } | null {
@@ -10,5 +10,5 @@ export async function deleteRunResponses(run: StoredRun) {
   if (run.continuation.providerDeleted === true) return;
   const handles = z.array(z.string()).catch([]).parse(run.continuation.handles);
   for (const id of new Set([...handles, ...(run.providerResponseId ? [run.providerResponseId] : [])]))
-    await new AIClient(run.provider).deleteResponse(id);
+    await (await createAIClient(run.provider)).deleteResponse(id);
 }

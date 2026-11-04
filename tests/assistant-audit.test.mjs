@@ -123,10 +123,14 @@ vi.mock("../lib/config/config.ts", () => ({
   default: {
     ai: { enabled: true, provider: "openai", titleModel: "gpt-5.6-terra", openai: { model: "gpt-5.6-terra" } },
     email: {},
+    integrations: {},
     cloudinary: { cloudName: "fixture" } },
 }));
 vi.mock("../lib/ai/client.ts", () => ({
   AIClient: class {
+    constructor(provider) {
+      this.provider = provider;
+    }
     async generate() {
       return { text: "Generated title", status: "completed" };
     }

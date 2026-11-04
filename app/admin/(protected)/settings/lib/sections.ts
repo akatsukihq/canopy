@@ -34,11 +34,77 @@ export const SETTINGS_SECTIONS = [
   {
     slug: "ai",
     label: "AI",
-    description: "AI assistant switch and models. The API key stays on the server.",
+    description:
+      "Save each provider's key and models, then make one active. Keys are encrypted and never shown again after saving.",
     groups: [
       { title: "Assistant", description: "Blog and tool admin assistant.", keys: ["ai.enabled"] },
-      { title: "Models", description: "Which OpenAI model does each job.", keys: ["ai.openaiModel", "ai.titleModel"] },
+      {
+        title: "OpenAI",
+        description: "Load models lists what the key can use; Test checks the key.",
+        keys: ["ai.openai.apiKey", "ai.openaiModel", "ai.titleModel"],
+        provider: { setting: "ai.provider", value: "openai" },
+        test: "ai",
+      },
+      {
+        title: "Anthropic",
+        description: "Load models lists what the key can use; Test checks the key.",
+        keys: ["ai.anthropic.apiKey", "ai.anthropicModel", "ai.anthropicTitleModel"],
+        provider: { setting: "ai.provider", value: "anthropic" },
+        test: "ai",
+      },
     ],
+  },
+  {
+    slug: "email",
+    label: "Email",
+    description:
+      "Save each provider's credentials, send a test, then make one active. Sign-in emails go through the active provider.",
+    groups: [
+      {
+        title: "Addresses",
+        description: "Used by every provider.",
+        keys: ["email.accountsFrom", "site.supportEmail"],
+      },
+      {
+        title: "Cloudflare",
+        description: "Cloudflare Email Sending.",
+        keys: ["email.cloudflare.accountId", "email.cloudflare.apiToken"],
+        provider: { setting: "email.provider", value: "cloudflare" },
+        test: "email",
+      },
+      {
+        title: "Resend",
+        description: "resend.com API.",
+        keys: ["email.resend.apiKey"],
+        provider: { setting: "email.provider", value: "resend" },
+        test: "email",
+      },
+      {
+        title: "SMTP",
+        description: "Any SMTP server, such as Google Workspace, SES or Postmark.",
+        keys: ["email.smtp.host", "email.smtp.port", "email.smtp.secure", "email.smtp.user", "email.smtp.password"],
+        provider: { setting: "email.provider", value: "smtp" },
+        test: "email",
+      },
+    ],
+  },
+  {
+    slug: "uploads",
+    label: "Uploads",
+    description: "Image hosting for blog images and tool icons.",
+    groups: [
+      {
+        title: "Cloudinary",
+        description: "Rotate the API key and secret here. The cloud name is fixed by the environment.",
+        keys: ["uploads.cloudinary.apiKey", "uploads.cloudinary.apiSecret"],
+      },
+    ],
+  },
+  {
+    slug: "integrations",
+    label: "Integrations",
+    description: "Third-party APIs used by individual tools.",
+    groups: [{ title: "Ahrefs", description: "Domain Rating Checker.", keys: ["integrations.ahrefs.apiKey"] }],
   },
   {
     slug: "traffic",
@@ -47,20 +113,17 @@ export const SETTINGS_SECTIONS = [
     groups: [
       {
         title: "Per visitor",
-        description: "Counted separately for each visitor.",
         keys: ["traffic.toolRequestsPerMinute", "traffic.codeRunsPerMinute"],
       },
     ],
   },
-  {
-    slug: "site",
-    label: "Site",
-    description: "Details shown to visitors.",
-    groups: [{ title: "Contact", description: "Shown on the Contact page.", keys: ["site.supportEmail"] }],
-  },
 ] as const;
 
 export type SettingsSectionSlug = (typeof SETTINGS_SECTIONS)[number]["slug"];
+
+/** A group whose provider can be made active, and how it is tested. */
+export type GroupProvider = { setting: "ai.provider" | "email.provider"; value: string };
+export type GroupTest = "ai" | "email";
 
 const LIMIT_LABELS: Record<string, string> = {
   platform_max_bytes: "Largest file",

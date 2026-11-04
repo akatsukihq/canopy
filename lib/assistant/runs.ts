@@ -14,10 +14,9 @@ import {
   assistantAttachmentsTable as attachments,
 } from "../../db/index.ts";
 import { AIClient } from "../ai/client.ts";
+import { createAIClient } from "../config/integrations.ts";
 import { AIError } from "../ai/errors.ts";
 import type { AIResult, AIToolCall } from "../ai/types.ts";
-import config from "../config/config.ts";
-import { loadRuntimeSettings } from "../config/runtimeSettings.ts";
 import { ACTIVE_RUN_STATUSES, privateExpiry, type AssistantThreads } from "./threads.ts";
 import {
   AssistantError,
@@ -86,7 +85,8 @@ export function createAssistantRuns(integration: AssistantIntegration, storage: 
   async function startRun(actor: string, input: unknown) {
     let request = validateRunRequest(input);
     const submissionHash = digest(request);
-    const caps = (await requireAssistantClient()).getCapabilities();
+    const client = await requireAssistantClient();
+    const caps = client.getCapabilities();
     return db.transaction(async (tx) => {
       await tx.execute(
         sql`SELECT pg_advisory_xact_lock(hashtextextended(${JSON.stringify([actor, integration.key, request.clientRequestId])},0))`,
@@ -213,7 +213,7 @@ export function createAssistantRuns(integration: AssistantIntegration, storage: 
         tx,
         actor,
         threadId,
-        config.ai.provider,
+        client.provider,
         effective.attachmentIds ?? [],
         inputMessageId,
         operation.executionMode === "standalone",
@@ -285,7 +285,7 @@ export function createAssistantRuns(integration: AssistantIntegration, storage: 
           clientRequestId: request.clientRequestId,
           operation: request.operation,
           executionMode: operation.executionMode,
-          provider: config.ai.provider,
+          provider: client.provider,
           model: caps.model,
           status: "queued",
           request: effective,
@@ -541,10 +541,7 @@ export function createAssistantRuns(integration: AssistantIntegration, storage: 
           const proposals: AssistantProposal[] = [];
           const providerRequest = await integration.buildRequest({ run, ...context, proposals, signal: abort.signal });
           providerRequest.metadata = { ...providerRequest.metadata, feature: integration.key, runId: run.id };
-          const { "ai.openaiModel": chatModel } = await loadRuntimeSettings();
-          for await (const event of new AIClient(run.provider, { model: String(chatModel.value) }).stream(
-            providerRequest,
-          )) {
+          for await (const event of (await createAIClient(run.provider)).stream(providerRequest)) {
             if (event.type === "text-delta") {
               if (!providerRequest.schema) emit(event);
             } else if (event.type === "output") {
@@ -667,7 +664,7 @@ export function createAssistantRuns(integration: AssistantIntegration, storage: 
 
   async function cleanupCompletedResponses(run: StoredRun) {
     try {
-      const client = new AIClient(run.provider);
+      const client = await createAIClient(run.provider);
       for (const id of handlesOf(run)) await client.deleteResponse(id);
       await db
         .update(runs)

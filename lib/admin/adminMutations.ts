@@ -62,6 +62,7 @@ import {
   type ToolContentRow,
 } from "../tool-framework/content.ts";
 import { uploadToolIcon } from "../tool-framework/cloudinary.ts";
+import { cloudinaryCredentials } from "../config/integrations.ts";
 import { definitionKeyOf, specFromRow } from "../tool-framework/catalog.ts";
 import { parseToolSpec } from "../tool-framework/specSchema.ts";
 import { limitViolations, loadSystemLimits } from "../tool-framework/systemLimits.ts";
@@ -823,10 +824,8 @@ export const MAX_TOOL_ICON_BYTES = 1_048_576;
  * so the admin UI can disable uploads with a message instead of failing at the
  * end of a form submission. Local development and CI have no Cloudinary account.
  */
-export function iconUploadsConfigured(): boolean {
-  return Boolean(
-    config.cloudinary.cloudName?.trim() && config.cloudinary.apiKey?.trim() && config.cloudinary.apiSecret?.trim(),
-  );
+export async function iconUploadsConfigured(): Promise<boolean> {
+  return (await cloudinaryCredentials()) !== null;
 }
 
 /** The shape `contentDoc` is validated against before it is stored. */

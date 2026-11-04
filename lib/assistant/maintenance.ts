@@ -8,7 +8,7 @@ import {
   assistantThreadsTable as threads,
   assistantMessagesTable as messages,
 } from "../../db/index.ts";
-import { AIClient } from "../ai/client.ts";
+import { createAIClient } from "../config/integrations.ts";
 import { attachmentProvider, deleteRunResponses } from "./resources.ts";
 
 /** Expire private content/resources, retaining execution and usage records for reporting. */
@@ -44,7 +44,7 @@ export async function cleanupAssistant() {
       });
       if (!reserved) continue;
       const provider = attachmentProvider(reserved.data);
-      if (provider) await new AIClient(provider.name).deleteFile(provider.fileId);
+      if (provider) await (await createAIClient(provider.name)).deleteFile(provider.fileId);
       await db.delete(attachments).where(and(eq(attachments.id, file.id), eq(attachments.status, "deleting")));
       counts.files++;
     } catch {

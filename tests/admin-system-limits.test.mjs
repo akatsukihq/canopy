@@ -1,4 +1,6 @@
-import { expect, test } from "vitest";
+import { expect, test, vi } from "vitest";
+
+vi.mock("server-only", () => ({}));
 import { db } from "../db/index.ts";
 import { SystemLimitValueError, updateSystemLimit } from "../lib/admin/systemLimits.ts";
 

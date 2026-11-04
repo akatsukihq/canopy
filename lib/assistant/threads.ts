@@ -13,9 +13,8 @@ import {
   assistantAttachmentsTable as attachments,
   assistantMessagesTable as messages,
 } from "../../db/index.ts";
-import config from "../config/config.ts";
 import { loadRuntimeSettings } from "../config/runtimeSettings.ts";
-import { AIClient } from "../ai/client.ts";
+import { activeAIProvider, createAIClient } from "../config/integrations.ts";
 import {
   parseStoredRequest,
   parseStoredResult,
@@ -317,20 +316,19 @@ export function createAssistantThreads(integration: AssistantIntegration) {
   async function assistantAvailability(): Promise<AssistantAvailability> {
     const settings = await loadRuntimeSettings();
     try {
-      const capabilities = new AIClient(config.ai.provider, {
-        model: String(settings["ai.openaiModel"].value),
-      }).getCapabilities();
+      const client = await createAIClient();
+      const capabilities = client.getCapabilities();
       const enabled = settings["ai.enabled"].value === true && capabilities.configured;
       return {
         enabled,
-        provider: config.ai.provider,
+        provider: client.provider,
         capabilities,
         reason: enabled ? undefined : "The assistant is not configured. Manual work remains available.",
       };
     } catch {
       return {
         enabled: false,
-        provider: config.ai.provider,
+        provider: activeAIProvider(settings),
         capabilities: {
           images: false,
           structuredOutput: false,
@@ -341,11 +339,11 @@ export function createAssistantThreads(integration: AssistantIntegration) {
       };
     }
   }
-  async function requireAssistantClient(provider = config.ai.provider) {
+  async function requireAssistantClient(provider?: string) {
     const settings = await loadRuntimeSettings();
     if (settings["ai.enabled"].value !== true)
       throw new AssistantError("UNAVAILABLE", "The assistant is disabled. You can continue manually.", 503);
-    const client = new AIClient(provider, { model: String(settings["ai.openaiModel"].value) });
+    const client = await createAIClient(provider);
     const caps = client.getCapabilities();
     if (!caps.configured)
       throw new AssistantError("UNAVAILABLE", "The provider is not configured for generation.", 503);
@@ -599,7 +597,7 @@ export function createAssistantThreads(integration: AssistantIntegration) {
     for (const file of removed.files) {
       try {
         const provider = attachmentProvider(file.data);
-        if (provider) await new AIClient(provider.name).deleteFile(provider.fileId);
+        if (provider) await (await createAIClient(provider.name)).deleteFile(provider.fileId);
         await db.delete(attachments).where(eq(attachments.id, file.id));
       } catch {
         /* Scheduled cleanup retries retained private file handles. */
@@ -641,7 +639,7 @@ export function createAssistantThreads(integration: AssistantIntegration) {
         ownerId: actor,
         type: "file",
         label: file.name,
-        data: { mimeType: file.type, sizeBytes: file.size, provider: { name: config.ai.provider } },
+        data: { mimeType: file.type, sizeBytes: file.size, provider: { name: client.provider } },
         status: "processing",
         expiresAt: new Date(Date.now() + 24 * 60 * 60 * 1000),
       });
@@ -655,7 +653,7 @@ export function createAssistantThreads(integration: AssistantIntegration) {
           data: {
             mimeType: file.type,
             sizeBytes: file.size,
-            provider: { name: config.ai.provider, fileId: uploaded.id, details: {} },
+            provider: { name: client.provider, fileId: uploaded.id, details: {} },
           },
           updatedAt: new Date(),
         })
@@ -696,7 +694,7 @@ export function createAssistantThreads(integration: AssistantIntegration) {
       return row;
     });
     const provider = attachmentProvider(file.data);
-    if (provider) await new AIClient(provider.name).deleteFile(provider.fileId);
+    if (provider) await (await createAIClient(provider.name)).deleteFile(provider.fileId);
     await db.transaction(async (tx) => {
       await tx.delete(attachments).where(eq(attachments.id, id));
     });

@@ -13,7 +13,7 @@ publish / discard; Admin Definition editor and draft preview; `tool sql` removed
 served from `tools/<key>/icon.svg` (`scripts/copy-tool-icons.mjs`, run by
 `prepare:vendor` and `postinstall`); Admin → Settings: all 12 `system_limits`
 editable below their code ceilings, tools over a lowered limit listed, and
-AI runtime overrides in `platform_settings` (migration `0011-platform-settings`,
+Runtime overrides in `platform_settings` (migration `0011-platform-settings`,
 `lib/config/runtimeSettings.ts`).
 
 Open: the tool AI assistant is being widened from Translations to every tool
@@ -28,15 +28,24 @@ owner folder yet; no LFS archive was made (git history holds the deleted files).
   `lib/tool-framework/limits.ts`, rejected if stale, audited
   (`system-limit.edit`), and clears the catalog cache.
 - **Runtime settings** — each Settings section is its own route
-  (`/admin/settings/<limits|ai|traffic|site>`), listed as nested items under
-  Settings in the sidebar. Each page has one Save for all its changes, written
-  in a single transaction (a rejected value saves nothing). Overridable: AI on/off, assistant and
-  title models, tool API requests and code runs per visitor per minute
-  (bounded 1–120 / 1–60), and the Contact page support email. The env or code
-  value is the default; "Reset to default" deletes the override. Models must be in `OPENAI_MODELS`; add an ID only after confirming
-  the provider serves it. Audited as `platform-setting.edit`.
-- Env-only configuration (database, Redis, keys, providers) is not shown in
-  Admin; it cannot be changed there.
+  (`/admin/settings/<limits|ai|email|uploads|integrations|traffic>`), listed as
+  nested items under Settings in the sidebar. Each page has one Save for all its
+  changes, written in a single transaction (a rejected value saves nothing). The
+  env or code value is the default; "Use default" deletes the override. Audited
+  as `platform-setting.edit`; secrets are audited as `[secret]`, never by value.
+- **Providers** — AI (OpenAI, Anthropic) and email (Cloudflare, Resend, SMTP)
+  each keep their own saved key and settings. "Make active" (with a confirm)
+  switches `ai.provider` / `email.provider`, and is allowed only when that
+  provider's required settings have values (`PROVIDER_CHOICES`). AI "Test & load
+  models" lists models the key can use; email "Send test email" verifies saved
+  credentials and mails the signed-in admin. Consumers read credentials per
+  request (`lib/config/integrations.ts`), so switching needs no redeploy.
+- **Secrets** — API keys saved in Admin are AES-256-GCM encrypted with
+  `SETTINGS_ENCRYPTION_KEY` (32+ chars, setting key as AAD) and never sent back
+  to the browser. Without that env var, keys can only come from env. Changing
+  the key makes saved secrets unreadable (they fall back to env); re-enter them.
+- Env-only configuration (database, Redis, auth, OAuth, analytics, Cloudinary
+  cloud name) is not shown in Admin; it cannot be changed there.
 
 ## Summary
 

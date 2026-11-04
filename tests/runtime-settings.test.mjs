@@ -1,4 +1,6 @@
-import { afterEach, expect, test } from "vitest";
+import { afterEach, expect, test, vi } from "vitest";
+
+vi.mock("server-only", () => ({}));
 import { db } from "../db/index.ts";
 import { RuntimeSettingValueError, saveSettings, updateRuntimeSetting } from "../lib/admin/runtimeSettings.ts";
 import { resolveRuntimeSettings } from "../lib/config/runtimeSettings.ts";
@@ -18,7 +20,7 @@ test("env supplies defaults; a valid override wins; an invalid stored value fall
   const over = resolveRuntimeSettings(
     new Map([
       ["ai.enabled", true],
-      ["ai.openaiModel", "not-a-model"],
+      ["ai.openaiModel", "not a model!"],
     ]),
   );
   expect(over["ai.enabled"]).toMatchObject({ value: true, source: "admin", envValue: false });
@@ -103,9 +105,9 @@ test("null clears the override and is audited", async () => {
   );
 });
 
-test("rejects unlisted values, unknown keys, and missing permission without writing", async () => {
+test("rejects malformed values, unknown keys, and missing permission without writing", async () => {
   await withDatabase(async (writes) => {
-    await expect(updateRuntimeSetting("u1", "ai.titleModel", "gpt-free-text")).rejects.toBeInstanceOf(
+    await expect(updateRuntimeSetting("u1", "ai.titleModel", "not a model!")).rejects.toBeInstanceOf(
       RuntimeSettingValueError,
     );
     expect(writes).toEqual([]);

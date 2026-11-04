@@ -1,13 +1,17 @@
 import "server-only";
 import { z } from "zod";
 import { AIError, normalizeAIError } from "./errors.ts";
+import type { AIProviderName } from "./models.ts";
+import { AnthropicProvider } from "./providers/anthropic.ts";
 import { OpenAIProvider } from "./providers/openai.ts";
 import type { AIFileInput, AIProvider, AIRequest, AIStreamEvent } from "./types.ts";
 
-const providers: Record<string, (options: AIClientOptions) => AIProvider> = {
-  openai: (options) => new OpenAIProvider(options.model),
+const providers: Record<AIProviderName, (options: AIClientOptions) => AIProvider> = {
+  openai: (options) => new OpenAIProvider(options.model, options.apiKey),
+  anthropic: (options) => new AnthropicProvider(options.model, options.apiKey),
 };
-type AIClientOptions = { model?: string };
+/** Omitted values fall back to the provider's environment configuration. */
+export type AIClientOptions = { model?: string; apiKey?: string };
 const content = z.discriminatedUnion("type", [
   z.object({ type: z.literal("text"), text: z.string() }),
   z.object({ type: z.literal("image"), fileId: z.string().min(1), mimeType: z.string().startsWith("image/") }),
@@ -30,7 +34,7 @@ export class AIClient {
   constructor(provider: string, options: AIClientOptions = {}) {
     if (!Object.hasOwn(providers, provider)) throw new AIError("CAPABILITY", "This AI provider is not supported.", 400);
     this.provider = provider;
-    this.adapter = providers[provider](options);
+    this.adapter = providers[provider as AIProviderName](options);
   }
 
   get model() {

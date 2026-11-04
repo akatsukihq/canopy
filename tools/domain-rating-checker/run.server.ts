@@ -1,4 +1,4 @@
-import config from "@/lib/config/config.ts";
+import { ahrefsApiKey } from "@/lib/config/integrations.ts";
 /**
  * Moved verbatim from the inlined `"use server"` action in
  * `app/devtools/[slug]/page.tsx`: the same Ahrefs endpoint, the same
@@ -94,7 +94,7 @@ export const run: ToolRun<Settings> = async (ctx): Promise<DomainRatingResult> =
   const endpoint = new URL(AHREFS_DOMAIN_RATING_URL);
   endpoint.search = new URLSearchParams({ target, output: "json" }).toString();
   const headers: Record<string, string> = { Accept: "application/json" };
-  const apiKey = config.integrations.ahrefsApiKey?.trim();
+  const apiKey = await ahrefsApiKey();
   if (apiKey) headers.Authorization = `Bearer ${apiKey}`;
 
   let response: Response;

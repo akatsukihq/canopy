@@ -180,7 +180,7 @@ export default async function ToolContentPage({
                       iconUrl={tool.iconUrl}
                       name={tool.name}
                       toolId={tool.id}
-                      uploadsEnabled={iconUploadsConfigured()}
+                      uploadsEnabled={await iconUploadsConfigured()}
                     />
                   }
                   relatedTools={[]}

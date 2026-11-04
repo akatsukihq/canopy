@@ -6,11 +6,19 @@ import { requirePagePermission } from "@/lib/admin/access";
 import { getUserAuthorization } from "@/lib/admin/index.ts";
 import { getRuntimeSettingsCardProps, type RuntimeSettingView } from "@/lib/admin/runtimeSettings.ts";
 import { hasPermission } from "@/lib/authorization/index.ts";
+import {
+  loadRuntimeSettings,
+  missingProviderSettings,
+  PROVIDER_CHOICES,
+  RUNTIME_SETTINGS,
+  type RuntimeSettings,
+} from "@/lib/config/runtimeSettings.ts";
 import { DATABASE_SYSTEM_LIMITS } from "@/lib/tool-framework/systemLimits";
 import { SettingsForm, type SettingField, type SettingGroup } from "../components/SettingsForm";
 import { MIB, type LimitUnit } from "../lib/limitUnits";
 import { toolsOverLimits } from "../lib/overLimitTools";
-import { limitLabel, SETTINGS_SECTIONS } from "../lib/sections";
+import type { ProviderState } from "../components/ProviderActions";
+import { limitLabel, SETTINGS_SECTIONS, type GroupProvider } from "../lib/sections";
 
 export const dynamic = "force-dynamic";
 
@@ -75,6 +83,20 @@ function runtimeField(setting: RuntimeSettingView): SettingField {
     options: setting.options,
     overridden: setting.source === "admin",
     defaultValue: String(setting.envValue),
+    format: setting.format,
+    provider: setting.provider,
+    secretSet: setting.secretSet,
+  };
+}
+
+/** Whether a provider group is active and what it still needs; no secret values leave here. */
+function providerState(settings: RuntimeSettings, provider: GroupProvider): ProviderState {
+  const choices: Record<string, { label: string }> = PROVIDER_CHOICES[provider.setting];
+  return {
+    ...provider,
+    label: choices[provider.value]?.label ?? provider.value,
+    active: settings[provider.setting].value === provider.value,
+    missing: missingProviderSettings(settings, provider.setting, provider.value).map((key) => RUNTIME_SETTINGS[key].label),
   };
 }
 
@@ -92,18 +114,31 @@ export default async function SettingsSectionPage({ params }: { params: Promise<
       : new Map(
           (await getRuntimeSettingsCardProps(canEdit)).settings.map((setting) => [setting.key, runtimeField(setting)]),
         );
+  const settings = section.slug === "limits" ? null : await loadRuntimeSettings();
   const groups: SettingGroup[] = section.groups
-    .map((group) => ({
-      title: group.title,
-      description: group.description,
-      fields: group.keys.flatMap((key) => fields.get(key) ?? []),
-    }))
+    .map((group) => {
+      const extra: {
+        title: string;
+        keys: readonly string[];
+        description?: string;
+        provider?: GroupProvider;
+        test?: SettingGroup["test"];
+      } = group;
+      return {
+        title: group.title,
+        description: extra.description,
+        fields: extra.keys.flatMap((key) => fields.get(key) ?? []),
+        provider: settings && extra.provider ? providerState(settings, extra.provider) : undefined,
+        test: extra.test,
+      };
+    })
     .filter((group) => group.fields.length);
   // Remount the form after a save so drafts restart from the stored values.
   const version = groups
     .flatMap((group) =>
       group.fields.map((field) => `${field.key}=${field.value}@${field.updatedAt ?? field.overridden}`),
     )
+    .concat(groups.map((group) => `${group.title}:${group.provider?.active}`))
     .join("|");
 
   return (

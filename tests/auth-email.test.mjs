@@ -1,6 +1,8 @@
 import { afterEach, beforeEach, expect, test, vi } from "vitest";
 import { sendAuthEmail } from "@/lib/auth/email.ts";
 
+vi.mock("server-only", () => ({}));
+
 const accountId = "0123456789abcdef0123456789abcdef";
 const message = {
   to: "recipient@example.com",

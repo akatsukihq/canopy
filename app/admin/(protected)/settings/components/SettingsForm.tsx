@@ -16,13 +16,21 @@ import {
 } from "@/components/ui/index.tsx";
 import { useActionState, useEffect, useState, type FormEvent, type ReactNode } from "react";
 import { saveSettingsAction, type SettingsActionState } from "../actions";
+import type { GroupTest } from "../lib/sections";
+import { ProviderActions, providerHint, type ProviderState } from "./ProviderActions";
 import { SettingRow, SettingsSection } from "./SettingRow";
 
 export type SettingField = {
   key: string;
   /** `limit` rows live in `system_limits`; `runtime` rows are overrides in `platform_settings`. */
   store: "limit" | "runtime";
-  kind: "boolean" | "choice" | "number" | "text";
+  /** `secret` values never reach the browser: `value` is "" and typing replaces the saved one. */
+  kind: "boolean" | "choice" | "number" | "text" | "secret" | "model";
+  format?: "email" | "plain";
+  /** Model fields: whose model list to suggest. */
+  provider?: string;
+  /** Secrets only: whether a value applies now (saved here or from the environment). */
+  secretSet?: boolean;
   label: string;
   description: string;
   /** Current value as the input shows it (byte limits in MiB, booleans as "true"/"false"). */
@@ -38,13 +46,29 @@ export type SettingField = {
   details?: ReactNode;
 };
 
-export type SettingGroup = { title: string; description: string; fields: SettingField[] };
+export type SettingGroup = {
+  title: string;
+  description?: string;
+  fields: SettingField[];
+  provider?: ProviderState;
+  test?: GroupTest;
+};
 
 const IDLE: SettingsActionState = { status: "idle", message: "" };
 const FORM_ID = "settings-form";
 
 const shown = (field: SettingField, value: string) =>
-  field.kind === "boolean" ? (value === "true" ? "On" : "Off") : value === "" ? "empty" : value;
+  field.kind === "secret"
+    ? value
+      ? "from environment"
+      : "not set"
+    : field.kind === "boolean"
+      ? value === "true"
+        ? "On"
+        : "Off"
+      : value === ""
+        ? "empty"
+        : value;
 
 /** A Settings page: every field edits a draft; one Save in the header writes all changes together. */
 export function SettingsForm({
@@ -63,6 +87,7 @@ export function SettingsForm({
   const [drafts, setDrafts] = useState(initial);
   const [localErrors, setLocalErrors] = useState<Record<string, string>>({});
   const [state, action, pending] = useActionState(saveSettingsAction, IDLE);
+  const [models, setModels] = useState<Record<string, string[]>>({});
   const dirty = fields.filter((field) => drafts[field.key] !== field.value);
   const errors = { ...(state.status === "error" ? state.fieldErrors : undefined), ...localErrors };
 
@@ -106,7 +131,7 @@ export function SettingsForm({
   };
 
   return (
-    <div className="flex h-full min-h-0 flex-col gap-5 overflow-y-auto">
+    <div className="flex h-full min-h-0 flex-col gap-4">
       <AdminPageHeader
         actions={
           canEdit ? (
@@ -138,22 +163,50 @@ export function SettingsForm({
         description={canEdit ? description : `${description} You can view these settings but not change them.`}
         title={title}
       />
-      <form action={action} className="grid gap-5" id={FORM_ID} onSubmit={onSubmit}>
+      <form
+        action={action}
+        className="grid min-h-0 max-w-4xl flex-1 content-start gap-4 overflow-y-auto overscroll-contain pb-2"
+        id={FORM_ID}
+        onSubmit={onSubmit}
+      >
         <input name="changes" type="hidden" value={JSON.stringify(changes)} />
-        {groups.map((group) => (
-          <SettingsSection description={group.description} key={group.title} title={group.title}>
-            {group.fields.map((field) => (
-              <FieldRow
-                canEdit={canEdit}
-                draft={drafts[field.key] ?? null}
-                error={errors[field.key]}
-                field={field}
-                key={field.key}
-                onChange={(value) => set(field.key, value)}
-              />
-            ))}
-          </SettingsSection>
-        ))}
+        {groups.map((group) => {
+          const provider = group.provider;
+          const hint = provider ? providerHint(provider, dirty.length > 0, group.test) : null;
+          const apiKeyField = group.fields.find((field) => field.kind === "secret");
+          return (
+            <SettingsSection
+              actions={
+                provider ? (
+                  <ProviderActions
+                    canEdit={canEdit}
+                    dirty={dirty.length > 0}
+                    draftApiKey={apiKeyField ? (drafts[apiKeyField.key] ?? "") : undefined}
+                    onModels={(list) => setModels((current) => ({ ...current, [provider.value]: list }))}
+                    provider={provider}
+                    test={group.test}
+                  />
+                ) : null
+              }
+              description={hint ? `${group.description ?? ""} ${hint}`.trim() : group.description}
+              key={group.title}
+              title={groups.length > 1 ? group.title : undefined}
+            >
+              {group.fields.map((field) => (
+                <FieldRow
+                  canEdit={canEdit}
+                  models={field.provider ? models[field.provider] : undefined}
+                  changed={drafts[field.key] !== field.value}
+                  draft={drafts[field.key] ?? null}
+                  error={errors[field.key]}
+                  field={field}
+                  key={field.key}
+                  onChange={(value) => set(field.key, value)}
+                />
+              ))}
+            </SettingsSection>
+          );
+        })}
       </form>
     </div>
   );
@@ -161,12 +214,17 @@ export function SettingsForm({
 
 function FieldRow({
   canEdit,
+  changed,
   draft,
   error,
   field,
+  models,
   onChange,
 }: {
   canEdit: boolean;
+  /** Model ids loaded with this provider's key, offered as suggestions. */
+  models?: string[];
+  changed: boolean;
   draft: string | null;
   error?: string;
   field: SettingField;
@@ -199,66 +257,114 @@ function FieldRow({
           ))}
         </SelectContent>
       </Select>
-    ) : (
+    ) : field.kind === "secret" ? (
       <Input
-        className="min-w-0 flex-1"
+        autoComplete="off"
         disabled={!canEdit}
         id={id}
-        inputMode={field.kind === "number" ? "decimal" : "email"}
         onChange={(event) => onChange(event.target.value)}
-        placeholder={field.kind === "text" ? "Not shown" : undefined}
-        type={field.kind === "number" ? "number" : "email"}
-        value={value}
+        placeholder={
+          resetting
+            ? "Saved key is removed on save"
+            : field.overridden
+              ? "Saved here. Type to replace it"
+              : field.secretSet
+                ? "Set from the environment. Type to override it"
+                : "Not set"
+        }
+        spellCheck={false}
+        type="password"
+        value={draft ?? ""}
         {...invalid}
       />
+    ) : field.kind === "model" ? (
+      <>
+        <Input
+          autoComplete="off"
+          disabled={!canEdit}
+          id={id}
+          list={models?.length ? `${id}-models` : undefined}
+          onChange={(event) => onChange(event.target.value)}
+          spellCheck={false}
+          value={value}
+          {...invalid}
+        />
+        {models?.length ? (
+          <datalist id={`${id}-models`}>
+            {models.map((model) => (
+              <option key={model} value={model} />
+            ))}
+          </datalist>
+        ) : null}
+      </>
+    ) : (
+      <div className="relative">
+        <Input
+          className={field.unit ? "pr-20" : undefined}
+          disabled={!canEdit}
+          id={id}
+          inputMode={field.kind === "number" ? "decimal" : field.format === "plain" ? "text" : "email"}
+          onChange={(event) => onChange(event.target.value)}
+          placeholder={field.kind === "text" ? "Not set" : undefined}
+          type={field.kind === "number" ? "number" : field.format === "plain" ? "text" : "email"}
+          value={value}
+          {...invalid}
+        />
+        {field.unit ? (
+          <Caption className="pointer-events-none absolute inset-y-0 right-3 flex items-center text-muted-foreground">
+            {field.unit}
+          </Caption>
+        ) : null}
+      </div>
     );
 
   const status =
-    field.store === "runtime" ? (
-      <StatusBadge variant={resetting ? "warning" : field.overridden ? "info" : "neutral"}>
-        {resetting ? "Resets on save" : field.overridden ? "Overridden" : "Default"}
-      </StatusBadge>
+    field.store === "runtime" && (resetting || field.overridden) ? (
+      <StatusBadge variant={resetting ? "warning" : "info"}>{resetting ? "Resets on save" : "Overridden"}</StatusBadge>
     ) : null;
+
+  const undo = resetting
+    ? "Undo reset"
+    : changed
+      ? "Undo"
+      : field.store === "runtime" && field.overridden
+        ? "Use default"
+        : null;
 
   return (
     <SettingRow
-      description={field.description}
-      details={
-        <>
-          {field.store === "runtime" && field.overridden ? (
-            <Caption className="mt-1 block text-muted-foreground">
-              Default: {shown(field, field.defaultValue ?? "")}
-            </Caption>
-          ) : null}
-          {field.details}
-        </>
-      }
-      id={id}
-      label={field.label}
-      status={status}
-    >
-      <div className="grid gap-1.5">
-        <div className="flex min-h-9 items-center justify-end gap-2">
-          {field.kind === "boolean" ? control : <div className="flex min-w-0 flex-1 items-center">{control}</div>}
-          {field.unit ? <Caption className="shrink-0 text-muted-foreground">{field.unit}</Caption> : null}
-        </div>
-        {error ? (
-          <Caption className="text-destructive" id={errorId} role="alert">
-            {error}
-          </Caption>
-        ) : null}
-        {canEdit && field.store === "runtime" && (field.overridden || resetting) ? (
+      actions={
+        canEdit && undo ? (
           <Button
-            className="justify-self-end"
-            onClick={() => onChange(resetting ? field.value : null)}
+            className="h-6 px-2 text-xs"
+            onClick={() => onChange(resetting || changed ? field.value : null)}
             size="sm"
             type="button"
             variant="ghost"
           >
-            {resetting ? "Undo reset" : "Use default"}
+            {undo}
           </Button>
-        ) : null}
-      </div>
+        ) : null
+      }
+      changed={changed}
+      description={[
+        field.description,
+        field.kind === "model" && !models?.length
+          ? "Type a model id, or use Test & load models to pick one."
+          : null,
+        field.store === "runtime" && field.overridden ? `Default: ${shown(field, field.defaultValue ?? "")}.` : null,
+      ]
+        .filter(Boolean)
+        .join(" ")}
+      details={field.details}
+      error={error}
+      errorId={errorId}
+      id={id}
+      inline={field.kind === "boolean"}
+      label={field.label}
+      status={status}
+    >
+      {control}
     </SettingRow>
   );
 }

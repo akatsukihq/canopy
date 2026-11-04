@@ -3,7 +3,7 @@
  * by a Client Component. The `server-only` guard package is not installed.
  */
 
-import config from "../config/config.ts";
+import { cloudinaryCredentials } from "../config/integrations.ts";
 import { v2 as cloudinary } from "cloudinary";
 import { cloudinaryFolder } from "../cloudinary/paths.ts";
 import { toolIconUrl } from "./icons.ts";
@@ -20,13 +20,6 @@ type CloudinaryCredentials = {
 export type ToolIconUploadResult =
   { ok: true; iconUrl: string; publicId: string; format: "png" } | { ok: false; reason: string };
 
-function readCredentials(): CloudinaryCredentials | null {
-  const cloudName = config.cloudinary.cloudName?.trim();
-  const apiKey = config.cloudinary.apiKey?.trim();
-  const apiSecret = config.cloudinary.apiSecret?.trim();
-  if (!cloudName || !apiKey || !apiSecret) return null;
-  return { cloud_name: cloudName, api_key: apiKey, api_secret: apiSecret };
-}
 
 function looksLikeSvg(bytes: Uint8Array): boolean {
   return new TextDecoder().decode(bytes).toLowerCase().includes("<svg");
@@ -46,8 +39,6 @@ function hasExpectedRasterSignature(bytes: Uint8Array, mimeType: string): boolea
   );
 }
 
-const credentials = readCredentials();
-if (credentials) cloudinary.config(credentials);
 
 export async function uploadToolIcon(
   toolId: string,
@@ -72,9 +63,16 @@ export async function uploadToolIcon(
   if (!/^[a-z0-9]+(?:[.-][a-z0-9]+)*$/.test(toolId)) {
     return { ok: false, reason: "The tool identifier is invalid." };
   }
-  if (!credentials) {
+  const saved = await cloudinaryCredentials();
+  if (!saved) {
     return { ok: false, reason: "Icon uploads are not configured." };
   }
+  // Per call, not cloudinary.config(): Admin can rotate the key without a restart.
+  const credentials: CloudinaryCredentials = {
+    cloud_name: saved.cloudName,
+    api_key: saved.apiKey,
+    api_secret: saved.apiSecret,
+  };
 
   const folder = cloudinaryFolder("tool-icons");
   try {
@@ -89,6 +87,7 @@ export async function uploadToolIcon(
         allowed_formats: ["png", "jpg", "webp"],
         format: "png",
         transformation: [{ width: 512, height: 512, crop: "limit" }],
+        ...credentials,
       },
     );
 

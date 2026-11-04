@@ -1,5 +1,5 @@
 /** Server-only: upload credentials and authorization must never reach clients. */
-import config from "../config/config.ts";
+import { cloudinaryCredentials } from "../config/integrations.ts";
 import { createHmac, randomUUID, timingSafeEqual } from "node:crypto";
 import { v2 as cloudinary } from "cloudinary";
 import { db } from "../../db/index.ts";
@@ -67,10 +67,9 @@ function imageMetadata(input: Record<string, unknown>) {
   return { name: input.name, size: input.size, type: input.type };
 }
 
-function credentials() {
-  const cloudName = config.cloudinary.cloudName?.trim();
-  const apiKey = config.cloudinary.apiKey?.trim();
-  const apiSecret = config.cloudinary.apiSecret?.trim();
+async function credentials() {
+  const saved = await cloudinaryCredentials();
+  const { cloudName, apiKey, apiSecret } = saved ?? { cloudName: "", apiKey: "", apiSecret: "" };
   if (!cloudName || !/^[a-zA-Z0-9_-]+$/.test(cloudName) || !apiKey || !apiSecret)
     throw new BlogImageUploadError(
       "UPLOAD_NOT_CONFIGURED",
@@ -102,7 +101,7 @@ async function authorizeUpload(actorUserId: string) {
 export async function prepareBlogImageUpload(actorUserId: string, input: unknown): Promise<PreparedBlogImageUpload> {
   await authorizeUpload(actorUserId);
   const metadata = imageMetadata(uploadInput(input, ["name", "size", "type"]));
-  const { cloudName, apiKey, apiSecret } = credentials();
+  const { cloudName, apiKey, apiSecret } = await credentials();
   const folder = cloudinaryFolder("blog");
   const publicId = `${folder}/${randomUUID()}`;
   const timestamp = Math.floor(Date.now() / 1000);
@@ -125,7 +124,7 @@ export async function prepareBlogImageUpload(actorUserId: string, input: unknown
 export async function completeBlogImageUpload(actorUserId: string, input: unknown): Promise<BlogImage> {
   const value = uploadInput(input, ["publicId", "timestamp", "name", "size", "type", "token", "uploaded"]);
   const metadata = imageMetadata(value);
-  const { cloudName, apiSecret } = credentials();
+  const { cloudName, apiSecret } = await credentials();
   const folder = cloudinaryFolder("blog");
   const now = Math.floor(Date.now() / 1000);
   if (

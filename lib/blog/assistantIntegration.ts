@@ -3,11 +3,10 @@ import { z } from "zod";
 import { and, db, eq, sql, authUser, blogPostsTable as posts } from "../../db/index.ts";
 import { requirePermission } from "../admin/index.ts";
 import { requireTransactionPermission, writeAudit } from "../admin/adminMutations.ts";
-import { AIClient } from "../ai/client.ts";
+import { createAIClient } from "../config/integrations.ts";
 import { AIError } from "../ai/errors.ts";
 import type { AIMessage, AIResult } from "../ai/types.ts";
 import config from "../config/config.ts";
-import { loadRuntimeSettings } from "../config/runtimeSettings.ts";
 import type {
   AssistantIntegration,
   AssistantTransaction,
@@ -145,8 +144,9 @@ async function auxiliary(
   if (run.operation !== "generate") return;
   let result: AIResult | undefined;
   try {
-    result = await new AIClient(run.provider).generate({
-      model: String((await loadRuntimeSettings())["ai.titleModel"].value),
+    const client = await createAIClient(run.provider, "title");
+    result = await client.generate({
+      model: client.model,
       signal,
       messages: [
         {
