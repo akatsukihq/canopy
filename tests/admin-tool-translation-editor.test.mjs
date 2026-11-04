@@ -58,7 +58,10 @@ async function render(overrides = {}) {
   );
 }
 function field(key) {
-  return document.querySelector(`input:not([type="hidden"])[name="message:${key}"],textarea[name="message:${key}"]`);
+  // Placeholder-bearing fields are a chip editor (a nameless textarea in tests) found by its field id.
+  return document.querySelector(
+    `input:not([type="hidden"])[name="message:${key}"],textarea[name="message:${key}"],textarea[id="translation-${encodeURIComponent(key)}"]`,
+  );
 }
 async function group(label) {
   const target = messageNavigation(label);
@@ -489,7 +492,7 @@ test("server validation selects the nested RTL field from another group and reta
   await group("Messages & results");
   await click(messageNavigation("Shared"));
   await click(messageNavigation("Shared · App"));
-  expect(field(nestedKey).dir).toBe("rtl");
+  expect(field(nestedKey).closest("[dir]").dir).toBe("rtl");
   await fill(field(nestedKey), "مرحبا {wrong}");
   await click(messageNavigation("Shared · Status"));
   expect(messageNavigation("Shared · Status").getAttribute("aria-selected")).toBe("true");
@@ -505,7 +508,7 @@ test("server validation selects the nested RTL field from another group and reta
   expect(document.activeElement).toBe(input);
   expect(input.value).toBe("مرحبا {wrong}");
   expect(input.disabled).toBe(false);
-  expect(input.dir).toBe("rtl");
+  expect(input.closest("[dir]").dir).toBe("rtl");
   const description = [input.getAttribute("aria-describedby"), input.getAttribute("aria-errormessage")]
     .filter(Boolean)
     .join(" ")

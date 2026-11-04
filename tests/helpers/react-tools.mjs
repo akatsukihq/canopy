@@ -135,8 +135,24 @@ export async function waitFor(check, timeout = 2_000) {
 
 // The editor itself has separate tests. A textarea preserves its public
 // controlled-input contract while avoiding CodeMirror's layout measurements.
-export function TextEditorBoundary({ value, onChange, readOnly, disabled, placeholder, ariaLabel, label, ...props }) {
+export function TextEditorBoundary({
+  value,
+  onChange,
+  readOnly,
+  disabled,
+  placeholder,
+  ariaLabel,
+  label,
+  editorRef,
+  ...props
+}) {
+  const element = React.useRef(null);
+  React.useImperativeHandle(editorRef, () => ({
+    focus: () => element.current?.focus(),
+    insertText: (text) => onChange?.(`${element.current?.value ?? ""}${text}`),
+  }));
   return React.createElement("textarea", {
+    ref: element,
     value: value ?? "",
     readOnly,
     disabled,
