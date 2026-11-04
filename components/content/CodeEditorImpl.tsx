@@ -38,6 +38,7 @@ import { loadCodeEditorLanguage } from "./codeEditorLanguages";
 import { scheduleEditorFeatures } from "./deferredEditorFeatures";
 import { indentGuides } from "./indentGuides";
 import { rainbowBrackets } from "./rainbowBrackets";
+import { createRunActions } from "./codeEditorRunActions";
 
 const EMPTY_EXTENSION: Extension = [];
 const EXTERNAL_CHANGE = Annotation.define<boolean>();
@@ -66,6 +67,19 @@ const COMPLETION_LANGUAGES = new Set([
   "css",
   "sql",
   "mermaid",
+  "python",
+  "c",
+  "cpp",
+  "java",
+  "csharp",
+  "kotlin",
+  "go",
+  "rust",
+  "ruby",
+  "php",
+  "bash",
+  "sh",
+  "shell",
 ]);
 const AUTO_COMPLETION_MAX_LENGTH = 100_000;
 type CompletionExtensions = Awaited<ReturnType<typeof import("./codeEditorCompletions").loadCodeEditorCompletions>>;
@@ -158,11 +172,12 @@ const editorTheme = EditorView.theme({
   ".cm-content": { padding: "18px 0", caretColor: "var(--foreground)" },
   ".cm-line": { padding: "0 16px 0 4px" },
   ".cm-gutters": {
-    backgroundColor: "transparent",
+    backgroundColor: "var(--card)",
     color: "var(--muted-foreground)",
     border: "none",
   },
   ".cm-lineNumbers .cm-gutterElement": { minWidth: "30px", padding: "0 0 0 16px" },
+  ".cm-run-gutter .cm-gutterElement": { padding: "0 2px 0 6px", display: "flex", alignItems: "center" },
   ".cm-foldGutter": { paddingLeft: "8px" },
   ".cm-lineNumbers + .cm-foldGutter": { paddingLeft: "3px" },
   ".cm-foldGutter .cm-gutterElement": { padding: "0 2px" },
@@ -206,9 +221,53 @@ const editorTheme = EditorView.theme({
     borderRadius: "6px",
     overflow: "hidden",
   },
+  ".cm-tooltip-autocomplete > ul": { fontFamily: "var(--font-mono)", fontSize: "var(--text-code, 0.75rem)" },
   ".cm-tooltip-autocomplete > ul > li[aria-selected]": {
     backgroundColor: "var(--accent)",
     color: "var(--accent-foreground)",
+  },
+  ".cm-completionDetail": { marginLeft: "1em", fontStyle: "normal", color: "var(--muted-foreground)" },
+  ".cm-completionMatchedText": { textDecoration: "none", fontWeight: "600", color: "var(--primary)" },
+  ".cm-tooltip.cm-completionInfo": { padding: "0", maxWidth: "min(480px, 60vw)" },
+  ".cm-ide-info": {
+    display: "grid",
+    gap: "6px",
+    maxWidth: "min(560px, 70vw)",
+    maxHeight: "320px",
+    overflow: "auto",
+    padding: "8px 10px",
+    fontSize: "0.8125rem",
+    lineHeight: "1.5",
+  },
+  ".cm-ide-code": {
+    display: "block",
+    whiteSpace: "pre-wrap",
+    wordBreak: "break-word",
+    fontFamily: "var(--font-mono)",
+    fontSize: "var(--text-code, 0.75rem)",
+  },
+  ".cm-ide-note": { color: "var(--muted-foreground)", fontSize: "0.75rem" },
+  ".cm-ide-docs": { whiteSpace: "pre-wrap", borderTop: "1px solid var(--border)", paddingTop: "6px" },
+  ".cm-ide-docs code": {
+    fontFamily: "var(--font-mono)",
+    fontSize: "0.92em",
+    backgroundColor: "var(--accent)",
+    borderRadius: "3px",
+    padding: "0 3px",
+  },
+  ".cm-ide-activeParam": { fontWeight: "700", textDecoration: "underline", textUnderlineOffset: "3px" },
+  ".cm-selectionMatch": { backgroundColor: "color-mix(in srgb, var(--primary) 12%, transparent)" },
+  ".cm-tooltip-lint": { padding: "0" },
+  ".cm-diagnostic": { padding: "6px 10px", fontSize: "0.8125rem" },
+  ".cm-lintRange-error": {
+    backgroundImage: "none",
+    textDecoration: "underline wavy var(--destructive)",
+    textUnderlineOffset: "3px",
+  },
+  ".cm-lintRange-warning": {
+    backgroundImage: "none",
+    textDecoration: "underline wavy var(--warning)",
+    textUnderlineOffset: "3px",
   },
   ".cm-cursor, .cm-dropCursor": { borderLeftColor: "var(--foreground)" },
   "&.cm-focused .cm-selectionBackground, .cm-selectionBackground, .cm-content ::selection": {
@@ -232,17 +291,37 @@ const editorTheme = EditorView.theme({
 
 function createEditorHighlighting(dataKeys: boolean, yamlContent = false) {
   return syntaxHighlighting(
+    // Token roles follow VS Code's default themes: control flow, calls, types and constants each read
+    // differently while sharing the app's syntax palette.
     HighlightStyle.define([
-      { tag: [tags.keyword, tags.tagName], color: "var(--primary)" },
+      { tag: [tags.keyword, tags.tagName, tags.self, tags.definitionKeyword, tags.modifier], color: "var(--primary)" },
+      {
+        tag: [tags.controlKeyword, tags.moduleKeyword, tags.processingInstruction, tags.macroName],
+        color: "var(--syntax-bracket-5)",
+      },
       { tag: [tags.variableName, tags.attributeName], color: "var(--foreground)" },
       { tag: tags.propertyName, color: dataKeys ? "var(--primary)" : "var(--foreground)" },
-      { tag: tags.typeName, color: "var(--warning)" },
-      { tag: [tags.standard(tags.typeName), tags.standard(tags.variableName)], color: "var(--syntax-string)" },
-      { tag: [tags.string, tags.regexp, tags.monospace], color: "var(--syntax-string)" },
+      {
+        tag: [
+          tags.function(tags.variableName),
+          tags.function(tags.propertyName),
+          tags.function(tags.definition(tags.variableName)),
+        ],
+        color: "var(--syntax-bracket-3)",
+      },
+      { tag: [tags.typeName, tags.className, tags.namespace], color: "var(--syntax-bracket-4)" },
+      { tag: [tags.standard(tags.typeName), tags.standard(tags.variableName)], color: "var(--syntax-bracket-4)" },
+      { tag: [tags.string, tags.regexp, tags.monospace, tags.character], color: "var(--syntax-string)" },
+      { tag: tags.escape, color: "var(--syntax-bracket-5)" },
       { tag: tags.content, color: yamlContent ? "var(--syntax-string)" : "var(--foreground)" },
       { tag: tags.labelName, color: yamlContent ? "var(--syntax-bracket-2)" : "var(--foreground)" },
-      { tag: [tags.number, tags.bool, tags.null, tags.atom], color: "var(--warning)" },
-      { tag: [tags.comment, tags.meta], color: "var(--muted-foreground)" },
+      {
+        tag: [tags.number, tags.bool, tags.null, tags.atom],
+        color: dataKeys ? "var(--warning)" : "var(--syntax-bracket-1)",
+      },
+      { tag: tags.constant(tags.variableName), color: "var(--syntax-bracket-1)" },
+      { tag: tags.comment, color: "var(--muted-foreground)", fontStyle: "italic" },
+      { tag: tags.meta, color: "var(--muted-foreground)" },
       { tag: [tags.heading, tags.link], color: "var(--primary)" },
       { tag: tags.strong, fontWeight: "600" },
       { tag: tags.emphasis, fontStyle: "italic" },
@@ -316,6 +395,8 @@ export default function CodeEditorImpl({
   scrollRef,
   searchQuery = "",
   activeMatch,
+  ide = false,
+  runActions,
   "aria-label": ariaLabel,
   "aria-labelledby": ariaLabelledBy,
   "aria-describedby": ariaDescribedBy,
@@ -325,6 +406,8 @@ export default function CodeEditorImpl({
   const configuration = useMemo(() => new Compartment(), []);
   const [view, setView] = useState<EditorView | null>(null);
   const [focused, setFocused] = useState(false);
+  // IDE editors also load on pointer entry so hover docs work before the first click.
+  const [engaged, setEngaged] = useState(false);
   const [loadedLanguage, setLoadedLanguage] = useState<{ name: string; extension: Extension } | null>(null);
   const [loadedCompletion, setLoadedCompletion] = useState<{
     name: string;
@@ -332,6 +415,13 @@ export default function CodeEditorImpl({
   } | null>(null);
   const callbacks = useRef({ onChange, onCaretChange, onScroll, maxLength });
   callbacks.current = { onChange, onCaretChange, onScroll, maxLength };
+  const runActionsRef = useRef(runActions);
+  runActionsRef.current = runActions;
+  const hasRunActions = Boolean(runActions);
+  const runActionsExtension = useMemo(
+    () => (hasRunActions ? createRunActions(() => runActionsRef.current!) : EMPTY_EXTENSION),
+    [hasRunActions],
+  );
   const languageName = language.trim().toLowerCase();
   const languageExtension = loadedLanguage?.name === languageName ? loadedLanguage.extension : EMPTY_EXTENSION;
   const isReadOnly = readOnly || disabled || !onChange;
@@ -368,12 +458,17 @@ export default function CodeEditorImpl({
   }, [languageName]);
 
   useEffect(() => {
-    if (!focused || isReadOnly || !COMPLETION_LANGUAGES.has(languageName) || loadedCompletion?.name === languageName)
+    if (
+      !(focused || engaged) ||
+      isReadOnly ||
+      !COMPLETION_LANGUAGES.has(languageName) ||
+      loadedCompletion?.name === languageName
+    )
       return;
     let active = true;
     const cancel = scheduleEditorFeatures(() => {
       import("./codeEditorCompletions")
-        .then(({ loadCodeEditorCompletions }) => loadCodeEditorCompletions(languageName))
+        .then(({ loadCodeEditorCompletions }) => loadCodeEditorCompletions(languageName, ide))
         .then((extensions) => {
           if (active) setLoadedCompletion({ name: languageName, extensions });
         })
@@ -384,7 +479,7 @@ export default function CodeEditorImpl({
       active = false;
       cancel();
     };
-  }, [focused, isReadOnly, languageName, loadedCompletion?.name]);
+  }, [focused, engaged, ide, isReadOnly, languageName, loadedCompletion?.name]);
 
   const interactionExtensions = useMemo(
     () => [
@@ -448,7 +543,8 @@ export default function CodeEditorImpl({
       EditorView.editable.of(!disabled),
       ...(placeholder ? [editorPlaceholder(placeholder)] : []),
       ...(showLineNumbers ? [lineNumbers()] : []),
-      foldingExtensions,
+      runActionsExtension,
+      ...(hasRunActions ? [] : [foldingExtensions]),
       ...(wrap === "off" ? [] : [EditorView.lineWrapping]),
     ];
   }, [
@@ -469,6 +565,8 @@ export default function CodeEditorImpl({
     showLineNumbers,
     colorPreviews,
     wrap,
+    runActionsExtension,
+    hasRunActions,
   ]);
 
   const reportCaret = useCallback((currentView: EditorView) => {
@@ -568,5 +666,11 @@ export default function CodeEditorImpl({
     });
   }, [view, activeMatch?.from, activeMatch?.to, value]);
 
-  return <div ref={containerRef} className="h-full min-h-0 min-w-0" />;
+  return (
+    <div
+      className="h-full min-h-0 min-w-0"
+      onPointerEnter={ide && !engaged ? () => setEngaged(true) : undefined}
+      ref={containerRef}
+    />
+  );
 }

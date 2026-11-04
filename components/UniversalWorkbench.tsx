@@ -60,6 +60,7 @@ type UniversalWorkbenchProps<Input, Settings extends ToolSettings, Result> = Omi
   definition: ToolDefinition;
   runtimeSpec: ToolRuntimeSpec<Input, Settings, Result>;
   StatusMeta?: ComponentType;
+  completedStatus?: string;
   statusMeta?: ReactNode;
   validationReason?: string | null;
   Toolbar: ComponentType;
@@ -175,6 +176,7 @@ function WorkbenchFrame<Input, Settings extends ToolSettings, Result>({
   description,
   relatedTools = [],
   StatusMeta,
+  completedStatus,
   statusMeta,
   validationReason,
   title,
@@ -204,7 +206,9 @@ function WorkbenchFrame<Input, Settings extends ToolSettings, Result>({
     runtime.lifecycle === "running"
       ? definition.labels.running
       : runtime.lifecycle === "completed"
-        ? runtime.notice || [definition.labels.ready.replace(/[.!?]+$/, ""), factSummary].filter(Boolean).join(" · ")
+        ? runtime.notice ||
+          completedStatus ||
+          [definition.labels.ready.replace(/[.!?]+$/, ""), factSummary].filter(Boolean).join(" · ")
         : runtime.notice ||
           runtime.error ||
           runtime.issues[0]?.message ||

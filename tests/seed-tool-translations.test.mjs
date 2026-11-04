@@ -144,3 +144,16 @@ test("Paperwork backfill requires each host's editable interface messages and pr
   }
   expect(await backfillToolTranslations(database, SCAN)).toBe(0);
 });
+
+test("saved English that no longer fits the code's placeholders is replaced by the source", async () => {
+  const source = extractToolMessages({ ...spec, name: ROW.name, description: ROW.description });
+  const { database, state } = databaseFor({
+    ...ROW,
+    translations: {
+      en: { status: "published", messages: { ...source, name: "Decoder for {who}", description: "Saved" } },
+    },
+  });
+  expect(await backfillToolTranslations(database, SCAN)).toBe(1);
+  expect(state.row.translations.en.messages.name).toBe(ROW.name);
+  expect(state.row.translations.en.messages.description).toBe("Saved");
+});

@@ -1,0 +1,7 @@
+#!/usr/bin/env bash
+
+rename 's/$/\.ts/' "$@" # Add .ts extension
+
+# Explicit options: TypeScript 6+ changed the defaults (module, types, strict) and 7 dropped node10 resolution, so every version compiles the same way.
+tsc --target es2022 --module nodenext --types node \
+    --typeRoots "$TS_ROOT/lib/node_modules/@types" --strict --skipLibCheck --outDir . *.ts

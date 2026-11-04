@@ -14,6 +14,28 @@ export interface CodeEditorHandle {
   scrollToLine(line: number, column?: number): void;
 }
 
+/** Run affordances: a button beside each runnable range and a context menu with run and edit actions. */
+export interface CodeEditorRunActions {
+  /** Character ranges that can run on their own, e.g. one SQL statement each. */
+  find(source: string): readonly { readonly from: number; readonly to: number }[];
+  onRun(range: { readonly from: number; readonly to: number }): void;
+  onRunAll(): void;
+  /** Optional: show how a range would execute, without running it for real. */
+  onExplain?(range: { readonly from: number; readonly to: number }, mode: "plan" | "bytecode"): void;
+  labels: {
+    run: string;
+    runStatement: string;
+    runSelection: string;
+    runAll: string;
+    explain?: string;
+    explainPlan?: string;
+    cut: string;
+    copy: string;
+    paste: string;
+    selectAll: string;
+  };
+}
+
 export interface CodeEditorProps extends Pick<
   AriaAttributes,
   "aria-label" | "aria-labelledby" | "aria-describedby" | "aria-invalid"
@@ -37,6 +59,9 @@ export interface CodeEditorProps extends Pick<
   scrollRef?: Ref<HTMLElement>;
   searchQuery?: string;
   activeMatch?: { from: number; to: number };
+  /** VS Code-style hover docs, go-to-definition, signature help and, for JS/TS, type checking. */
+  ide?: boolean;
+  runActions?: CodeEditorRunActions;
 }
 
 const LazyCodeEditor = dynamic(() => import("./CodeEditorImpl"), {

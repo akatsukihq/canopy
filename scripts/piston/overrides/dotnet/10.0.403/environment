@@ -1,0 +1,10 @@
+#!/usr/bin/env bash
+
+export DOTNET_ROOT=$PWD
+export PATH=$DOTNET_ROOT:$PATH
+export CSC=$(echo $PWD/sdk/*/Roslyn/bincore/csc.dll)
+export DOTNET_CLI_TELEMETRY_OPTOUT=1 DOTNET_NOLOGO=1 DOTNET_SKIP_FIRST_TIME_EXPERIENCE=1
+# The sandbox has no ICU data path guarantees and a small memory limit: invariant culture, capped GC heap.
+export DOTNET_SYSTEM_GLOBALIZATION_INVARIANT=1 DOTNET_GCHeapHardLimit=0xC000000 DOTNET_TieredCompilation=1
+# W^X double-maps JIT code through a large memfd: trips the sandbox file-size (SIGXFSZ) and memory limits.
+export DOTNET_EnableWriteXorExecute=0

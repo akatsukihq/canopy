@@ -6,7 +6,7 @@ import type { NodePgDatabase } from "drizzle-orm/node-postgres";
 import * as schema from "./schema.ts";
 import { managedToolsTable, toolContentTable } from "./schema.ts";
 import { resolveContent } from "../lib/tool-framework/content.ts";
-import { escapeToolText, extractToolMessages } from "../lib/tool-framework/translations.ts";
+import { escapeToolText, extractToolMessages, validateToolTranslation } from "../lib/tool-framework/translations.ts";
 import type { ToolSpec } from "../lib/tool-framework/spec.ts";
 
 type SeedToolApp = Extract<ToolApp, "devtools" | "media">;
@@ -241,8 +241,12 @@ export async function backfillToolTranslations(
         );
       }
       const existing = row.translations?.en;
+      // Keep admin-edited English only while it still fits the code's message (same placeholders/choices).
+      const keep = (key: string, value: string) =>
+        existing?.messages[key] !== undefined &&
+        !validateToolTranslation("en", { [key]: existing.messages[key] }, { [key]: value }, { publish: true }).length;
       const messages = Object.fromEntries(
-        Object.entries(source).map(([key, value]) => [key, existing?.messages[key] ?? value]),
+        Object.entries(source).map(([key, value]) => [key, keep(key, value) ? existing!.messages[key] : value]),
       );
       if (
         existing &&

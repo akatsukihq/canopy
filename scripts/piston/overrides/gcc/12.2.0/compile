@@ -1,0 +1,21 @@
+#!/usr/bin/env bash
+
+# The Piston language is the standard; GCC 12 spells C23 and C++23 as c2x and c++2b.
+case "${PISTON_LANGUAGE}" in
+    c11|c17|c23)
+        std=${PISTON_LANGUAGE/c23/c2x}
+        rename 's/$/\.c/' "$@" # Add .c extension
+        gcc -std=$std *.c -lm
+        ;;
+    c++17|c++20|c++23)
+        std=${PISTON_LANGUAGE/c++23/c++2b}
+        rename 's/$/\.cpp/' "$@" # Add .cpp extension
+        g++ -std=$std *.cpp
+        ;;
+    *)
+        echo "How did you get here? (${PISTON_LANGUAGE})"
+        exit 1
+        ;;
+esac
+
+chmod +x a.out

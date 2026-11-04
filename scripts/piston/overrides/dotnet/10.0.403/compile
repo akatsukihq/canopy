@@ -1,0 +1,5 @@
+#!/usr/bin/env bash
+
+rename 's/$/\.cs/' "$@" # Add .cs extension
+cp "$DOTNET_ROOT/GlobalUsings.cs" "$DOTNET_ROOT/main.runtimeconfig.json" .
+dotnet "$CSC" @"$DOTNET_ROOT/csc.rsp" *.cs

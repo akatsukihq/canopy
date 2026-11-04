@@ -1,0 +1,4 @@
+export PATH=$PWD/go/bin:$PATH
+export GOPATH=$PWD/gopath
+# Prebuilt std (build.sh). Read-only in the sandbox; Go keeps working when it cannot write new entries.
+export GOCACHE=$PWD/gocache

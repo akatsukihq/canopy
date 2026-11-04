@@ -1,0 +1,7 @@
+#!/usr/bin/env bash
+
+# Single-file source launch: java compiles and runs Main.java in one step.
+mv $1 $1.java
+filename=$1.java
+shift
+java $filename "$@"

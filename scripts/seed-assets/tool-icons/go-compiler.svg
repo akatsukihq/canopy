@@ -1,0 +1,9 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="104" height="88" viewBox="0 0 104 88" role="img"><title>go-compiler</title>
+<svg viewBox="0 0 24 24" preserveAspectRatio="none" xmlns="http://www.w3.org/2000/svg" x="6" y="14" width="66" height="66" overflow="visible">
+  <g fill="none" stroke="#0066FF" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m18 16 4-4-4-4"/><path d="m6 8-4 4 4 4"/><path d="m14.5 4-5 16"/></g>
+</svg>
+<svg viewBox="0 0 24 24" preserveAspectRatio="xMidYMid meet" xmlns="http://www.w3.org/2000/svg" x="68" y="52" width="26" height="26" overflow="visible">
+  <path d="M6 3l14 9-14 9z" fill="none" stroke="#1A1A1A" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"></path>
+</svg>
+<g fill="rgb(26, 26, 26)"><path d="M831 539L831 786L1469 786L1469 202Q1376 112 1199.5 43.5Q1023 -25 842 -25Q612 -25 441 71.5Q270 168 184 347.5Q98 527 98 738Q98 967 194 1145Q290 1323 475 1418Q616 1491 826 1491Q1099 1491 1252.5 1376.5Q1406 1262 1450 1060L1156 1005Q1125 1113 1039.5 1175.5Q954 1238 826 1238Q632 1238 517.5 1115Q403 992 403 750Q403 489 519 358.5Q635 228 823 228Q916 228 1009.5 264.5Q1103 301 1170 353L1170 539Z" transform="translate(78.44 15) scale(0.00614 -0.00614)"/><path d="M89 724Q89 948 156 1100Q206 1212 292.5 1301Q379 1390 482 1433Q619 1491 798 1491Q1122 1491 1316.5 1290Q1511 1089 1511 731Q1511 376 1318 175.5Q1125 -25 802 -25Q475 -25 282 174.5Q89 374 89 724ZM394 734Q394 485 509 356.5Q624 228 801 228Q978 228 1091.5 355.5Q1205 483 1205 738Q1205 990 1094.5 1114Q984 1238 801 1238Q618 1238 506 1112.5Q394 987 394 734Z" transform="translate(88.22 15) scale(0.00614 -0.00614)"/></g>
+</svg>

@@ -888,7 +888,7 @@ function ToolPageState({
 
   return (
     <ToolChromeContext.Provider value={chrome}>
-      <Toaster position="top-right" />
+      <Toaster position="bottom-right" />
       <UniversalWorkbench
         account={account}
         category={category}
@@ -898,6 +898,7 @@ function ToolPageState({
         description={description}
         relatedTools={relatedTools}
         runtimeSpec={runtimeSpec}
+        completedStatus={toolbarActions?.status}
         statusMeta={toolbarActions?.statusMeta}
         validationReason={validationReason}
         title={title}

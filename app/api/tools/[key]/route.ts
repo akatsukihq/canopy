@@ -13,6 +13,7 @@ import { TOOL_SLUG_PATTERN } from "@/lib/tool-catalog/index.ts";
 import { NextResponse } from "next/server";
 import { captureException } from "@sentry/core";
 
+import { CODE_LANGUAGES } from "@/lib/code-execution/languages";
 import { checkRateLimit } from "@/lib/rateLimit";
 import type { ToolResult } from "@/lib/tool-framework/result";
 import { ToolError, type ToolRun } from "@/lib/tool-framework/run";
@@ -20,6 +21,10 @@ import { parseSettings } from "@/lib/tool-framework/settings";
 import type { ToolSpec } from "@/lib/tool-framework/spec";
 import { errorMessage } from "@/utils/errorMessage";
 import { log, logError } from "@/lib/observability/logger.ts";
+
+/** Code execution is far costlier than other tools, so it gets its own, tighter bucket. */
+const CODE_BODY_MAX_BYTES = 256 * 1024;
+const CODE_EXEC_LIMIT_PER_MINUTE = 10;
 
 type ToolRequestBody = {
   readonly text?: unknown;
@@ -91,7 +96,12 @@ export async function POST(request: Request, { params }: { params: Promise<{ key
     // This header is spoofable unless a trusted proxy overwrites it. Taking
     // only the first hop makes this a quota speed bump, not authorization.
     const clientKey = request.headers.get("x-forwarded-for")?.split(",", 1)[0]?.trim() || "unknown-client";
-    const rateLimit = checkRateLimit(`${key}:${clientKey}`);
+    // ponytail: no trusted proxy-set header is documented in this repo (no caddy/deploy config), so the
+    // spoofable first hop stays; a spoofer can mint buckets, bounded by the engine semaphore. Switch to
+    // the header the front proxy overwrites once task 6 documents it.
+    const rateLimit = Object.hasOwn(CODE_LANGUAGES, key)
+      ? checkRateLimit(`code-exec:${clientKey}`, { limit: CODE_EXEC_LIMIT_PER_MINUTE })
+      : checkRateLimit(`${key}:${clientKey}`);
     if (!rateLimit.allowed) {
       log("warn", "api.tool.rate_limited", { tool: key, retryAfterSeconds: rateLimit.retryAfterSeconds });
       return NextResponse.json(
@@ -107,6 +117,14 @@ export async function POST(request: Request, { params }: { params: Promise<{ key
           headers: { "Retry-After": String(rateLimit.retryAfterSeconds) },
         },
       );
+    }
+
+    // Code tools carry at most 64 KiB source + 64 KiB stdin; refuse anything bigger before buffering it.
+    if (
+      Object.hasOwn(CODE_LANGUAGES, key) &&
+      Number(request.headers.get("content-length") ?? 0) > CODE_BODY_MAX_BYTES
+    ) {
+      throw new ToolError("invalid-request", "The request is too large. Reduce the code or input and try again.");
     }
 
     let body: ToolRequestBody;
@@ -149,6 +167,11 @@ export async function POST(request: Request, { params }: { params: Promise<{ key
     log("info", "api.tool.completed", { tool: key, durationMs: elapsed() });
     return NextResponse.json({ result });
   } catch (error) {
-    return toFailure(error, { ...fields, durationMs: elapsed() });
+    // Code tools carry user source in their request; never let an error that might echo it reach Sentry or logs.
+    const safe =
+      typeof fields.tool === "string" && Object.hasOwn(CODE_LANGUAGES, fields.tool) && !(error instanceof ToolError)
+        ? new Error("Code execution failed.")
+        : error;
+    return toFailure(safe, { ...fields, durationMs: elapsed() });
   }
 }

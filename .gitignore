@@ -36,3 +36,6 @@ tmp/
 public/sw.js
 public/sw.js.map
 public/swe-worker-*.js
+
+# Copied from node_modules by scripts/copy-media-vendor.mjs (dev and build run it); ~16 MB of binaries.
+/public/code/vendor/pglite/

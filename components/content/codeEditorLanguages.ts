@@ -1,6 +1,6 @@
 import { HighlightStyle, StreamLanguage, syntaxHighlighting, syntaxTree } from "@codemirror/language";
 import type { Extension } from "@codemirror/state";
-import { Decoration, ViewPlugin, type EditorView, type ViewUpdate } from "@codemirror/view";
+import { Decoration, EditorView, ViewPlugin, type ViewUpdate } from "@codemirror/view";
 import type { Tree } from "@lezer/common";
 import { Tag } from "@lezer/highlight";
 
@@ -73,6 +73,44 @@ const yamlScalarHighlighting = ViewPlugin.fromClass(
   },
   { decorations: (plugin) => plugin.decorations },
 );
+
+// The stream-based (legacy) grammars never tag call sites, so mark `name(` where the token is a plain
+// identifier. Strings, comments and keywords such as `if (` keep their own colour.
+const CALLABLE_TOKEN = /variable|def|property|type|builtin|function/i;
+const callMark = Decoration.mark({ class: "cm-call" });
+const callTheme = EditorView.baseTheme({ ".cm-call": { color: "var(--syntax-bracket-3)" } });
+const callHighlighting = [
+  callTheme,
+  ViewPlugin.fromClass(
+    class {
+      decorations;
+      constructor(view: EditorView) {
+        this.decorations = this.mark(view);
+      }
+      update(update: ViewUpdate) {
+        if (update.docChanged || update.viewportChanged || syntaxTree(update.state) !== syntaxTree(update.startState)) {
+          this.decorations = this.mark(update.view);
+        }
+      }
+      mark(view: EditorView) {
+        const tree = syntaxTree(view.state);
+        const ranges = [];
+        for (const { from, to } of view.visibleRanges) {
+          const text = view.state.doc.sliceString(from, to);
+          for (const match of text.matchAll(/([A-Za-z_$][\w$]*)\s*\(/g)) {
+            if (ranges.length >= 2_000) break;
+            const start = from + match.index;
+            if (CALLABLE_TOKEN.test(tree.resolveInner(start, 1).name)) {
+              ranges.push(callMark.range(start, start + match[1].length));
+            }
+          }
+        }
+        return Decoration.set(ranges);
+      }
+    },
+    { decorations: (plugin) => plugin.decorations },
+  ),
+];
 
 function createDelimitedLanguage(tabSeparated: boolean) {
   const delimiter = tabSeparated ? /^\t/ : /^[,;\t|]/;
@@ -354,7 +392,29 @@ async function importLanguage(language: string): Promise<Extension> {
     case "shell":
     case "sh":
     case "bash":
-      return StreamLanguage.define((await import("@codemirror/legacy-modes/mode/shell")).shell);
+      return [StreamLanguage.define((await import("@codemirror/legacy-modes/mode/shell")).shell), callHighlighting];
+    // Real grammars give a syntax tree: call/definition highlighting, structural folding and indentation.
+    case "python":
+      return (await import("@codemirror/lang-python")).python();
+    case "c":
+    case "cpp":
+      return (await import("@codemirror/lang-cpp")).cpp();
+    case "java":
+      return (await import("@codemirror/lang-java")).java();
+    case "csharp":
+      return (await import("@replit/codemirror-lang-csharp")).csharp();
+    case "go":
+      return (await import("@codemirror/lang-go")).go();
+    case "rust":
+      return (await import("@codemirror/lang-rust")).rust();
+    case "php":
+      // Script files start with `<?php`; skipping the HTML base language keeps the chunk small.
+      return (await import("@codemirror/lang-php")).php({ baseLanguage: null });
+    // No maintained Lezer grammar exists for these; the stream modes plus call marking cover highlighting.
+    case "kotlin":
+      return [StreamLanguage.define((await import("@codemirror/legacy-modes/mode/clike")).kotlin), callHighlighting];
+    case "ruby":
+      return [StreamLanguage.define((await import("@codemirror/legacy-modes/mode/ruby")).ruby), callHighlighting];
     case "csv":
       return createDelimitedLanguage(false);
     case "tsv":

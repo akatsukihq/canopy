@@ -67,6 +67,11 @@ export const TOOL_CATEGORIES = {
     description: "Create IDs, passwords, mock data, and more.",
     app: "devtools",
   },
+  compilers: {
+    label: "Compilers",
+    description: "Write, run, and test code online in many languages.",
+    app: "devtools",
+  },
   "diagram-tools": {
     label: "Diagram Tools",
     description: "Turn structured text into useful diagrams.",

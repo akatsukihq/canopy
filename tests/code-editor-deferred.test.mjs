@@ -112,7 +112,7 @@ test("focusing never bypasses deferred loading, and unfocused editors do not loa
   await focus(view);
   expect(features.completion).not.toHaveBeenCalled();
   await startDeferredFeatures();
-  expect(features.completion).toHaveBeenCalledWith("javascript");
+  expect(features.completion).toHaveBeenCalledWith("javascript", false);
   expect(view.contentDOM.getAttribute("data-loaded-completions")).toBe("true");
 });
 

@@ -60,6 +60,8 @@ export interface WorkspaceToolbarActions {
   readonly onCancel?: () => void;
   readonly primaryActionLabel?: string;
   readonly statusMeta?: ReactNode;
+  /** Replaces the status bar text while the last run is complete. */
+  readonly status?: string;
 }
 
 export interface WorkspaceProps {

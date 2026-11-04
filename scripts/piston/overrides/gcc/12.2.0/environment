@@ -1,0 +1,3 @@
+#!/usr/bin/env bash
+# System gcc/g++ live in /usr/bin; make the sandbox PATH explicit (the driver needs it to find as/ld).
+export PATH=/usr/local/bin:/usr/bin:/bin:$PATH

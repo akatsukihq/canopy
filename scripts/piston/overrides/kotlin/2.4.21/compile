@@ -1,0 +1,5 @@
+#!/usr/bin/env bash
+
+rename 's/$/\.kt/' "$@" # Add .kt extension
+
+kotlinc *.kt -include-runtime -d code.jar

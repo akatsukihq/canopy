@@ -107,6 +107,11 @@ const nextConfig: NextConfig = {
       { source: "/media/:path*", headers: mediaSecurityHeaders },
       { source: `/:locale(${locales.join("|")})/media/:path*`, headers: mediaSecurityHeaders },
       {
+        // Version-named vendor files never change in place, so they cache for a year.
+        source: "/code/vendor/:path*",
+        headers: [{ key: "Cache-Control", value: "public, max-age=31536000, immutable" }],
+      },
+      {
         source: "/_next/static/:path*",
         headers: workerIsolationHeaders,
       },
@@ -135,6 +140,9 @@ const withSerwist = withSerwistInit({
       };
     },
   ],
+  // Every public file is precached except PGlite (~16 MB): only visitors who pick PostgreSQL download it,
+  // then the browser keeps it (immutable /code/vendor headers). Globs here cannot negate, so list the rest.
+  globPublicPatterns: ["*", "!(code)/**/*", "code/!(vendor)/**/*", "code/vendor/!(pglite)/**/*"],
   cacheOnNavigation: true,
   reloadOnOnline: true,
   disable: development,
