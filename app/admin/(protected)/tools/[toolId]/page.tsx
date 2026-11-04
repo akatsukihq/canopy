@@ -14,7 +14,7 @@ import {
   StatusBadge,
   Toaster,
 } from "@/components/ui/index.tsx";
-import { ExternalLink, FileText, Languages, LayoutDashboard, type LucideIcon } from "lucide-react";
+import { ExternalLink, FileText, Braces, Languages, LayoutDashboard, type LucideIcon } from "lucide-react";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { requirePagePermission } from "../../../../../lib/admin/access";
@@ -27,8 +27,9 @@ import { ToolIconPanel } from "./components/ToolIconPanel";
 import { inheritedContent } from "./toolSpec";
 import { loadSpec } from "@/lib/tool-framework/catalog";
 import { ToolTranslationsForm } from "./components/ToolTranslationsForm";
+import { ToolDefinitionEditor } from "./components/ToolDefinitionEditor";
 
-type ConfigurationSection = "overview" | "content" | "translations";
+type ConfigurationSection = "overview" | "content" | "translations" | "definition";
 
 const SECTIONS: readonly {
   readonly key: ConfigurationSection;
@@ -38,6 +39,7 @@ const SECTIONS: readonly {
   { key: "overview", label: "Overview", icon: LayoutDashboard },
   { key: "content", label: "Content document", icon: FileText },
   { key: "translations", label: "Translations", icon: Languages },
+  { key: "definition", label: "Definition", icon: Braces },
 ];
 
 function selectedSection(value: string | string[] | undefined): ConfigurationSection {
@@ -71,7 +73,7 @@ export default async function ToolContentPage({
     loadSpec(toolId),
   ]);
   const [managedRow] =
-    configured && section === "translations"
+    configured && (section === "translations" || section === "definition")
       ? await db.select().from(managedToolsTable).where(eq(managedToolsTable.toolId, toolId)).limit(1)
       : [];
   const inherited = inheritedContent(spec, tool.name, tool.description);
@@ -209,6 +211,17 @@ export default async function ToolContentPage({
             )}
             toolId={tool.id}
             translations={managedRow.translations}
+            updatedAt={managedRow.updatedAt.toISOString()}
+          />
+        ) : null}
+
+        {section === "definition" && managedRow && tool.app !== "paperwork" ? (
+          <ToolDefinitionEditor
+            app={tool.app}
+            hasDraft={tool.hasSpecDraft}
+            initialJson={JSON.stringify(tool.specDraft ?? tool.rawSpec ?? {}, null, 2)}
+            publishedJson={JSON.stringify(tool.rawSpec ?? {}, null, 2)}
+            toolId={tool.id}
             updatedAt={managedRow.updatedAt.toISOString()}
           />
         ) : null}

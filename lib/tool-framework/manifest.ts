@@ -42,6 +42,13 @@ export interface AdminTool extends ResolvedTool {
   /** False when the row has no valid stored spec. */
   readonly hasDefinition: boolean;
   readonly hasDraftContent: boolean;
+  /** The raw stored spec, even when it does not validate. */
+  readonly rawSpec: unknown | null;
+  /** The raw unpublished spec edit; see `lib/admin/toolSpecDraft.ts`. */
+  readonly specDraft: unknown | null;
+  readonly hasSpecDraft: boolean;
+  /** ISO timestamp of the row, for stale-edit checks. */
+  readonly updatedAt: string;
 }
 
 const loadRows = cache(async (): Promise<readonly ManagedToolRow[]> => {
@@ -109,13 +116,21 @@ export const getAdminTools = cache(async (): Promise<readonly AdminTool[]> => {
   ]);
   const draftIds = new Set(contentRows.filter(hasDraftToolContent).map((row) => row.toolId));
   const shippedById = new Map(records.map((record) => [record.entry.id, record.hasDefinition] as const));
+  const rowsById = new Map(rows.map((row) => [row.toolId, row] as const));
 
   return mergeToolManifest(
     rows,
     records.map((record) => record.entry),
-  ).map((tool) => ({
-    ...tool,
-    hasDefinition: shippedById.get(tool.id) ?? false,
-    hasDraftContent: draftIds.has(tool.id),
-  }));
+  ).map((tool) => {
+    const row = rowsById.get(tool.id);
+    return {
+      ...tool,
+      hasDefinition: shippedById.get(tool.id) ?? false,
+      hasDraftContent: draftIds.has(tool.id),
+      rawSpec: row?.spec ?? null,
+      specDraft: row?.specDraft ?? null,
+      hasSpecDraft: row?.specDraft != null,
+      updatedAt: (row?.updatedAt ?? new Date(0)).toISOString(),
+    };
+  });
 });

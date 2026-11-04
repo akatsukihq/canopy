@@ -63,6 +63,8 @@ import {
 } from "../tool-framework/content.ts";
 import { uploadToolIcon } from "../tool-framework/cloudinary.ts";
 import { definitionKeyOf, specFromRow } from "../tool-framework/catalog.ts";
+import { parseToolSpec } from "../tool-framework/specSchema.ts";
+import { limitViolations, loadSystemLimits } from "../tool-framework/systemLimits.ts";
 import {
   applyToolMessages,
   escapeToolText,
@@ -74,13 +76,13 @@ import {
 import { isLocale } from "../i18n/config.ts";
 import type { ToolSpec } from "../tool-framework/spec.ts";
 
-async function invalidateAfterCommit<T>(namespace: string, result: T): Promise<T> {
+export async function invalidateAfterCommit<T>(namespace: string, result: T): Promise<T> {
   if (namespace === CACHE_NAMESPACES.CATALOG) catalogCache.clear();
   else await new Cache(namespace).delete("all");
   return result;
 }
 
-type Transaction = Parameters<Parameters<typeof db.transaction>[0]>[0];
+export type Transaction = Parameters<Parameters<typeof db.transaction>[0]>[0];
 type ToolRow = typeof managedToolsTable.$inferSelect;
 type RoleRow = typeof rolesTable.$inferSelect;
 type TemplateRow = typeof invoiceTemplatesTable.$inferSelect;
@@ -248,7 +250,7 @@ export async function writeAudit(
  * with no `managed_tools` row does not exist — which is also what makes a row
  * created before its folder ships fully manageable here.
  */
-async function getToolForUpdate(transaction: Transaction, toolId: string): Promise<ToolRow> {
+export async function getToolForUpdate(transaction: Transaction, toolId: string): Promise<ToolRow> {
   const [stored] = await transaction
     .select()
     .from(managedToolsTable)
@@ -318,7 +320,7 @@ function replaceEnglishMessages(translations: ToolTranslations, messages: Record
   ]);
 }
 
-function synchronizeEnglishSource(
+export function synchronizeEnglishSource(
   translations: ToolTranslations,
   before: Record<string, string>,
   after: Record<string, string>,
@@ -349,6 +351,25 @@ async function syncContentEnglish(
       updatedAt: new Date(),
     })
     .where(eq(managedToolsTable.toolId, tool.toolId));
+}
+
+export class ToolSpecValidationError extends Error {
+  constructor(readonly issues: readonly string[]) {
+    super(`Tool spec needs attention: ${issues[0] ?? "invalid spec"}`);
+  }
+}
+
+/** A spec an admin may store for `tool`: schema-valid, its own id/app, and within system limits. */
+export async function validatedToolSpec(value: unknown, tool: Pick<ToolRow, "toolId" | "app">): Promise<ToolSpec> {
+  const parsed = parseToolSpec(value);
+  if (!parsed.ok) throw new ToolSpecValidationError(parsed.issues);
+  const issues = [
+    ...(parsed.spec.toolId === tool.toolId ? [] : [`toolId: must be "${tool.toolId}"`]),
+    ...(parsed.spec.app === tool.app ? [] : [`app: must be "${tool.app}"`]),
+    ...limitViolations(parsed.spec, await loadSystemLimits()),
+  ];
+  if (issues.length) throw new ToolSpecValidationError(issues);
+  return parsed.spec;
 }
 
 export class ToolTranslationValidationError extends Error {
@@ -487,6 +508,8 @@ export interface ManagedToolDraft {
   /** Blank falls back to `slugFromName(name)`. */
   readonly slug?: string;
   readonly category: string;
+  /** Optional initial spec (untrusted JSON), stored as the unpublished draft. */
+  readonly spec?: unknown;
 }
 
 /** Paperwork is a separate product surface and is not scaffolded this way. */
@@ -529,6 +552,9 @@ export async function createManagedTool(actorUserId: string, input: ManagedToolD
       // The folder is derived from the tool id, which is why the id is derived
       // from the key rather than typed.
       const toolId = `${app}.${key}`;
+      // The raw JSON is stored, not the parse result, so key order is the author's.
+      if (input.spec !== undefined) await validatedToolSpec(input.spec, { toolId, app });
+      const specDraft = input.spec ?? null;
 
       // One locked read answers all three uniqueness questions. `for("update")`
       // also serializes two admins creating at once: the second read blocks on
@@ -566,6 +592,7 @@ export async function createManagedTool(actorUserId: string, input: ManagedToolD
           order,
           enabled: false,
           archived: false,
+          specDraft,
           translations: {
             en: {
               status: "published",
@@ -593,6 +620,7 @@ export async function createManagedTool(actorUserId: string, input: ManagedToolD
         slug,
         category,
         order,
+        hasSpecDraft: specDraft !== null,
       });
       return created;
     })

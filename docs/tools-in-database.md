@@ -5,10 +5,10 @@ Status: in progress · 2026-11-04
 Done on `feat/tools-in-database`: `managed_tools.spec` + `system_limits`
 (migration `0009-tool-spec`); loaders read `spec`; strict validator
 `parseToolSpec` (`lib/tool-framework/specSchema.ts`) on every load; `canopy` CLI
-(`tool new`, stopgap `tool sql`); every `definition.ts`, tool `translations.json`,
-the tool seed and the snapshot scripts deleted (they remain in git history).
-Next: `spec_draft` with save / publish / discard, the Admin Definition editor,
-then removing `tool sql`.
+(`tool new`); every `definition.ts`, tool `translations.json`,
+the tool seed and the snapshot scripts deleted (they remain in git history);
+`managed_tools.spec_draft` (migration `0010-tool-spec-draft`) with save draft /
+publish / discard; Admin Definition editor and draft preview; `tool sql` removed.
 
 ## Summary
 
@@ -96,42 +96,34 @@ Rules:
 | Step | Command / action | Result |
 | --- | --- | --- |
 | 1. Scaffold | `pnpm tool:new <key> --category <category> [--app media] [--runtime worker\|server]` | `tools/<key>/` with the run file and `icon.svg`; inserts a disabled row with a starter spec into the local DB (`DATABASE_URL`) |
-| 2. Build | Edit code; edit the spec in local Admin → tool → Definition (form or JSON view, shape- and limit-checked) | Tool runs locally from the local DB |
+| 2. Build | Edit code; edit the spec in local Admin → tool → Definition (form or JSON view), Save draft, Preview draft, Publish | Tool runs locally from the local DB |
 | 3. Translate (optional locally) | Local Admin → Translations, AI helper if wanted | Local drafts |
-| 4. Generate release SQL | `pnpm tool:sql --tool <app>.<key>` | `tmp/tool-release/<toolId>.sql` from the local DB row |
-| 5. Release | Deploy code; run the SQL in prod (`psql "$PROD_DATABASE_URL" -f tmp/tool-release/<toolId>.sql`) | Row inserted in prod, `enabled = false` |
-| 6. Go live | Prod Admin: review, translate other languages with the AI helper's suggestions, publish, enable | Admin owns every published word |
+| 4. Export | Local Admin → Definition → Copy JSON | The spec as JSON |
+| 5. Release | Deploy code. Prod Admin → New tool → Import JSON (new tool), or the tool's Definition → Import JSON → Save draft (existing tool) | Prod row with the spec as an unpublished draft |
+| 6. Go live | Prod Admin: Preview draft, Publish, translate other languages with the AI helper's suggestions, enable | Admin owns every published word |
 | Local copy of prod | `pnpm db:copy` (exists), prod → local | Fresh local DB with all tools |
 
 `pnpm db:seed` no longer creates tools. A fresh local DB comes from `pnpm db:copy`.
 `db:seed` keeps invoice templates.
 
-## Release SQL (`pnpm tool:sql`)
+## Spec drafts
 
-Both commands come from the `canopy` CLI in `packages/cli` (`canopy tool new`,
-`canopy tool sql`); the root scripts are shortcuts. The CLI imports no app code
-except the category registry, so it can be published later.
+`managed_tools.spec` is what visitors get; `spec_draft` is an admin's
+unpublished edit (`lib/admin/toolSpecDraft.ts`). All three actions need the
+`tools` edit permission, lock the row, reject a stale `updatedAt`, and are audited.
 
-`tool sql` is a stopgap: it exists only until Admin has a draft → publish flow
-for specs. Then a release becomes a publish in prod Admin and the command is removed.
+- **Save draft** — `parseToolSpec`, `toolId`/`app` must match the row, and
+  `limitViolations` must be empty. The raw JSON is stored, keeping key order.
+- **Publish** — re-validates, copies the draft to `spec`, clears it, and syncs
+  English with the existing rules (other languages go back to draft when their
+  source keys change).
+- **Discard** — clears the draft.
 
-```sh
-pnpm tool:sql --tool devtools.xml-formatter            # new tool: insert only
-pnpm tool:sql --tool devtools.xml-formatter --update   # existing tool: update spec
-```
+`/admin/tools/<toolId>/preview` runs `ToolPage` with the draft (or the published
+spec when there is none), English only, `noindex`, uncached.
 
-Generated file, one transaction:
-
-- `INSERT INTO managed_tools (...)` with `spec`, English `translations`, `enabled = false`,
-  `sort_order` = current max + 1 for that app (computed in SQL).
-- `INSERT INTO tool_content (...)`.
-- Without `--update`: stops with an error if the `tool_id` or `(app, slug)` exists.
-- With `--update`: updates `spec` and English only; prod non-English
-  translations go to draft when source keys changed (same rules as the backfill);
-  slug change is refused.
-- Values are emitted as SQL literals with proper escaping (`$tag$` dollar quoting
-  for JSON); no shell interpolation.
-- The file goes to `tmp/` (not committed).
+The `canopy` CLI (`packages/cli`) has only `canopy tool new`; it imports no app
+code except the category registry, so it can be published later.
 
 ## Icons
 
@@ -199,7 +191,7 @@ The helper assists the admin; it does not translate on its own.
 1. LFS archive.
 2. Migration `0009-tool-spec` + `tool:sql --from-code` + run on local.
 3. Switch loaders (`catalog.ts`, `manifest.ts`, admin) to `spec`; update tests.
-4. `tool:new` + `tool:sql` for new tools; Admin Definition editor.
+4. `tool:new`; `spec_draft` + Admin Definition editor and preview (replaced the stopgap `tool:sql`).
 5. Delete files and scripts; move icons; docs.
 6. AI translation helper.
 
