@@ -14,6 +14,7 @@ import {
   assistantMessagesTable as messages,
 } from "../../db/index.ts";
 import config from "../config/config.ts";
+import { loadRuntimeSettings } from "../config/runtimeSettings.ts";
 import { AIClient } from "../ai/client.ts";
 import {
   parseStoredRequest,
@@ -313,10 +314,13 @@ export function createAssistantThreads(integration: AssistantIntegration) {
       completedAt: row.completedAt?.toISOString() ?? null,
     };
   }
-  function assistantAvailability(): AssistantAvailability {
+  async function assistantAvailability(): Promise<AssistantAvailability> {
+    const settings = await loadRuntimeSettings();
     try {
-      const capabilities = new AIClient(config.ai.provider).getCapabilities();
-      const enabled = config.ai.enabled && capabilities.configured;
+      const capabilities = new AIClient(config.ai.provider, {
+        model: String(settings["ai.openaiModel"].value),
+      }).getCapabilities();
+      const enabled = settings["ai.enabled"].value === true && capabilities.configured;
       return {
         enabled,
         provider: config.ai.provider,
@@ -337,10 +341,11 @@ export function createAssistantThreads(integration: AssistantIntegration) {
       };
     }
   }
-  function requireAssistantClient(provider = config.ai.provider) {
-    if (!config.ai.enabled)
+  async function requireAssistantClient(provider = config.ai.provider) {
+    const settings = await loadRuntimeSettings();
+    if (settings["ai.enabled"].value !== true)
       throw new AssistantError("UNAVAILABLE", "The assistant is disabled. You can continue manually.", 503);
-    const client = new AIClient(provider);
+    const client = new AIClient(provider, { model: String(settings["ai.openaiModel"].value) });
     const caps = client.getCapabilities();
     if (!caps.configured)
       throw new AssistantError("UNAVAILABLE", "The provider is not configured for generation.", 503);
@@ -499,7 +504,7 @@ export function createAssistantThreads(integration: AssistantIntegration) {
         attachments: [...files, ...selectedArtifacts].map((file) => attachmentView(file)),
         executions: executionResults.executions,
         executionsCursor: executionResults.nextCursor,
-        ...assistantAvailability(),
+        ...(await assistantAvailability()),
       };
     });
   }
@@ -624,7 +629,7 @@ export function createAssistantThreads(integration: AssistantIntegration) {
     if (file.size > 5 * 1024 * 1024) throw new AssistantError("VALIDATION", "Images must be at most 5 MiB.");
     const data = new Uint8Array(await file.arrayBuffer());
     validateAssistantImage(data, file.type);
-    const client = requireAssistantClient();
+    const client = await requireAssistantClient();
     if (!client.getCapabilities().images)
       throw new AssistantError("CAPABILITY", "This provider does not support images.");
     const id = randomUUID();

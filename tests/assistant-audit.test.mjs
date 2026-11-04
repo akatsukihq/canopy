@@ -98,6 +98,8 @@ vi.mock("../db/index.ts", () => {
   return {
     ...tables,
     db: database,
+    // Runtime AI overrides read platform_settings only when a database is configured.
+    isDatabaseConfigured: () => false,
     eq: (key, value) => (row) => row[key] === value,
     and:
       (...predicates) =>
@@ -118,7 +120,9 @@ vi.mock("../lib/admin/adminMutations.ts", () => ({
   },
 }));
 vi.mock("../lib/config/config.ts", () => ({
-  default: { ai: { enabled: true, provider: "openai" }, cloudinary: { cloudName: "fixture" } },
+  default: {
+    ai: { enabled: true, provider: "openai", titleModel: "gpt-5.6-terra", openai: { model: "gpt-5.6-terra" } },
+    cloudinary: { cloudName: "fixture" } },
 }));
 vi.mock("../lib/ai/client.ts", () => ({
   AIClient: class {

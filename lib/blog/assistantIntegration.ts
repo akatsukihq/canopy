@@ -7,6 +7,7 @@ import { AIClient } from "../ai/client.ts";
 import { AIError } from "../ai/errors.ts";
 import type { AIMessage, AIResult } from "../ai/types.ts";
 import config from "../config/config.ts";
+import { loadRuntimeSettings } from "../config/runtimeSettings.ts";
 import type {
   AssistantIntegration,
   AssistantTransaction,
@@ -145,7 +146,7 @@ async function auxiliary(
   let result: AIResult | undefined;
   try {
     result = await new AIClient(run.provider).generate({
-      model: config.ai.titleModel || undefined,
+      model: String((await loadRuntimeSettings())["ai.titleModel"].value),
       signal,
       messages: [
         {

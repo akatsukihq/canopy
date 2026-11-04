@@ -1,5 +1,6 @@
 import { getInitialBlogGeneration } from "@/lib/blog/generation";
 import { BlogGenerationRecovery } from "../components/BlogGenerationRecovery";
+import { loadRuntimeSettings } from "@/lib/config/runtimeSettings.ts";
 import { activeRun } from "@/lib/assistant/client";
 import config from "@/lib/config/config.ts";
 import { notFound } from "next/navigation";
@@ -30,7 +31,7 @@ export default async function BlogEditorPage({
     Promise.all([getToolListings("devtools"), getToolListings("media")]).then((groups) => groups.flat()),
   ]);
   if (!post) notFound();
-  const generation = config.ai.enabled ? await getInitialBlogGeneration(session.user.id, id) : null;
+  const generation = (await loadRuntimeSettings())["ai.enabled"].value === true ? await getInitialBlogGeneration(session.user.id, id) : null;
   if (generation && (activeRun(generation.status) || (generation.status !== "completed" && query.edit !== "1")))
     return <BlogGenerationRecovery initialRun={generation} />;
   return (

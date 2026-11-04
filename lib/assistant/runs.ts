@@ -17,6 +17,7 @@ import { AIClient } from "../ai/client.ts";
 import { AIError } from "../ai/errors.ts";
 import type { AIResult, AIToolCall } from "../ai/types.ts";
 import config from "../config/config.ts";
+import { loadRuntimeSettings } from "../config/runtimeSettings.ts";
 import { ACTIVE_RUN_STATUSES, privateExpiry, type AssistantThreads } from "./threads.ts";
 import {
   AssistantError,
@@ -85,7 +86,7 @@ export function createAssistantRuns(integration: AssistantIntegration, storage: 
   async function startRun(actor: string, input: unknown) {
     let request = validateRunRequest(input);
     const submissionHash = digest(request);
-    const caps = requireAssistantClient().getCapabilities();
+    const caps = (await requireAssistantClient()).getCapabilities();
     return db.transaction(async (tx) => {
       await tx.execute(
         sql`SELECT pg_advisory_xact_lock(hashtextextended(${JSON.stringify([actor, integration.key, request.clientRequestId])},0))`,
@@ -540,7 +541,10 @@ export function createAssistantRuns(integration: AssistantIntegration, storage: 
           const proposals: AssistantProposal[] = [];
           const providerRequest = integration.buildRequest({ run, ...context, proposals, signal: abort.signal });
           providerRequest.metadata = { ...providerRequest.metadata, feature: integration.key, runId: run.id };
-          for await (const event of new AIClient(run.provider).stream(providerRequest)) {
+          const { "ai.openaiModel": chatModel } = await loadRuntimeSettings();
+          for await (const event of new AIClient(run.provider, { model: String(chatModel.value) }).stream(
+            providerRequest,
+          )) {
             if (event.type === "text-delta") {
               if (!providerRequest.schema) emit(event);
             } else if (event.type === "output") {

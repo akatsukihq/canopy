@@ -267,6 +267,13 @@ export const systemLimitsTable = pgTable("system_limits", {
   updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull(),
 });
 
+export const platformSettingsTable = pgTable("platform_settings", {
+  key: text("key").primaryKey(),
+  value: jsonb("value").$type<unknown>().notNull(),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull(),
+  updatedBy: text("updated_by"),
+});
+
 export const toolContentTable = pgTable("tool_content", {
   toolId: text("tool_id")
     .primaryKey()

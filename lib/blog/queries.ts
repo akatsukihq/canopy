@@ -1,4 +1,5 @@
 import config from "../config/config.ts";
+import { loadRuntimeSettings } from "../config/runtimeSettings.ts";
 import { and, desc, eq, exists, inArray, isNotNull, isNull, sql, type SQL } from "drizzle-orm";
 import {
   alias,
@@ -258,6 +259,7 @@ export async function listBlogPosts(actorUserId: string, input: unknown = {}) {
   const timeColumn = options.status === "trash" ? posts.trashedAt : posts.updatedAt;
   const kind = options.status === "trash" ? "trash" : "admin";
   const cursor = decodeBlogCursor(options.cursor, kind);
+  const aiEnabled = (await loadRuntimeSettings())["ai.enabled"].value === true;
   return db.transaction(async (transaction) => {
     await requireTransactionPermission(transaction, actorUserId, "blog", "view");
     const filters = and(
@@ -281,7 +283,7 @@ export async function listBlogPosts(actorUserId: string, input: unknown = {}) {
         slug: posts.slug,
         version: posts.version,
         title: sql<string>`${posts.draftDocument}->>'title'`,
-        generationStatus: config.ai.enabled
+        generationStatus: aiEnabled
           ? sql<string | null>`(SELECT ${runs.status} FROM ${runs}
           WHERE ${runs.integrationKey} = 'blog' AND ${runs.resourceId} = ${posts.id} AND ${runs.operation} = 'generate'
           ORDER BY ${runs.createdAt} DESC LIMIT 1)`

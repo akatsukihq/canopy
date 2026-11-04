@@ -4,7 +4,10 @@ import { AIError, normalizeAIError } from "./errors.ts";
 import { OpenAIProvider } from "./providers/openai.ts";
 import type { AIFileInput, AIProvider, AIRequest, AIStreamEvent } from "./types.ts";
 
-const providers: Record<string, () => AIProvider> = { openai: () => new OpenAIProvider() };
+const providers: Record<string, (options: AIClientOptions) => AIProvider> = {
+  openai: (options) => new OpenAIProvider(options.model),
+};
+type AIClientOptions = { model?: string };
 const content = z.discriminatedUnion("type", [
   z.object({ type: z.literal("text"), text: z.string() }),
   z.object({ type: z.literal("image"), fileId: z.string().min(1), mimeType: z.string().startsWith("image/") }),
@@ -24,10 +27,10 @@ export class AIClient {
   readonly provider: string;
   private readonly adapter: AIProvider;
 
-  constructor(provider: string) {
+  constructor(provider: string, options: AIClientOptions = {}) {
     if (!Object.hasOwn(providers, provider)) throw new AIError("CAPABILITY", "This AI provider is not supported.", 400);
     this.provider = provider;
-    this.adapter = providers[provider]();
+    this.adapter = providers[provider](options);
   }
 
   get model() {

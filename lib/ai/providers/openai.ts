@@ -190,7 +190,12 @@ function sdkMessages(messages: AIMessage[]): ModelMessage[] {
 }
 
 export class OpenAIProvider implements AIProvider {
-  readonly model = config.ai.openai.model;
+  readonly model: string;
+
+  /** `model` is the effective runtime setting; env applies when the caller has none. */
+  constructor(model = config.ai.openai.model) {
+    this.model = model;
+  }
 
   private credentials() {
     const credentials = config.ai.openai;

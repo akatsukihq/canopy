@@ -8,6 +8,8 @@ import { hasPermission } from "@/lib/authorization/index.ts";
 import config from "@/lib/config/config.ts";
 import { DATABASE_SYSTEM_LIMITS } from "@/lib/tool-framework/systemLimits";
 import Link from "next/link";
+import { getRuntimeSettingsCardProps } from "@/lib/admin/runtimeSettings.ts";
+import { RuntimeSettingsCard } from "./components/RuntimeSettingsCard";
 import { SystemLimitForm } from "./components/SystemLimitForm";
 import { formatLimit, limitLabel, type LimitUnit } from "./lib/limitUnits";
 import { toolsOverLimits } from "./lib/overLimitTools";
@@ -52,9 +54,9 @@ function environmentRows(): { label: string; value: ReactNode; note: string }[] 
       note: `Provider ${config.email.provider}; CLOUDFLARE_EMAIL_*`,
     },
     {
-      label: "AI features",
-      value: <StatusBadge variant={ai.enabled ? "success" : "neutral"}>{ai.enabled ? "On" : "Off"}</StatusBadge>,
-      note: `AI_ENABLED; provider ${ai.provider}, model ${ai.openai.model}`,
+      label: "AI provider",
+      value: <InlineCode>{ai.provider}</InlineCode>,
+      note: "AI_PROVIDER; on/off and models are under Runtime settings",
     },
     { label: "OpenAI key", value: <SetBadge ok={configured(ai.openai.apiKey)} />, note: "OPENAI_API_KEY" },
     {
@@ -87,6 +89,7 @@ export default async function SettingsPage() {
       : [],
   ]);
   const canEdit = hasPermission(access, "settings", "edit");
+  const runtimeSettings = await getRuntimeSettingsCardProps(canEdit);
   const editable = limits.filter((limit) => DATABASE_SYSTEM_LIMITS.includes(limit.key));
   const overLimit = toolsOverLimits(tools, Object.fromEntries(limits.map((limit) => [limit.key, limit.value])));
 
@@ -159,28 +162,31 @@ export default async function SettingsPage() {
           </Card>
         </section>
 
-        <Card aria-labelledby="environment-heading" className="p-0" role="region">
-          <div className="border-b border-border px-5 py-4">
-            <H2 className="text-base" id="environment-heading">
-              Environment
-            </H2>
-            <Caption className="text-muted-foreground">
-              View only. Set as server environment variables; changes need a restart or redeploy. Secret values are
-              never shown.
-            </Caption>
-          </div>
-          <dl className="divide-y divide-border">
-            {environmentRows().map((row) => (
-              <div className="flex items-start justify-between gap-4 px-5 py-3" key={row.label}>
-                <dt className="min-w-0">
-                  <P className="font-medium">{row.label}</P>
-                  <Caption className="break-words text-muted-foreground">{row.note}</Caption>
-                </dt>
-                <dd className="shrink-0 text-sm">{row.value}</dd>
-              </div>
-            ))}
-          </dl>
-        </Card>
+        <div className="grid gap-5">
+          <RuntimeSettingsCard {...runtimeSettings} />
+          <Card aria-labelledby="environment-heading" className="p-0" role="region">
+            <div className="border-b border-border px-5 py-4">
+              <H2 className="text-base" id="environment-heading">
+                Environment
+              </H2>
+              <Caption className="text-muted-foreground">
+                View only. Set as server environment variables; changes need a restart or redeploy. Secret values are
+                never shown.
+              </Caption>
+            </div>
+            <dl className="divide-y divide-border">
+              {environmentRows().map((row) => (
+                <div className="flex items-start justify-between gap-4 px-5 py-3" key={row.label}>
+                  <dt className="min-w-0">
+                    <P className="font-medium">{row.label}</P>
+                    <Caption className="break-words text-muted-foreground">{row.note}</Caption>
+                  </dt>
+                  <dd className="shrink-0 text-sm">{row.value}</dd>
+                </div>
+              ))}
+            </dl>
+          </Card>
+        </div>
       </div>
     </div>
   );
