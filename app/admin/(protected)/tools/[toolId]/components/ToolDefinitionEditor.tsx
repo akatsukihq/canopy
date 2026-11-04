@@ -120,16 +120,14 @@ function IssueList({ id, issues }: { id: string; issues: readonly string[] }) {
   return (
     <div aria-live="polite" id={id}>
       {issues.length ? (
-        <ul className="space-y-1 text-sm text-destructive">
+        <ul className="max-h-40 shrink-0 list-disc space-y-1 overflow-y-auto rounded-md border border-destructive/40 bg-destructive/5 py-2 pr-3 pl-7 text-sm text-destructive">
           {issues.map((issue) => (
             <li className="break-words" key={issue}>
               {issue}
             </li>
           ))}
         </ul>
-      ) : (
-        <Caption className="text-muted-foreground">The definition is valid.</Caption>
-      )}
+      ) : null}
     </div>
   );
 }
@@ -444,6 +442,11 @@ export function ToolDefinitionEditor({
 
       <div className="flex shrink-0 flex-wrap items-center gap-2">
         {status}
+        {issues.length ? (
+          <StatusBadge variant="danger">{issues.length === 1 ? "1 problem" : `${issues.length} problems`}</StatusBadge>
+        ) : (
+          <StatusBadge variant="success">Valid</StatusBadge>
+        )}
         <Tabs onValueChange={(value) => setView(value as View)} value={view}>
           <TabsList asChild className="gap-0 border-0 p-0">
             <ButtonGroup aria-label="Definition view">
@@ -511,8 +514,10 @@ export function ToolDefinitionEditor({
         </div>
       </div>
 
-      <div className="grid min-h-0 flex-1 gap-4 overflow-y-auto overscroll-contain lg:grid-cols-[minmax(0,1fr)_18rem] lg:overflow-hidden">
-        <div className="flex min-h-[20rem] min-w-0 flex-col lg:min-h-0 lg:overflow-y-auto">
+      <IssueList id="definition-issues" issues={issues} />
+
+      <div className="flex min-h-0 flex-1 flex-col overflow-y-auto overscroll-contain">
+        <div className="flex min-h-[20rem] min-w-0 flex-1 flex-col lg:min-h-0">
           {view === "json" || !formSpec ? (
             <>
               {view === "form" ? (
@@ -537,10 +542,6 @@ export function ToolDefinitionEditor({
             <FormView app={app} onChange={(next) => setText(pretty(next))} spec={formSpec} />
           )}
         </div>
-        <aside className="min-w-0 lg:overflow-y-auto lg:border-l lg:border-border lg:pl-4">
-          <p className="mb-2 text-sm font-medium">Validation</p>
-          <IssueList id="definition-issues" issues={issues} />
-        </aside>
       </div>
     </form>
   );
