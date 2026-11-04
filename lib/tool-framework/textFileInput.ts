@@ -1,4 +1,4 @@
-import { LARGE_TEXT_PREVIEW_BYTES, MAX_EDITABLE_TEXT_CHARS } from "./limits.ts";
+import { getRuntimeLimits } from "./limits.ts";
 
 export type TextFileReadResult = {
   readonly large: boolean;
@@ -13,10 +13,8 @@ export async function readTextFileForEditor(
     readonly previewBytes?: number;
   } = {},
 ): Promise<TextFileReadResult> {
-  const maxEditableBytes = Math.max(
-    0,
-    Math.min(options.maxEditableBytes ?? MAX_EDITABLE_TEXT_CHARS, MAX_EDITABLE_TEXT_CHARS),
-  );
+  const { largeTextPreviewBytes, maxEditableTextChars } = getRuntimeLimits();
+  const maxEditableBytes = Math.max(0, Math.min(options.maxEditableBytes ?? maxEditableTextChars, maxEditableTextChars));
   const large = file.size > maxEditableBytes;
   if (!large) {
     const text = await file.text();
@@ -28,7 +26,7 @@ export async function readTextFileForEditor(
 
   const previewBytes = Math.max(
     0,
-    Math.min(options.previewBytes ?? LARGE_TEXT_PREVIEW_BYTES, LARGE_TEXT_PREVIEW_BYTES),
+    Math.min(options.previewBytes ?? largeTextPreviewBytes, largeTextPreviewBytes),
   );
   return {
     large: true,
@@ -50,6 +48,6 @@ async function readUtf8Prefix(file: File, limit: number): Promise<string> {
   return new TextDecoder().decode(bytes.subarray(0, end));
 }
 
-export function isLargeTextFile(file: File | undefined, maxEditableBytes = MAX_EDITABLE_TEXT_CHARS): boolean {
+export function isLargeTextFile(file: File | undefined, maxEditableBytes = getRuntimeLimits().maxEditableTextChars): boolean {
   return Boolean(file && file.size > maxEditableBytes);
 }

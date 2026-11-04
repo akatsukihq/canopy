@@ -13,7 +13,7 @@ import { resolveContent } from "@/lib/tool-framework/content";
 import { resolveIcon } from "@/lib/tool-framework/icons";
 import type { ToolSpec } from "@/lib/tool-framework/spec";
 import { parseToolSpec } from "@/lib/tool-framework/specSchema";
-import { clampSpecLimits, loadSystemLimits } from "@/lib/tool-framework/systemLimits";
+import { clampSpecLimits, loadRuntimeLimits, loadSystemLimits } from "@/lib/tool-framework/systemLimits";
 import { applyToolMessages, extractToolMessages, toolMessageTree } from "@/lib/tool-framework/translations";
 import { requirePagePermission } from "../../../../../../lib/admin/access";
 
@@ -111,6 +111,7 @@ export default async function ToolSpecPreviewPage({ params }: { params: Promise<
           definitionKey={definitionKey}
           description={localized.description}
           icon={resolveIcon(row.toolId, localized.name, row.iconUrl)}
+          limits={await loadRuntimeLimits()}
           relatedTools={[]}
           spec={localized}
           title={localized.name}

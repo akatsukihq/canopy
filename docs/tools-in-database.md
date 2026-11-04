@@ -81,7 +81,13 @@ Rules:
 - **At runtime:** effective limit = the smaller of the tool's value and the
   system limit, so a spec written by raw SQL still cannot exceed it.
 - **Delivery:** the server loads limits once per request (cached like the
-  catalog) and passes them with the spec to the workspace and worker.
+  catalog), resolves them to `RuntimeLimits` and passes them to `ToolPage`,
+  which installs them with `setRuntimeLimits`; every worker job and inspection
+  message carries them and the worker installs them before running. Code
+  reads `getRuntimeLimits()` at call time.
+- **Ceilings:** the constants in `lib/tool-framework/limits.ts` are both the
+  fallback (no database, missing or invalid row) and the hard ceiling; Admin
+  rejects a value above its ceiling and the runtime caps it anyway.
 - **Lowering a system limit** does not rewrite specs; runtime clamping applies
   at once, and Admin lists tools whose spec now exceeds the cap.
 - `PROGRESS_INTERVAL_MS` and `CANCEL_WATCHDOG_MS` are timing internals, not

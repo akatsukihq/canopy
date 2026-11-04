@@ -1,4 +1,4 @@
-import { PLATFORM_MAX_BYTES } from "./limits.ts";
+import { getRuntimeLimits } from "./limits.ts";
 import { detectMediaKind, validateMediaSignature } from "./media/validation.ts";
 import { ToolError, type ToolRunFile } from "./run.ts";
 import type { ToolInputSpec, ToolSpec } from "./spec.ts";
@@ -14,9 +14,10 @@ export type FileInputLimits = {
 };
 
 function boundedLimit(value: number | undefined): number {
+  const { platformMaxBytes } = getRuntimeLimits();
   return typeof value === "number" && Number.isFinite(value) && value > 0
-    ? Math.min(Math.floor(value), PLATFORM_MAX_BYTES)
-    : PLATFORM_MAX_BYTES;
+    ? Math.min(Math.floor(value), platformMaxBytes)
+    : platformMaxBytes;
 }
 
 export function resolveFileLimits(input: ToolInputSpec): FileInputLimits | null {

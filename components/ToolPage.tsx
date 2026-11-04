@@ -74,6 +74,7 @@ import {
   type ToolRunInput,
 } from "@/lib/tool-framework/run";
 import type { SettingsOf, SettingsSpec } from "@/lib/tool-framework/settings";
+import { setRuntimeLimits, type RuntimeLimits } from "@/lib/tool-framework/limits";
 import type { ToolInputSpec, ToolSpec } from "@/lib/tool-framework/spec";
 import { isLargeTextFile } from "@/lib/tool-framework/textFileInput";
 import { useToolRun } from "@/lib/tool-framework/useToolRun";
@@ -698,6 +699,8 @@ export interface ToolPageProps {
   description: string;
   icon: ResolvedIcon;
   relatedTools: readonly { href: string; label: string }[];
+  /** Resolved system limits for this request; code defaults when omitted. */
+  limits?: RuntimeLimits;
   spec: ToolSpec;
   title: string;
 }
@@ -717,10 +720,13 @@ function ToolPageState({
   definitionKey,
   description,
   icon,
+  limits,
   relatedTools,
   spec,
   title,
 }: ToolPageProps): ReactElement {
+  // Idempotent, and must be in place before any child reads a limit.
+  if (limits) setRuntimeLimits(limits);
   const t = useTranslations("Tool.runtime");
   const framework = useTranslations("Workbench");
   const [errorLocation, setErrorLocation] = useState<{ line: number; column: number }>();

@@ -19,12 +19,7 @@
 // how its job-state reducer is covered. The type-only imports below are erased.
 import { sanitizeFileName } from "./media/validation.ts";
 import { parseToolErrorDetails, parseToolMessage, type ToolErrorDetails } from "./run.ts";
-import {
-  PDF_PREVIEW_CACHE_PIXELS,
-  PDF_PREVIEW_MAX_PIXELS,
-  PDF_PREVIEW_MAX_WIDTH,
-  PDF_THUMBNAIL_CACHE_SIZE,
-} from "./limits.ts";
+import { getRuntimeLimits, type RuntimeLimits } from "./limits.ts";
 import type { ToolResult } from "./result";
 import type { ToolSpec } from "./spec";
 import type { ToolPagePreview, ToolRunFile, ToolRunItem, ToolRunProgress } from "./run";
@@ -70,6 +65,8 @@ export type ToolWorkerRequest = {
   readonly key: string;
   /** The stored definition the page was rendered with; required to run. */
   readonly spec?: ToolSpec;
+  /** The page's resolved system limits; the worker re-validates and installs them. */
+  readonly limits?: RuntimeLimits;
   readonly text?: string;
   readonly secondary?: string;
   readonly files: readonly ToolRunFile[];
@@ -88,6 +85,7 @@ export type ToolWorkerInspect = {
   readonly key: string;
   /** Required unless `source` is "output". */
   readonly spec?: ToolSpec;
+  readonly limits?: RuntimeLimits;
   readonly source?: "output";
   readonly files: readonly ToolRunFile[];
   readonly thumbnailWidth: number;
@@ -213,6 +211,7 @@ export function createToolJobState(): ToolJobState {
 export type ToolRunRequestInput = {
   readonly key: string;
   readonly spec?: ToolSpec;
+  readonly limits?: RuntimeLimits;
   readonly text?: string;
   readonly secondary?: string;
   readonly files?: readonly ToolRunFile[];
@@ -228,6 +227,7 @@ export function createToolWorkerRequest(input: ToolRunRequestInput & { readonly 
     jobId: input.jobId.trim(),
     key: input.key.trim(),
     ...(input.spec === undefined ? {} : { spec: input.spec }),
+    ...(input.limits === undefined ? {} : { limits: input.limits }),
     text: input.text,
     secondary: input.secondary,
     files: input.files ?? [],
@@ -242,6 +242,7 @@ export const INSPECT_THUMBNAIL_WIDTH = 180;
 export type ToolInspectRequestInput = {
   readonly key: string;
   readonly spec?: ToolSpec;
+  readonly limits?: RuntimeLimits;
   readonly file: ToolRunFile;
   readonly source?: "output";
   readonly thumbnailWidth?: number;
@@ -261,6 +262,7 @@ export function createToolInspectRequest(
     jobId: input.jobId.trim(),
     key: input.key.trim(),
     ...(input.spec === undefined ? {} : { spec: input.spec }),
+    ...(input.limits === undefined ? {} : { limits: input.limits }),
     ...(input.source === undefined ? {} : { source: input.source }),
     files: [input.file],
     thumbnailWidth,
@@ -277,7 +279,7 @@ export function createToolThumbnailRequest(input: ToolThumbnailRequestInput): To
   const jobId = input.jobId.trim();
   if (!jobId) throw new TypeError("Worker job ID is required.");
   if (input.renderWidth !== undefined && !isPreviewWidth(input.renderWidth)) {
-    throw new RangeError(`Preview width must be an integer from 1 to ${PDF_PREVIEW_MAX_WIDTH}.`);
+    throw new RangeError(`Preview width must be an integer from 1 to ${getRuntimeLimits().pdfPreviewMaxWidth}.`);
   }
   if (input.pageNumbers.some((pageNumber) => !Number.isInteger(pageNumber) || pageNumber < 1)) {
     throw new RangeError("Thumbnail page numbers must be positive integers.");
@@ -286,8 +288,8 @@ export function createToolThumbnailRequest(input: ToolThumbnailRequestInput): To
   if (pageNumbers.length === 0) {
     throw new RangeError("Choose at least one thumbnail page.");
   }
-  if (pageNumbers.length > PDF_THUMBNAIL_CACHE_SIZE) {
-    throw new RangeError(`At most ${PDF_THUMBNAIL_CACHE_SIZE} thumbnail pages may be requested at once.`);
+  if (pageNumbers.length > getRuntimeLimits().pdfThumbnailCacheSize) {
+    throw new RangeError(`At most ${getRuntimeLimits().pdfThumbnailCacheSize} thumbnail pages may be requested at once.`);
   }
   return {
     type: "inspect-thumbnails",
@@ -316,7 +318,7 @@ export function isToolWorkerMessage(value: unknown): value is ToolWorkerMessage 
       (value.renderWidth === undefined || isPreviewWidth(value.renderWidth)) &&
       Array.isArray(value.pageNumbers) &&
       value.pageNumbers.length > 0 &&
-      value.pageNumbers.length <= PDF_THUMBNAIL_CACHE_SIZE &&
+      value.pageNumbers.length <= getRuntimeLimits().pdfThumbnailCacheSize &&
       value.pageNumbers.every((pageNumber) => Number.isInteger(pageNumber) && pageNumber > 0) &&
       new Set(value.pageNumbers).size === value.pageNumbers.length
     );
@@ -372,7 +374,7 @@ export function isToolWorkerResponse(value: unknown): value is ToolWorkerRespons
   if (value.type === "thumbnails") {
     return (
       Array.isArray(value.previews) &&
-      value.previews.length <= PDF_THUMBNAIL_CACHE_SIZE &&
+      value.previews.length <= getRuntimeLimits().pdfThumbnailCacheSize &&
       value.previews.every(isPageThumbnail)
     );
   }
@@ -466,10 +468,10 @@ function mergePageThumbnails(
   const byPage = new Map(pages.map((page) => [page.pageNumber, page]));
   const retained = new Set<number>();
   let pixels = 0;
-  for (const pageNumber of bufferedOrder.slice(-PDF_THUMBNAIL_CACHE_SIZE).reverse()) {
+  for (const pageNumber of bufferedOrder.slice(-getRuntimeLimits().pdfThumbnailCacheSize).reverse()) {
     const page = incomingByPage.get(pageNumber) ?? byPage.get(pageNumber);
     const size = Number(readOwn(page, "width")) * Number(readOwn(page, "height"));
-    if (pixels + size > PDF_PREVIEW_CACHE_PIXELS) break;
+    if (pixels + size > getRuntimeLimits().pdfPreviewCachePixels) break;
     pixels += size;
     retained.add(pageNumber);
   }
@@ -534,12 +536,12 @@ function isPageThumbnail(value: unknown): value is ToolPageThumbnail {
     typeof height === "number" &&
     Number.isInteger(height) &&
     height > 0 &&
-    width * height <= PDF_PREVIEW_MAX_PIXELS
+    width * height <= getRuntimeLimits().pdfPreviewMaxPixels
   );
 }
 
 function isPreviewWidth(value: unknown): value is number {
-  return typeof value === "number" && Number.isInteger(value) && value > 0 && value <= PDF_PREVIEW_MAX_WIDTH;
+  return typeof value === "number" && Number.isInteger(value) && value > 0 && value <= getRuntimeLimits().pdfPreviewMaxWidth;
 }
 
 function readOwn(value: unknown, key: string): unknown {

@@ -3,7 +3,7 @@ import { utilityDelimiter } from "../../lib/devtools/shared/table.ts";
 import type { ToolJsonTreeRender, ToolResult } from "../../lib/tool-framework/result.ts";
 import { ToolError, type ToolRun } from "../../lib/tool-framework/run.ts";
 import { createTextArtifactSink, isLargeCsvRun, parseCsvRun } from "../../lib/devtools/shared/streaming-csv-tool.ts";
-import { LARGE_TEXT_PREVIEW_BYTES } from "../../lib/tool-framework/limits.ts";
+import { getRuntimeLimits } from "../../lib/tool-framework/limits.ts";
 
 type Settings = {
   readonly delimiter: string;
@@ -25,7 +25,7 @@ function createJsonPreview() {
       if (truncated) return false;
       const rowNodes = Object.keys(value).length + 1;
       const rowBytes = encoder.encode(json).byteLength + (rows.length ? 1 : 0);
-      if (nodes + rowNodes > JSON_PREVIEW_MAX_NODES || bytes + rowBytes > LARGE_TEXT_PREVIEW_BYTES) {
+      if (nodes + rowNodes > JSON_PREVIEW_MAX_NODES || bytes + rowBytes > getRuntimeLimits().largeTextPreviewBytes) {
         truncated = true;
         return false;
       }

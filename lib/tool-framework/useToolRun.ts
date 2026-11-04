@@ -10,7 +10,7 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 
-import { CANCEL_WATCHDOG_MS, PDF_THUMBNAIL_CACHE_SIZE } from "./limits";
+import { CANCEL_WATCHDOG_MS, getRuntimeLimits } from "./limits";
 import { cleanupArtifactJobWithRetry } from "./artifacts";
 import type { ToolPagePreview } from "./run";
 import type { ToolSpec } from "./spec";
@@ -195,6 +195,7 @@ export function useToolRun(spec?: ToolSpec): ToolRunHandle {
       const message = createToolWorkerRequest({
         ...request,
         spec: request.spec ?? spec,
+        limits: getRuntimeLimits(),
         jobId: crypto.randomUUID(),
       });
       return dispatch(message);
@@ -204,7 +205,12 @@ export function useToolRun(spec?: ToolSpec): ToolRunHandle {
 
   const inspect = useCallback(
     (request: ToolInspectRequestInput): string =>
-      dispatch(createToolInspectRequest({ ...request, spec: request.spec ?? spec, jobId: crypto.randomUUID() })),
+      dispatch(createToolInspectRequest({
+          ...request,
+          spec: request.spec ?? spec,
+          limits: getRuntimeLimits(),
+          jobId: crypto.randomUUID(),
+        })),
     [dispatch, spec],
   );
 
@@ -225,7 +231,7 @@ export function useToolRun(spec?: ToolSpec): ToolRunHandle {
         })
         .map((preview) => preview.pageNumber),
     );
-    const room = PDF_THUMBNAIL_CACHE_SIZE - session.inFlight.size;
+    const room = getRuntimeLimits().pdfThumbnailCacheSize - session.inFlight.size;
     if (room < 1) return;
     const requested = [...new Set(pageNumbers)]
       .filter(

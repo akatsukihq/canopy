@@ -1,17 +1,18 @@
 import { cache } from "react";
 
 import { db, isDatabaseConfigured, systemLimitsTable } from "../../db/index.ts";
+import { LIMIT_CEILINGS, RUNTIME_LIMIT_KEYS, runtimeLimitsFromRows, type RuntimeLimits } from "./limits.ts";
 import type { ToolSpec } from "./spec";
 
 /** Platform-wide caps from `system_limits`, keyed by limit name. */
 export type SystemLimits = Readonly<Record<string, number>>;
 
 /**
- * The limits this module reads from the database. The other `system_limits`
- * rows are still enforced by the constants in `./limits.ts`, so Admin shows
- * them read-only.
+ * Every limit the runtime reads from the database and Admin may edit. Each is
+ * capped by its constant in `./limits.ts` and falls back to it when the row is
+ * missing or invalid.
  */
-export const DATABASE_SYSTEM_LIMITS: readonly string[] = ["platform_max_bytes", "max_editable_text_chars"];
+export const DATABASE_SYSTEM_LIMITS: readonly string[] = Object.values(RUNTIME_LIMIT_KEYS);
 
 type LimitCheck = { readonly path: string; readonly value: number | undefined; readonly limit: string };
 
@@ -21,6 +22,17 @@ export const loadSystemLimits = cache(async (): Promise<SystemLimits> => {
   const rows = await db.select({ key: systemLimitsTable.key, value: systemLimitsTable.value }).from(systemLimitsTable);
   return Object.fromEntries(rows.map((row) => [row.key, row.value]));
 });
+
+/** Limits for the page and its worker: database values within their ceilings, else the code constants. */
+export const loadRuntimeLimits = cache(async (): Promise<RuntimeLimits> => runtimeLimitsFromRows(await loadSystemLimits()));
+
+/** The cap in force: the stored value limited by its ceiling; undefined when no value is stored. */
+function effectiveCap(limits: SystemLimits, key: string): number | undefined {
+  const stored = limits[key];
+  if (stored === undefined) return undefined;
+  const ceiling = LIMIT_CEILINGS[key] ?? Infinity;
+  return Number.isSafeInteger(stored) && stored > 0 ? Math.min(stored, ceiling) : ceiling;
+}
 
 function limitChecks(spec: ToolSpec): LimitCheck[] {
   const input = spec.input;
@@ -51,14 +63,20 @@ function limitChecks(spec: ToolSpec): LimitCheck[] {
   return [];
 }
 
+/** Every tool limit above its system limit. */
+export function limitExceedances(spec: ToolSpec, limits: SystemLimits) {
+  return limitChecks(spec).flatMap(({ path, value, limit }) => {
+    const cap = effectiveCap(limits, limit);
+    return value !== undefined && cap !== undefined && value > cap ? [{ path, value, limit, cap }] : [];
+  });
+}
+
 /** Save-time check: every tool limit above its system limit, as readable messages. */
 export function limitViolations(spec: ToolSpec, limits: SystemLimits): string[] {
-  return limitChecks(spec).flatMap(({ path, value, limit }) => {
-    const cap = limits[limit];
-    return value !== undefined && cap !== undefined && value > cap
-      ? [`${path} ${value.toLocaleString("en")} exceeds ${limit} ${cap.toLocaleString("en")}`]
-      : [];
-  });
+  return limitExceedances(spec, limits).map(
+    ({ path, value, limit, cap }) =>
+      `${path} ${value.toLocaleString("en")} exceeds ${limit} ${cap.toLocaleString("en")}`,
+  );
 }
 
 const clamp = (value: number | undefined, cap: number | undefined) =>
@@ -67,8 +85,8 @@ const clamp = (value: number | undefined, cap: number | undefined) =>
 /** Runtime guard: a spec written outside Admin still cannot exceed a system limit. */
 export function clampSpecLimits(spec: ToolSpec, limits: SystemLimits): ToolSpec {
   const input = spec.input;
-  const text = limits.max_editable_text_chars;
-  const bytes = limits.platform_max_bytes;
+  const text = effectiveCap(limits, "max_editable_text_chars");
+  const bytes = effectiveCap(limits, "platform_max_bytes");
   if (input.kind === "text") {
     return {
       ...spec,

@@ -1,4 +1,4 @@
-import { PLATFORM_MAX_BYTES } from "./limits.ts";
+import { getRuntimeLimits } from "./limits.ts";
 import type { ToolInputSpec } from "./spec.ts";
 
 export type FileIssueFormatter = (
@@ -32,7 +32,7 @@ export function textInputFileIssue(
   if (!acceptsFile(file, spec.accept)) {
     return formatIssue?.("fileType", { name: file.name }) ?? `${file.name} is not an accepted file type.`;
   }
-  const maxBytes = Math.min(spec.maxBytes, PLATFORM_MAX_BYTES);
+  const maxBytes = Math.min(spec.maxBytes, getRuntimeLimits().platformMaxBytes);
   if (file.size > maxBytes) {
     return (
       formatIssue?.("fileTooLarge", { name: file.name, maxBytes }) ??
@@ -50,8 +50,9 @@ export function validateFileSelection(
 ): FileSelectionResult {
   const accepted: File[] = [];
   const issues: string[] = [];
-  const maxBytes = Math.min(inputSpec.maxBytes ?? PLATFORM_MAX_BYTES, PLATFORM_MAX_BYTES);
-  const maxTotalBytes = Math.min(inputSpec.maxTotalBytes ?? PLATFORM_MAX_BYTES, PLATFORM_MAX_BYTES);
+  const { platformMaxBytes } = getRuntimeLimits();
+  const maxBytes = Math.min(inputSpec.maxBytes ?? platformMaxBytes, platformMaxBytes);
+  const maxTotalBytes = Math.min(inputSpec.maxTotalBytes ?? platformMaxBytes, platformMaxBytes);
   for (const file of incoming) {
     if (!acceptsFile(file, inputSpec.accept)) {
       issues.push(formatIssue?.("fileType", { name: file.name }) ?? `${file.name} is not an accepted file type.`);

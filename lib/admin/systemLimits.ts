@@ -1,9 +1,10 @@
 /**
- * Admin edits to `system_limits`. Only the limits the runtime reads from the
- * database can change here; the rest are enforced by code constants.
+ * Admin edits to `system_limits`. A value is capped by its code constant (the
+ * hard safety ceiling), so an admin can lower a limit but not raise it past it.
  */
 import { db, eq, systemLimitsTable } from "../../db/index.ts";
 import { CACHE_NAMESPACES } from "../cache/index.ts";
+import { LIMIT_CEILINGS } from "../tool-framework/limits.ts";
 import { DATABASE_SYSTEM_LIMITS } from "../tool-framework/systemLimits.ts";
 import { invalidateAfterCommit, requireTransactionPermission, writeAudit } from "./adminMutations.ts";
 
@@ -21,6 +22,10 @@ export async function updateSystemLimit(
     const value = input.value;
     if (typeof value !== "number" || !Number.isSafeInteger(value) || value < 1) {
       throw new SystemLimitValueError("Enter a whole number greater than zero.");
+    }
+    const ceiling = LIMIT_CEILINGS[key];
+    if (ceiling !== undefined && value > ceiling) {
+      throw new SystemLimitValueError(`The highest allowed value is ${ceiling.toLocaleString("en")}.`);
     }
     const [current] = await transaction
       .select()

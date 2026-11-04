@@ -1,33 +1,18 @@
 import type { ReactNode } from "react";
 import { AdminPageHeader } from "@/app/admin/(protected)/components/AdminPageHeader";
 import { Caption, Card, H2, InlineCode, P, StatusBadge } from "@/components/ui/index.tsx";
-import { asc, db, isDatabaseConfigured, systemLimitsTable } from "@/db/index.ts";
+import { asc, db, isDatabaseConfigured, managedToolsTable, systemLimitsTable } from "@/db/index.ts";
 import { requirePagePermission } from "@/lib/admin/access";
 import { getUserAuthorization } from "@/lib/admin/index.ts";
 import { hasPermission } from "@/lib/authorization/index.ts";
 import config from "@/lib/config/config.ts";
-import * as codeLimits from "@/lib/tool-framework/limits";
 import { DATABASE_SYSTEM_LIMITS } from "@/lib/tool-framework/systemLimits";
+import Link from "next/link";
 import { SystemLimitForm } from "./components/SystemLimitForm";
 import { formatLimit, limitLabel, type LimitUnit } from "./lib/limitUnits";
+import { toolsOverLimits } from "./lib/overLimitTools";
 
 export const dynamic = "force-dynamic";
-
-/** What the runtime actually enforces for a limit that is still a code constant. */
-const CODE_VALUES: Readonly<Record<string, number>> = {
-  platform_max_bytes: codeLimits.PLATFORM_MAX_BYTES,
-  blob_fallback_max_bytes: codeLimits.BLOB_FALLBACK_MAX_BYTES,
-  max_editable_text_chars: codeLimits.MAX_EDITABLE_TEXT_CHARS,
-  large_text_preview_bytes: codeLimits.LARGE_TEXT_PREVIEW_BYTES,
-  csv_preview_rows: codeLimits.CSV_PREVIEW_ROWS,
-  csv_preview_bytes: codeLimits.CSV_PREVIEW_BYTES,
-  csv_max_field_bytes: codeLimits.CSV_MAX_FIELD_BYTES,
-  csv_max_row_bytes: codeLimits.CSV_MAX_ROW_BYTES,
-  pdf_thumbnail_cache_size: codeLimits.PDF_THUMBNAIL_CACHE_SIZE,
-  pdf_preview_max_width: codeLimits.PDF_PREVIEW_MAX_WIDTH,
-  pdf_preview_max_pixels: codeLimits.PDF_PREVIEW_MAX_PIXELS,
-  pdf_preview_cache_pixels: codeLimits.PDF_PREVIEW_CACHE_PIXELS,
-};
 
 const configured = (...values: (string | undefined)[]) => values.every((value) => Boolean(value?.trim()));
 
@@ -92,19 +77,24 @@ function environmentRows(): { label: string; value: ReactNode; note: string }[] 
 
 export default async function SettingsPage() {
   const session = await requirePagePermission("settings", "view");
-  const [{ access }, limits] = await Promise.all([
+  const [{ access }, limits, tools] = await Promise.all([
     getUserAuthorization(session.user.id),
     isDatabaseConfigured() ? db.select().from(systemLimitsTable).orderBy(asc(systemLimitsTable.key)) : [],
+    isDatabaseConfigured()
+      ? db
+          .select({ toolId: managedToolsTable.toolId, name: managedToolsTable.name, spec: managedToolsTable.spec })
+          .from(managedToolsTable)
+      : [],
   ]);
   const canEdit = hasPermission(access, "settings", "edit");
   const editable = limits.filter((limit) => DATABASE_SYSTEM_LIMITS.includes(limit.key));
-  const fixed = limits.filter((limit) => !DATABASE_SYSTEM_LIMITS.includes(limit.key));
+  const overLimit = toolsOverLimits(tools, Object.fromEntries(limits.map((limit) => [limit.key, limit.value])));
 
   return (
     <div className="flex h-full min-h-0 flex-col gap-5 overflow-y-auto">
       <AdminPageHeader
         className="mb-0 shrink-0"
-        description="Platform-wide limits and environment configuration. Editable limits apply on the next request; everything else is set in code or the server environment."
+        description="Platform-wide limits and environment configuration. Limits apply on the next request and cannot be raised past the maximum built into the code; the environment is set on the server."
         title="Settings"
       />
       <div className="grid items-start gap-5 xl:grid-cols-[minmax(0,1fr)_minmax(0,26rem)]">
@@ -132,6 +122,23 @@ export default async function SettingsPage() {
                       <Caption className="block text-muted-foreground">
                         Key <InlineCode>{limit.key}</InlineCode>
                       </Caption>
+                      {overLimit[limit.key]?.length ? (
+                        <div className="mt-2">
+                          <Caption className="block font-medium text-foreground">
+                            Tools asking for more than this (capped at run time):
+                          </Caption>
+                          <ul className="list-disc pl-5 text-sm">
+                            {overLimit[limit.key]!.map((tool) => (
+                              <li key={tool.toolId}>
+                                <Link className="underline" href={`/admin/tools/${tool.toolId}`}>
+                                  {tool.name}
+                                </Link>{" "}
+                                <Caption className="text-muted-foreground">({tool.paths.join(", ")})</Caption>
+                              </li>
+                            ))}
+                          </ul>
+                        </div>
+                      ) : null}
                     </div>
                     <SystemLimitForm
                       canEdit={canEdit}
@@ -150,32 +157,6 @@ export default async function SettingsPage() {
               </P>
             )}
           </Card>
-
-          {fixed.length ? (
-            <Card className="p-0">
-              <div className="border-b border-border px-5 py-4">
-                <H2 className="text-base">Preview and memory limits</H2>
-                <Caption className="text-muted-foreground">
-                  View only. These are still enforced by <InlineCode>lib/tool-framework/limits.ts</InlineCode>; change
-                  them in code and deploy.
-                </Caption>
-              </div>
-              <dl className="divide-y divide-border">
-                {fixed.map((limit) => (
-                  <div className="grid gap-1 px-5 py-3 sm:grid-cols-[minmax(0,1fr)_auto] sm:gap-4" key={limit.key}>
-                    <dt className="min-w-0">
-                      <P className="font-medium">{limitLabel(limit.key)}</P>
-                      <Caption className="text-muted-foreground">{limit.description}</Caption>
-                    </dt>
-                    <dd className="flex items-center gap-2 text-sm sm:justify-end">
-                      {formatLimit(CODE_VALUES[limit.key] ?? limit.value, limit.unit as LimitUnit)}
-                      <StatusBadge variant="neutral">Set in code</StatusBadge>
-                    </dd>
-                  </div>
-                ))}
-              </dl>
-            </Card>
-          ) : null}
         </section>
 
         <Card aria-labelledby="environment-heading" className="p-0" role="region">

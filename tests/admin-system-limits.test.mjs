@@ -79,9 +79,15 @@ test("rejects invalid values, code-owned limits, stale edits, and missing permis
     });
   }
   await withDatabase(async () => {
-    await expect(updateSystemLimit("u1", "csv_preview_rows", { value: 10, updatedAt: fresh })).rejects.toThrow(
+    await expect(updateSystemLimit("u1", "progress_interval_ms", { value: 10, updatedAt: fresh })).rejects.toThrow(
       /set in code/,
     );
+  });
+  await withDatabase(async (writes) => {
+    await expect(
+      updateSystemLimit("u1", "platform_max_bytes", { value: 104857601, updatedAt: fresh }),
+    ).rejects.toThrow(/highest allowed value is 104,857,600/);
+    expect(writes).toEqual([]);
   });
   await withDatabase(async (writes) => {
     await expect(

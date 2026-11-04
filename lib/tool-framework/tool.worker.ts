@@ -12,6 +12,7 @@ import { TOOL_SLUG_PATTERN } from "../tool-catalog/index.ts";
 import { ArtifactStorageError, cleanupArtifactJobWithRetry, createArtifactWriter } from "./artifacts";
 import { assertRunnableFiles } from "./fileGuard";
 import { assertRunnableText } from "./inputGuard";
+import { setRuntimeLimits } from "./limits";
 import { createThrottledProgressReporter } from "./progress";
 import { ToolError, type ToolRun, type ToolRunProgress } from "./run";
 import { parseSettings } from "./settings";
@@ -78,6 +79,7 @@ function beginJob(): AbortController {
 }
 
 async function runJob(message: ToolWorkerRequest): Promise<void> {
+  setRuntimeLimits(message.limits);
   const controller = beginJob();
   const jobId = message.jobId;
   const signal = controller.signal;
@@ -149,6 +151,7 @@ async function runJob(message: ToolWorkerRequest): Promise<void> {
  * keeping it behind this branch keeps the vendor chunk off every other job.
  */
 async function inspectJob(message: ToolWorkerInspect): Promise<void> {
+  setRuntimeLimits(message.limits);
   running?.abort();
   await closeInspection();
   const controller = new AbortController();

@@ -1,5 +1,5 @@
 import { ToolError, type ToolRun } from "../../lib/tool-framework/run.ts";
-import { CSV_PREVIEW_BYTES } from "../../lib/tool-framework/limits.ts";
+import { getRuntimeLimits } from "../../lib/tool-framework/limits.ts";
 import type { ToolResult } from "../../lib/tool-framework/result.ts";
 import { csvCell, parseDelimitedRows } from "../../lib/devtools/shared/csv.ts";
 import { parseUtilityTable, serializeTable, utilityDelimiter } from "../../lib/devtools/shared/table.ts";
@@ -10,14 +10,14 @@ type Settings = {
   readonly column: string;
 };
 
-const MAX_PREVIEW_ROWS = 1_000;
 const MAX_PREVIEW_CELLS = 10_000;
 
 function createTablePreview(columns: string[]) {
   const encoder = new TextEncoder();
-  const rowLimit = Math.min(MAX_PREVIEW_ROWS, Math.max(1, Math.floor(MAX_PREVIEW_CELLS / columns.length)));
+  const { csvPreviewBytes, csvPreviewRows } = getRuntimeLimits();
+  const rowLimit = Math.min(csvPreviewRows, Math.max(1, Math.floor(MAX_PREVIEW_CELLS / columns.length)));
   let remainingBytes =
-    CSV_PREVIEW_BYTES - columns.reduce((size, column) => size + encoder.encode(column).byteLength, 0);
+    csvPreviewBytes - columns.reduce((size, column) => size + encoder.encode(column).byteLength, 0);
   const rows: string[][] = [];
   const result =
     remainingBytes < 0
