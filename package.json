@@ -12,7 +12,6 @@
     "db:seed": "node scripts/seed.mjs",
     "db:copy": "node db/scripts/copy-database.mjs",
     "tool:new": "canopy tool new",
-    "tool:sql": "canopy tool sql",
     "admin:promote": "node db/scripts/promote-admin.mjs",
     "build": "pnpm run prepare:vendor && tsc --noEmit && next build --webpack",
     "build:cloudflare": "node scripts/cloudflare.mjs build",
