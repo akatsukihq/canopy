@@ -13,9 +13,19 @@
 
 import { parseCropPoints } from "./geometry.ts";
 import type { ToolValidate } from "../../lib/tool-framework/run.ts";
-import type { SettingsOf } from "../../lib/tool-framework/settings.ts";
 
-type Settings = SettingsOf<typeof import("./definition.ts").default.settings>;
+type Settings = {
+  readonly cropMode: string;
+  readonly cropPointCount: number;
+  readonly cropPoints: string;
+  readonly cropAspect: string;
+  readonly cropX: number;
+  readonly cropY: number;
+  readonly cropWidth: number;
+  readonly cropHeight: number;
+  readonly outputFormat: string;
+  readonly quality: number;
+};
 
 function isHeic(file: { readonly mime: string; readonly name: string }): boolean {
   return /(?:heic|heif)/i.test(file.mime) || /\.(?:heic|heif)$/i.test(file.name);

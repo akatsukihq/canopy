@@ -29,9 +29,16 @@ import {
 import { sanitizeFileName, validateImageSelection } from "../../lib/tool-framework/media/validation.ts";
 import type { ToolResult } from "../../lib/tool-framework/result.ts";
 import { ToolError, type ToolRun, type ToolRunItem } from "../../lib/tool-framework/run.ts";
-import type { SettingsOf } from "../../lib/tool-framework/settings.ts";
 
-type Settings = SettingsOf<typeof import("./definition.ts").default.settings>;
+type Settings = {
+  readonly page: string;
+  readonly orientation: string;
+  readonly margin: string;
+  readonly fit: string;
+  readonly quality: string;
+  readonly background: string;
+  readonly filename: string;
+};
 
 const ALLOWED: readonly DecodableImageKind[] = ["jpeg", "png", "webp", "heic"];
 const PDF_LIB_MAX_INPUT_BYTES = 50 * 1024 * 1024;

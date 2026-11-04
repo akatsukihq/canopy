@@ -7,10 +7,13 @@
 
 import { ToolError, type ToolRun } from "../../lib/tool-framework/run.ts";
 import type { ToolResult } from "../../lib/tool-framework/result.ts";
-import type { SettingsOf } from "../../lib/tool-framework/settings.ts";
 import { createTablePreview } from "../../lib/devtools/shared/table-preview.ts";
 
-type Settings = SettingsOf<typeof import("./definition.ts").default.settings>;
+type Settings = {
+  readonly decodeValues: boolean;
+  readonly coerceNumbers: boolean;
+  readonly keepEmptyValues: boolean;
+};
 
 export const run: ToolRun<Settings> = (ctx): ToolResult => {
   const input = ctx.input.text.trim();

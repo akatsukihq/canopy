@@ -641,6 +641,7 @@ test("stored tools toggle, and archiving disables them", async () => {
     order: 0,
     enabled: true,
     archived: false,
+    spec: jsonFormatterSpec,
   };
   stored.translations = {
     en: { status: "published", messages: toolTranslationSource(jsonFormatterSpec, stored, null) },

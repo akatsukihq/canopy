@@ -1,9 +1,16 @@
 import { randomString } from "../../lib/devtools/shared/crypto.ts";
 import type { ToolRun } from "../../lib/tool-framework/run.ts";
 import type { ToolResult } from "../../lib/tool-framework/result.ts";
-import type { SettingsOf } from "../../lib/tool-framework/settings.ts";
 
-type Settings = SettingsOf<typeof import("./definition.ts").default.settings>;
+type Settings = {
+  readonly length: number;
+  readonly count: number;
+  readonly upper: boolean;
+  readonly lower: boolean;
+  readonly numbers: boolean;
+  readonly symbols: boolean;
+  readonly excludeAmbiguous: boolean;
+};
 
 export const run: ToolRun<Settings> = (ctx): ToolResult => {
   const alphabet = [

@@ -98,23 +98,20 @@ async function runJob(message: ToolWorkerRequest): Promise<void> {
     if (!TOOL_SLUG_PATTERN.test(message.key)) {
       throw new ToolError("unknown-tool", "This tool is not available.");
     }
-    const [specModule, runModule]: [unknown, unknown] = await Promise.all([
-      import(`../../tools/${message.key}/definition`),
-      import(`../../tools/${message.key}/run.worker`).catch((error: unknown) => {
-        // A server-only tool has no worker implementation. Only classify the
-        // missing entry itself; a missing dependency is a genuine tool failure.
-        const missingModule =
-          error instanceof Error ? /cannot find module ['"]([^'"]+)['"]/i.exec(error.message)?.[1] : undefined;
-        if (
-          missingModule?.endsWith(`/${message.key}/run.worker`) ||
-          missingModule?.endsWith(`/${message.key}/run.worker.ts`)
-        ) {
-          throw new ToolError("unknown-tool", "This tool is not available.");
-        }
-        throw error;
-      }),
-    ]);
-    const spec = readSpec(specModule);
+    const spec = readSpec(message.spec, message.key);
+    const runModule: unknown = await import(`../../tools/${message.key}/run.worker`).catch((error: unknown) => {
+      // A server-only tool has no worker implementation. Only classify the
+      // missing entry itself; a missing dependency is a genuine tool failure.
+      const missingModule =
+        error instanceof Error ? /cannot find module ['"]([^'"]+)['"]/i.exec(error.message)?.[1] : undefined;
+      if (
+        missingModule?.endsWith(`/${message.key}/run.worker`) ||
+        missingModule?.endsWith(`/${message.key}/run.worker.ts`)
+      ) {
+        throw new ToolError("unknown-tool", "This tool is not available.");
+      }
+      throw error;
+    });
     signal.throwIfAborted();
     await assertRunnableFiles(spec, message.files, signal);
     assertRunnableText(spec, { text: message.text, secondary: message.secondary });
@@ -163,10 +160,9 @@ async function inspectJob(message: ToolWorkerInspect): Promise<void> {
     if (!TOOL_SLUG_PATTERN.test(message.key)) {
       throw new ToolError("unknown-tool", "This tool is not available.");
     }
-    const specModule: unknown = await import(`../../tools/${message.key}/definition`);
-    const spec = readSpec(specModule);
     signal.throwIfAborted();
     if (message.source !== "output") {
+      const spec = readSpec(message.spec, message.key);
       if (spec.input.kind !== "files" || spec.input.inspect !== true || spec.input.engine !== "pdf") {
         throw new ToolError("inspection-unsupported", "This tool does not use page previews.");
       }
@@ -264,9 +260,14 @@ function toFailureMessage(error: unknown, jobId: string): ToolWorkerResponse {
   };
 }
 
-function readSpec(module: unknown): ToolSpec {
-  const value = pick(module, "default");
-  if (pick(value, "input") === undefined || pick(value, "settings") === undefined) {
+function readSpec(value: unknown, key: string): ToolSpec {
+  const toolId = pick(value, "toolId");
+  if (
+    typeof toolId !== "string" ||
+    toolId.split(".")[1] !== key ||
+    pick(value, "input") === undefined ||
+    pick(value, "settings") === undefined
+  ) {
     throw new ToolError("unknown-tool", "This tool is not available.");
   }
   return value as ToolSpec;

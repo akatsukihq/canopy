@@ -23,7 +23,7 @@ vi.mock("@/db/index.ts", () => ({
 }));
 vi.mock("@/lib/tool-framework/catalog.ts", () => ({
   definitionKeyOf: (id) => id.split(".")[1],
-  loadSpec: async () => null,
+  specFromRow: async () => null,
 }));
 
 const { getAdminTools } = await import("@/lib/tool-framework/manifest.ts");

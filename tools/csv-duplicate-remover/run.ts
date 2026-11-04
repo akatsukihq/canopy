@@ -5,11 +5,12 @@
 
 import type { ToolRun } from "../../lib/tool-framework/run.ts";
 import type { ToolResult } from "../../lib/tool-framework/result.ts";
-import type { SettingsOf } from "../../lib/tool-framework/settings.ts";
 import { parseUtilityTable, serializeTable, utilityDelimiter } from "../../lib/devtools/shared/table.ts";
 import { createTablePreview } from "../../lib/devtools/shared/table-preview.ts";
 
-type Settings = SettingsOf<typeof import("./definition.ts").default.settings>;
+type Settings = {
+  readonly delimiter: string;
+};
 
 export const run: ToolRun<Settings> = (ctx): ToolResult => {
   const delimiter = utilityDelimiter(ctx.settings.delimiter);

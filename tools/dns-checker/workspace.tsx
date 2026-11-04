@@ -25,7 +25,7 @@ import {
 } from "@/components/ui/index.tsx";
 import { normalizeDomain } from "@/lib/devtools/shared/url";
 import type { ToolResult } from "@/lib/tool-framework/result";
-import { DNS_RECORD_TYPES } from "./definition";
+import { DNS_RECORD_TYPES } from "./run";
 
 const RECORD_DESCRIPTIONS = {
   A: "IPv4 address",

@@ -1,8 +1,21 @@
 import { ToolError, type ToolRun } from "../../lib/tool-framework/run.ts";
 import type { ToolResult, ToolValidationIssue } from "../../lib/tool-framework/result.ts";
-import type { SettingsOf } from "../../lib/tool-framework/settings.ts";
 
-type Settings = SettingsOf<typeof import("./definition.ts").default.settings>;
+type Settings = {
+  readonly from: string;
+  readonly to: string;
+  readonly base: number;
+  readonly elementFontSize: number;
+  readonly parentFontSize: number;
+  readonly emContext: string;
+  readonly percentageReference: string;
+  readonly percentageBase: number;
+  readonly viewportWidth: number;
+  readonly viewportHeight: number;
+  readonly precision: number;
+  readonly roundResults: boolean;
+  readonly includeFormula: boolean;
+};
 const UNITS = ["px", "rem", "em", "pt", "%", "vw", "vh", "vmin", "vmax"];
 const REFERENCE_LABELS = {
   root: "Root font size",

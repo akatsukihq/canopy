@@ -2,11 +2,15 @@ import { convertCsvToJson, parseDelimitedRows } from "../../lib/devtools/shared/
 import { utilityDelimiter } from "../../lib/devtools/shared/table.ts";
 import type { ToolJsonTreeRender, ToolResult } from "../../lib/tool-framework/result.ts";
 import { ToolError, type ToolRun } from "../../lib/tool-framework/run.ts";
-import type { SettingsOf } from "../../lib/tool-framework/settings.ts";
 import { createTextArtifactSink, isLargeCsvRun, parseCsvRun } from "../../lib/devtools/shared/streaming-csv-tool.ts";
 import { LARGE_TEXT_PREVIEW_BYTES } from "../../lib/tool-framework/limits.ts";
 
-type Settings = SettingsOf<typeof import("./definition.ts").default.settings>;
+type Settings = {
+  readonly delimiter: string;
+  readonly firstRowAsHeaders: boolean;
+  readonly parseNumbers: boolean;
+  readonly trimWhitespace: boolean;
+};
 type JsonRow = Record<string, string | number> | (string | number)[];
 const JSON_PREVIEW_MAX_NODES = 1_000;
 

@@ -7,9 +7,11 @@ vi.mock("@/lib/observability/logger.ts", () => ({
   log: (...args) => state.logged.push(args),
   logError: (...args) => state.logged.push(args),
 }));
-vi.mock("@/tools/python-compiler/definition", () => ({ default: { settings: { fields: {} } } }));
+// The route reads the spec from the database; both test tools have a row.
+vi.mock("@/lib/tool-framework/catalog", () => ({
+  loadSpecByDefinitionKey: async (key) => ({ toolId: `devtools.${key}`, app: "devtools", settings: { fields: {} } }),
+}));
 vi.mock("@/tools/python-compiler/run.server", () => ({ run: (...args) => state.run(...args) }));
-vi.mock("@/tools/plain-tool/definition", () => ({ default: { settings: { fields: {} } } }));
 vi.mock("@/tools/plain-tool/run.server", () => ({ run: (...args) => state.run(...args) }));
 
 const { POST } = await import("@/app/api/tools/[key]/route.ts");

@@ -16,9 +16,11 @@ import {
 import type { StreamingJsonIndentation } from "../../lib/devtools/shared/streaming-json.ts";
 import type { ToolResult } from "../../lib/tool-framework/result.ts";
 import type { ToolRun } from "../../lib/tool-framework/run.ts";
-import type { SettingsOf } from "../../lib/tool-framework/settings.ts";
 
-type Settings = SettingsOf<typeof import("./definition.ts").default.settings>;
+type Settings = {
+  readonly operation: string;
+  readonly indentation: string;
+};
 
 function indentationFrom(value: string): StreamingJsonIndentation {
   if (value === "tab") return "tab";

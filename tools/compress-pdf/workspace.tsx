@@ -5,7 +5,6 @@ import { ToolError } from "@/lib/tool-framework/run";
 import { PdfFileWorkspace } from "@/components/PdfFileWorkspace";
 import type { WorkspaceProps } from "@/components/ToolWorkspace";
 import { parseSettings } from "@/lib/tool-framework/settings";
-import definition from "./definition";
 import { validate } from "./hooks";
 
 export default function CompressPdfWorkspace(props: WorkspaceProps) {
@@ -16,7 +15,7 @@ export default function CompressPdfWorkspace(props: WorkspaceProps) {
       definitionKey="compress-pdf"
       optionsTitle={t("workspace.options")}
       getPlan={(values, pageCount) => {
-        const settings = parseSettings(definition.settings, values);
+        const settings = parseSettings(props.spec.settings, values) as Parameters<typeof validate>[0];
         const issue = validate(settings, []);
         if (issue)
           throw typeof issue === "string"

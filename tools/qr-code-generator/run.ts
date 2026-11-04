@@ -9,9 +9,15 @@
 
 import { ToolError, type ToolRun } from "../../lib/tool-framework/run.ts";
 import type { ToolResult } from "../../lib/tool-framework/result.ts";
-import type { SettingsOf } from "../../lib/tool-framework/settings.ts";
 
-type Settings = SettingsOf<typeof import("./definition.ts").default.settings>;
+type Settings = {
+  readonly errorCorrection: string;
+  readonly size: number;
+  readonly margin: number;
+  readonly dark: string;
+  readonly light: string;
+  readonly transparentBackground: boolean;
+};
 
 type ErrorCorrectionLevel = "L" | "M" | "Q" | "H";
 

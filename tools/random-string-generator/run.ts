@@ -1,9 +1,12 @@
 import { randomString } from "../../lib/devtools/shared/crypto.ts";
 import type { ToolRun } from "../../lib/tool-framework/run.ts";
 import type { ToolResult } from "../../lib/tool-framework/result.ts";
-import type { SettingsOf } from "../../lib/tool-framework/settings.ts";
 
-type Settings = SettingsOf<typeof import("./definition.ts").default.settings>;
+type Settings = {
+  readonly length: number;
+  readonly count: number;
+  readonly charset: string;
+};
 
 const ALPHABETS: Readonly<Record<string, string>> = {
   alnum: "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789",

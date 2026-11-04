@@ -1,9 +1,13 @@
 import { parseColor, rgbToHex, rgbToHsl } from "../../lib/devtools/shared/color.ts";
 import { ToolError, type ToolRun } from "../../lib/tool-framework/run.ts";
 import type { ToolResult } from "../../lib/tool-framework/result.ts";
-import type { SettingsOf } from "../../lib/tool-framework/settings.ts";
 
-type Settings = SettingsOf<typeof import("./definition.ts").default.settings>;
+type Settings = {
+  readonly outputFormat: string;
+  readonly includeAlpha: boolean;
+  readonly modernSyntax: boolean;
+  readonly precision: number;
+};
 
 export const run: ToolRun<Settings> = (ctx): ToolResult => {
   const precision = Math.min(6, Math.max(0, Math.trunc(ctx.settings.precision ?? 3)));

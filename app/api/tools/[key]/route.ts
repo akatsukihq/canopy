@@ -1,7 +1,7 @@
 /**
  * The server execution host. It knows nothing about any individual tool: the
- * folder key arrives in the URL, and the two dynamic imports below are bundler
- * context modules over `tools/*` — the static prefix and suffix let the bundler
+ * folder key arrives in the URL, and the dynamic import below is a bundler
+ * context module over `tools/*` — the static prefix and suffix let the bundler
  * emit one chunk per folder. There is no map and no registry.
  *
  * A route handler rather than a server action on purpose: an action cannot be
@@ -18,7 +18,7 @@ import { checkRateLimit } from "@/lib/rateLimit";
 import type { ToolResult } from "@/lib/tool-framework/result";
 import { ToolError, type ToolRun } from "@/lib/tool-framework/run";
 import { parseSettings } from "@/lib/tool-framework/settings";
-import type { ToolSpec } from "@/lib/tool-framework/spec";
+import { loadSpecByDefinitionKey } from "@/lib/tool-framework/catalog";
 import { errorMessage } from "@/utils/errorMessage";
 import { log, logError } from "@/lib/observability/logger.ts";
 
@@ -34,14 +34,6 @@ type ToolRequestBody = {
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null && !Array.isArray(value);
-}
-
-function readSpec(module: unknown): ToolSpec {
-  const spec = isRecord(module) ? module.default : null;
-  if (!isRecord(spec) || !isRecord(spec.settings)) {
-    throw new ToolError("unknown-tool", "This tool is not available.");
-  }
-  return spec as unknown as ToolSpec;
 }
 
 function readRun(module: unknown): ToolRun<never> {
@@ -137,18 +129,15 @@ export async function POST(request: Request, { params }: { params: Promise<{ key
       throw new ToolError("invalid-request", "Request body must be JSON.");
     }
 
-    let modules: readonly [unknown, unknown];
+    let runModule: unknown;
     try {
-      modules = await Promise.all([
-        import(`../../../../tools/${key}/definition`),
-        import(`../../../../tools/${key}/run.server`),
-      ]);
+      runModule = await import(`../../../../tools/${key}/run.server`);
     } catch (error) {
       throw new ToolError("unknown-tool", errorMessage(error, "This tool is not available."));
     }
-
-    const spec = readSpec(modules[0]);
-    const run = readRun(modules[1]);
+    const spec = await loadSpecByDefinitionKey(key);
+    if (!spec) throw new ToolError("unknown-tool", "This tool is not available.");
+    const run = readRun(runModule);
 
     const result: ToolResult = await run({
       input: {

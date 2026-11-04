@@ -24,9 +24,14 @@ import { preservePdfWithQpdf, QpdfAdapterError } from "../../lib/tool-framework/
 import { createOutputFilename, validatePdfSelection } from "../../lib/tool-framework/media/validation.ts";
 import type { ToolResult } from "../../lib/tool-framework/result.ts";
 import { ToolError, type ToolRun, type ToolRunFile, type ToolRunProgress } from "../../lib/tool-framework/run.ts";
-import type { SettingsOf } from "../../lib/tool-framework/settings.ts";
 
-type Settings = SettingsOf<typeof import("./definition.ts").default.settings>;
+type Settings = {
+  readonly mode: string;
+  readonly removeMetadata: boolean;
+  readonly strongPreset: string;
+  readonly color: string;
+  readonly confirmed: boolean;
+};
 
 const STRONG_MAX_INPUT_BYTES = 50 * 1024 * 1024;
 

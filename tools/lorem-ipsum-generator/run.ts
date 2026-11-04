@@ -7,9 +7,14 @@
 
 import type { ToolRun } from "../../lib/tool-framework/run.ts";
 import type { ToolResult } from "../../lib/tool-framework/result.ts";
-import type { SettingsOf } from "../../lib/tool-framework/settings.ts";
 
-type Settings = SettingsOf<typeof import("./definition.ts").default.settings>;
+type Settings = {
+  readonly paragraphs: number;
+  readonly startWithLorem: boolean;
+  readonly paragraphLength: string;
+  readonly customSentences: number;
+  readonly includePunctuation: boolean;
+};
 
 const LOREM_SENTENCES = [
   "Lorem ipsum dolor sit amet, consectetur adipiscing elit.",

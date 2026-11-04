@@ -13,10 +13,9 @@ import config from "@/lib/config/config.ts";
 import { isIP } from "node:net";
 
 import { ToolError, type ToolRun } from "../../lib/tool-framework/run.ts";
-import type { SettingsOf } from "../../lib/tool-framework/settings.ts";
 import type { DomainRatingResult } from "./result.ts";
 
-type Settings = SettingsOf<typeof import("./definition.ts").default.settings>;
+type Settings = {};
 
 const AHREFS_DOMAIN_RATING_URL = "https://api.ahrefs.com/v3/public/domain-rating-free";
 const MAX_DOMAIN_RATING_TARGET_LENGTH = 2_048;

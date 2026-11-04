@@ -21,7 +21,6 @@ import {
   ToolOptionsPanel,
 } from "@/components/ui/index.tsx";
 import { CRON_FIELDS, getCronFieldError, getScheduleSummary } from "./configuration";
-import definition from "./definition";
 
 const SYNTAX_EXAMPLES = [
   ["*", "Every minute"],
@@ -35,7 +34,7 @@ export default function CronBuilderWorkspace(props: WorkspaceProps) {
   const locale = useLocale();
   const id = useId();
   const value = (key: (typeof CRON_FIELDS)[number]["key"]) =>
-    String(props.settings[key] ?? definition.settings.fields[key].default);
+    String(props.settings[key] ?? props.spec.settings.fields[key]?.default ?? "*");
   const settingsSpec = {
     ...props.spec.settings,
     fields: Object.fromEntries(

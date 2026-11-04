@@ -6,9 +6,15 @@
 
 import { ToolError, type ToolRun } from "../../lib/tool-framework/run.ts";
 import type { ToolResult } from "../../lib/tool-framework/result.ts";
-import type { SettingsOf } from "../../lib/tool-framework/settings.ts";
 
-type Settings = SettingsOf<typeof import("./definition.ts").default.settings>;
+type Settings = {
+  readonly preset: string;
+  readonly language: string;
+  readonly flags: string;
+  readonly addNamedGroups: boolean;
+  readonly multiline: boolean;
+  readonly explain: boolean;
+};
 
 const PATTERNS: Readonly<Record<string, string>> = {
   email: "[A-Za-z0-9.!#$%&'*+/=?^_`{|}~-]+@[A-Za-z0-9-]+(?:\\.[A-Za-z0-9-]+)+",

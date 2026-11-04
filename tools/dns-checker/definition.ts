@@ -1,8 +1,6 @@
 import { INPUT_EXECUTION_MESSAGES, URL_EXECUTION_MESSAGES } from "../../lib/devtools/shared/execution-messages.ts";
 import type { ToolSpec } from "../../lib/tool-framework/spec";
 
-export const DNS_RECORD_TYPES = ["A", "AAAA", "MX", "TXT", "NS", "CNAME"] as const;
-
 /**
  * `slug` is declared because `slugFromName("DNS & Email Records Checker")` is
  * `dns-and-email-records-checker`, which does not match the folder name. The
@@ -127,7 +125,7 @@ export default {
         kind: "text",
         label: "Record types",
         help: "Select one or more record types to look up.",
-        default: DNS_RECORD_TYPES.join(","),
+        default: "A,AAAA,MX,TXT,NS,CNAME",
         pane: "input",
       },
       recordView: {

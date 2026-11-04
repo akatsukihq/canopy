@@ -9,9 +9,15 @@ import type {
   ToolSettingsChanged,
   ToolValidate,
 } from "../../lib/tool-framework/run.ts";
-import type { PageSelection, SettingsOf } from "../../lib/tool-framework/settings.ts";
+import type { PageSelection } from "../../lib/tool-framework/settings.ts";
 
-type Settings = SettingsOf<typeof import("./definition.ts").default.settings>;
+type Settings = {
+  readonly pages: PageSelection;
+  readonly cropX: number;
+  readonly cropY: number;
+  readonly cropWidth: number;
+  readonly cropHeight: number;
+};
 
 /**
  * Replaces the crop-readiness half of `cropBoxReady` / `readinessMessage`

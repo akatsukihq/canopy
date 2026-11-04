@@ -20,7 +20,6 @@
 
 import { ToolError, type ToolRun } from "../../lib/tool-framework/run.ts";
 import type { ToolResult } from "../../lib/tool-framework/result.ts";
-import type { SettingsOf } from "../../lib/tool-framework/settings.ts";
 import { parseDate } from "../../lib/devtools/shared/datetime.ts";
 
 const DISPLAY_LOCALE = "en-US";
@@ -34,7 +33,13 @@ const RELATIVE_UNITS = [
   ["second", 1],
 ] as const;
 
-type Settings = SettingsOf<typeof import("./definition.ts").default.settings>;
+type Settings = {
+  readonly inputUnit: string;
+  readonly outputTimezone: string;
+  readonly useLocalTimezone: boolean;
+  readonly includeRelativeTime: boolean;
+  readonly twentyFourHour: boolean;
+};
 
 function inputDate(input: string, unit: Settings["inputUnit"]): Date {
   if (unit === "auto" || !NUMERIC_TIMESTAMP.test(input.trim())) {

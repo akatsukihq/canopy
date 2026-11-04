@@ -1,7 +1,13 @@
 import type { ToolRun } from "../../lib/tool-framework/run.ts";
-import type { SettingsOf } from "../../lib/tool-framework/settings.ts";
 import { paletteForSettings } from "./model.ts";
-type Settings = SettingsOf<typeof import("./definition.ts").default.settings>;
+type Settings = {
+  readonly seed: string;
+  readonly harmony: string;
+  readonly count: number;
+  readonly variation: number;
+  readonly colors: string;
+  readonly format: string;
+};
 export const run: ToolRun<Settings> = ({ settings }) => {
   const colors = paletteForSettings(settings);
   const css = `:root {\n${colors.map((color, index) => `  --color-${index + 1}: ${color.color};`).join("\n")}\n}`;

@@ -19,10 +19,16 @@ import { createTablePreview } from "../../lib/devtools/shared/table-preview.ts";
 import { normalizeDomain } from "../../lib/devtools/shared/url.ts";
 import type { ToolResult, ToolVerdict } from "../../lib/tool-framework/result.ts";
 import { ToolError, type ToolRun } from "../../lib/tool-framework/run.ts";
-import type { SettingsOf } from "../../lib/tool-framework/settings.ts";
-import { DNS_RECORD_TYPES } from "./definition.ts";
 
-type Settings = SettingsOf<typeof import("./definition.ts").default.settings>;
+export const DNS_RECORD_TYPES = ["A", "AAAA", "MX", "TXT", "NS", "CNAME"] as const;
+
+type Settings = {
+  readonly types: string;
+  readonly recordView: string;
+  readonly recursive: boolean;
+  readonly includeTtl: boolean;
+  readonly checkDnssec: boolean;
+};
 
 const ALLOWED_TYPES = new Set<string>(DNS_RECORD_TYPES);
 const LOOKUP_TIMEOUT_MS = 10_000;

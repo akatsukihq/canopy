@@ -108,7 +108,7 @@ export default function MarkdownWorkspace(props: WorkspaceProps) {
     if (props.result) setRetainedResult(props.result);
     else if (!props.input.text) setRetainedResult(null);
   }, [props.result, props.input.text]);
-  const highlightClient = useMemo(() => createMarkdownHighlightClient(), []);
+  const highlightClient = useMemo(() => createMarkdownHighlightClient(props.spec.settings), [props.spec.settings]);
   useEffect(() => () => highlightClient.dispose(), [highlightClient]);
   const sourceRef = useRef<HTMLElement | null>(null);
   const iframeRef = useRef<HTMLIFrameElement | null>(null);

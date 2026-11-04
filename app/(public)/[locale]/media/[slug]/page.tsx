@@ -7,7 +7,9 @@ import { headers } from "next/headers";
 import { notFound } from "next/navigation";
 
 import ToolPage from "@/components/ToolPage";
-import { relatedTools, resolveToolPage } from "@/lib/tool-framework/catalog";
+import { IMAGE_CONVERSION_KEYS } from "@/app/media/lib/imageConversion";
+import { loadSpecByDefinitionKey, relatedTools, resolveToolPage } from "@/lib/tool-framework/catalog";
+import type { ToolSpec } from "@/lib/tool-framework/spec";
 import { toolMetadata } from "@/lib/tool-framework/metadata";
 
 // Deliberately no `generateStaticParams`: slugs and enablement live in
@@ -21,9 +23,12 @@ export default async function MediaToolPage({ params }: { params: Promise<{ slug
   const tool = await resolveToolPage("media", slug, locale);
   if (!tool) notFound();
 
-  const [related, session] = await Promise.all([
+  const [related, session, conversions] = await Promise.all([
     relatedTools(tool.toolId, locale),
     getOptionalSession(await headers()),
+    IMAGE_CONVERSION_KEYS.includes(tool.definitionKey)
+      ? Promise.all(IMAGE_CONVERSION_KEYS.map(loadSpecByDefinitionKey))
+      : Promise.resolve([]),
   ]);
 
   return (
@@ -38,6 +43,7 @@ export default async function MediaToolPage({ params }: { params: Promise<{ slug
           user: session?.user ?? null,
         }}
         category={getCommonMessages(locale).Categories[tool.category]}
+        conversions={conversions.filter((entry): entry is ToolSpec => entry !== null)}
         definitionKey={tool.definitionKey}
         description={tool.description}
         icon={tool.icon}

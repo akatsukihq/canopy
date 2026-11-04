@@ -1,8 +1,22 @@
 import { ToolError, type ToolRun } from "../../lib/tool-framework/run.ts";
 import type { ToolResult } from "../../lib/tool-framework/result.ts";
-import type { SettingsOf } from "../../lib/tool-framework/settings.ts";
 
-type Settings = SettingsOf<typeof import("./definition.ts").default.settings>;
+type Settings = {
+  readonly topLeft: number;
+  readonly topRight: number;
+  readonly bottomRight: number;
+  readonly bottomLeft: number;
+  readonly unit: string;
+  readonly linked: boolean;
+  readonly width: number;
+  readonly height: number;
+  readonly rootFontSize: number;
+  readonly elliptical: boolean;
+  readonly topLeftY: number;
+  readonly topRightY: number;
+  readonly bottomRightY: number;
+  readonly bottomLeftY: number;
+};
 
 export const run: ToolRun<Settings> = (ctx): ToolResult => {
   const settings = ctx.settings;

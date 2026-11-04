@@ -1,12 +1,13 @@
 import { ToolError, type ToolRun } from "../../lib/tool-framework/run.ts";
 import { CSV_PREVIEW_BYTES, CSV_PREVIEW_ROWS } from "../../lib/tool-framework/limits.ts";
 import type { ToolResult } from "../../lib/tool-framework/result.ts";
-import type { SettingsOf } from "../../lib/tool-framework/settings.ts";
 import { parseUtilityTable, tableToHtml, utilityDelimiter } from "../../lib/devtools/shared/table.ts";
 import { escapeHtml } from "../../lib/devtools/shared/text.ts";
 import { createTextArtifactSink, isLargeCsvRun, parseCsvRun } from "../../lib/devtools/shared/streaming-csv-tool.ts";
 
-type Settings = SettingsOf<typeof import("./definition.ts").default.settings>;
+type Settings = {
+  readonly delimiter: string;
+};
 
 const MAX_PREVIEW_CELLS = 10_000;
 

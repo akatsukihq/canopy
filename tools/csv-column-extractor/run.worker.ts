@@ -1,12 +1,14 @@
 import { ToolError, type ToolRun } from "../../lib/tool-framework/run.ts";
 import { CSV_PREVIEW_BYTES } from "../../lib/tool-framework/limits.ts";
 import type { ToolResult } from "../../lib/tool-framework/result.ts";
-import type { SettingsOf } from "../../lib/tool-framework/settings.ts";
 import { csvCell, parseDelimitedRows } from "../../lib/devtools/shared/csv.ts";
 import { parseUtilityTable, serializeTable, utilityDelimiter } from "../../lib/devtools/shared/table.ts";
 import { createTextArtifactSink, isLargeCsvRun, parseCsvRun } from "../../lib/devtools/shared/streaming-csv-tool.ts";
 
-type Settings = SettingsOf<typeof import("./definition.ts").default.settings>;
+type Settings = {
+  readonly delimiter: string;
+  readonly column: string;
+};
 
 const MAX_PREVIEW_ROWS = 1_000;
 const MAX_PREVIEW_CELLS = 10_000;

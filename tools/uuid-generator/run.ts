@@ -2,10 +2,17 @@ import { v1, v3, v4, v5, v6, v7, validate } from "uuid";
 import type { ToolRun } from "../../lib/tool-framework/run.ts";
 import { ToolError } from "../../lib/tool-framework/run.ts";
 import type { ToolResult } from "../../lib/tool-framework/result.ts";
-import type { SettingsOf } from "../../lib/tool-framework/settings.ts";
 import { getCrypto } from "../../lib/devtools/shared/crypto.ts";
 
-type Settings = SettingsOf<typeof import("./definition.ts").default.settings>;
+type Settings = {
+  readonly version: string;
+  readonly namespace: string;
+  readonly customNamespace: string;
+  readonly name: string;
+  readonly count: number;
+  readonly hyphens: boolean;
+  readonly upper: boolean;
+};
 
 export const run: ToolRun<Settings> = (ctx): ToolResult => {
   ctx.signal.throwIfAborted();

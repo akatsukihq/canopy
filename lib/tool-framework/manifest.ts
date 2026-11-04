@@ -25,7 +25,7 @@ import { cache } from "react";
 import { db, getToolContentRows, isDatabaseConfigured, managedToolsTable } from "../../db/index.ts";
 import { mergeToolManifest, type ResolvedTool, type ToolManifestEntry } from "../tool-catalog/index.ts";
 
-import { definitionKeyOf, loadSpec } from "./catalog";
+import { definitionKeyOf, specFromRow } from "./catalog";
 import { TOOL_CATEGORIES } from "./categories";
 import { hasDraftToolContent } from "./content.ts";
 
@@ -55,10 +55,9 @@ const loadRows = cache(async (): Promise<readonly ManagedToolRow[]> => {
 
 async function toRecord(row: ManagedToolRow): Promise<ManifestRecord> {
   const definitionKey = definitionKeyOf(row.toolId);
-  const spec = definitionKey ? await loadSpec(definitionKey) : null;
-  // A definition that claims another app is as good as absent: it can never
+  // A missing, malformed, or other-app spec is as good as absent: it can never
   // serve this row's route.
-  const shipped = spec && spec.app === row.app ? spec : null;
+  const shipped = definitionKey ? await specFromRow(row) : null;
 
   return {
     // Paperwork predates `tools/` and ships from `app/paperwork`, so it is not

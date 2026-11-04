@@ -62,7 +62,7 @@ import {
   type ToolContentRow,
 } from "../tool-framework/content.ts";
 import { uploadToolIcon } from "../tool-framework/cloudinary.ts";
-import { definitionKeyOf, loadSpec } from "../tool-framework/catalog.ts";
+import { definitionKeyOf, specFromRow } from "../tool-framework/catalog.ts";
 import {
   applyToolMessages,
   escapeToolText,
@@ -339,8 +339,7 @@ async function syncContentEnglish(
   next: ToolContentRow | null,
 ): Promise<void> {
   if (!tool.translations?.en) return;
-  const key = definitionKeyOf(tool.toolId);
-  const spec = key ? await loadSpec(key) : null;
+  const spec = await specFromRow(tool);
   const before = toolTranslationSource(spec, tool, previous);
   const after = toolTranslationSource(spec, tool, next);
   await transaction
@@ -380,8 +379,7 @@ export async function saveToolTranslation(
         throw new Error("English must remain published while the tool is enabled.");
       }
       let englishMessages = current.translations?.en?.messages;
-      const key = definitionKeyOf(toolId);
-      const spec = key ? await loadSpec(key) : null;
+      const spec = await specFromRow(current);
       let contentRow: ToolContentRow | null = null;
       if (spec || !englishMessages) {
         const [content] = await transaction
@@ -630,8 +628,7 @@ export async function updateManagedTool(actorUserId: string, toolId: string, inp
 
       let translations = current.translations;
       if (translations?.en && (name !== current.name || description !== current.description)) {
-        const key = definitionKeyOf(toolId);
-        const spec = key ? await loadSpec(key) : null;
+        const spec = await specFromRow(current);
         const [content] = await transaction
           .select()
           .from(toolContentTable)
@@ -741,8 +738,7 @@ export async function setManagedToolEnabled(actorUserId: string, toolId: string,
         if (english?.status !== "published") {
           throw new Error("Publish English translations before enabling the tool.");
         }
-        const key = definitionKeyOf(toolId);
-        const spec = key ? await loadSpec(key) : null;
+        const spec = await specFromRow(current);
         const [content] = spec
           ? await transaction
               .select()

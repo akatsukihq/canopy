@@ -54,6 +54,7 @@ import { isCategoryKey, type CategoryKey, type ToolApp } from "./categories";
 import { resolveContent } from "./content";
 import { resolveIcon, type ResolvedIcon } from "./icons";
 import type { ToolContent, ToolSpec } from "./spec";
+import { clampSpecLimits, loadSystemLimits } from "./systemLimits.ts";
 
 /** How many tools `relatedTools` returns, matching the tool page's shelf. */
 const RELATED_LIMIT = 3;
@@ -134,31 +135,44 @@ function isToolSpec(value: unknown): value is ToolSpec {
 }
 
 /**
- * Loads one tool's shipped declaration by folder name.
+ * A row's stored definition, shape-checked and clamped to the system limits.
  *
- * Returns `null` rather than throwing: a stale row pointing at a folder that
- * no longer ships must drop out of the catalogue, not break every page that
- * lists it.
+ * Returns `null` rather than throwing: a row with a missing or malformed spec
+ * must drop out of the catalogue, not break every page that lists it.
  */
-export async function loadSpec(definitionKey: string): Promise<ToolSpec | null> {
-  try {
-    const loaded: unknown = await import(`../../tools/${definitionKey}/definition`);
-    const value =
-      typeof loaded === "object" && loaded !== null && "default" in loaded
-        ? (loaded as { default: unknown }).default
-        : null;
-    return isToolSpec(value) ? value : null;
-  } catch {
-    return null;
+export async function specFromRow(row: Pick<ManagedToolRow, "toolId" | "app" | "spec">): Promise<ToolSpec | null> {
+  const spec = row.spec;
+  if (!isToolSpec(spec) || spec.toolId !== row.toolId || spec.app !== row.app) return null;
+  return clampSpecLimits(spec, await loadSystemLimits());
+}
+
+/** Loads one tool's stored definition by stable tool ID. */
+export async function loadSpec(toolId: string): Promise<ToolSpec | null> {
+  if (!isDatabaseConfigured()) return null;
+  const [row] = await db
+    .select({ toolId: managedToolsTable.toolId, app: managedToolsTable.app, spec: managedToolsTable.spec })
+    .from(managedToolsTable)
+    .where(eq(managedToolsTable.toolId, toolId))
+    .limit(1);
+  return row ? specFromRow(row) : null;
+}
+
+/** Loads the stored definition of the code folder `tools/<definitionKey>`. */
+export async function loadSpecByDefinitionKey(definitionKey: string): Promise<ToolSpec | null> {
+  if (!DEFINITION_KEY_PATTERN.test(definitionKey)) return null;
+  for (const app of ["devtools", "media"] as const) {
+    const spec = await loadSpec(`${app}.${definitionKey}`);
+    if (spec) return spec;
   }
+  return null;
 }
 
 async function resolveToolSource(row: ManagedToolRow & { slug: string }, contentRow: ToolContentRow | null) {
   const definitionKey = definitionKeyOf(row.toolId);
   if (!definitionKey) return null;
 
-  const spec = await loadSpec(definitionKey);
-  if (!spec || spec.app !== row.app) return null;
+  const spec = await specFromRow(row);
+  if (!spec) return null;
 
   // The admin-authored name/description are the live ones, so they, not the
   // shipped strings, are what the SEO fields fall back to.

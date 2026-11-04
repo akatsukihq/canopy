@@ -6,9 +6,13 @@
 import { requireUtilityInput } from "../../lib/devtools/shared/options.ts";
 import type { ToolHtmlRender } from "../../lib/tool-framework/result.ts";
 import type { ToolRun } from "../../lib/tool-framework/run.ts";
-import type { SettingsOf } from "../../lib/tool-framework/settings.ts";
 
-export type MarkdownPreviewSettings = SettingsOf<typeof import("./definition.ts").default.settings>;
+export type MarkdownPreviewSettings = {
+  readonly syncScroll: boolean;
+  readonly previewMode: string;
+  readonly syntaxHighlighting: boolean;
+  readonly safeLinks: boolean;
+};
 
 const HTML_ESCAPES: Record<string, string> = {
   "&": "&amp;",

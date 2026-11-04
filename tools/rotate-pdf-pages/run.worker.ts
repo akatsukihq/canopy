@@ -19,9 +19,13 @@ import { processStructuralPages } from "../../lib/tool-framework/media/pdfRules.
 import { createOutputFilename, validatePdfSelection } from "../../lib/tool-framework/media/validation.ts";
 import type { ToolResult } from "../../lib/tool-framework/result.ts";
 import { ToolError, type ToolRun } from "../../lib/tool-framework/run.ts";
-import type { SettingsOf } from "../../lib/tool-framework/settings.ts";
+import type { PageSelection } from "../../lib/tool-framework/settings.ts";
 
-type Settings = SettingsOf<typeof import("./definition.ts").default.settings>;
+type Settings = {
+  readonly pages: PageSelection;
+  readonly degrees: string;
+  readonly rotateSelectedOnly: boolean;
+};
 
 function quarter(value: string): 90 | 180 | 270 {
   return value === "180" ? 180 : value === "270" ? 270 : 90;

@@ -10,9 +10,14 @@
  */
 
 import type { ToolValidate } from "../../lib/tool-framework/run.ts";
-import type { SettingsOf } from "../../lib/tool-framework/settings.ts";
 
-type Settings = SettingsOf<typeof import("./definition.ts").default.settings>;
+type Settings = {
+  readonly mode: string;
+  readonly removeMetadata: boolean;
+  readonly strongPreset: string;
+  readonly color: string;
+  readonly confirmed: boolean;
+};
 
 /**
  * Replaces the `definition.slug === "compress-pdf"` guard at

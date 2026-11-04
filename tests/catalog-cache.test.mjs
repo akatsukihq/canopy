@@ -8,7 +8,7 @@ import { getPaperworkToolMessages } from "../lib/paperwork/toolMessages.ts";
 
 const state = vi.hoisted(() => ({ configured: true, rows: [], content: [], failure: false, reads: 0, queries: [] }));
 vi.mock("@/db/index.ts", async () => {
-  const { managedToolsTable, toolContentTable } = await vi.importActual("../db/schema.ts");
+  const { managedToolsTable, systemLimitsTable, toolContentTable } = await vi.importActual("../db/schema.ts");
   const { PgDialect } = await import("drizzle-orm/pg-core");
   const dialect = new PgDialect();
   const columnKeys = Object.fromEntries(
@@ -18,14 +18,19 @@ vi.mock("@/db/index.ts", async () => {
   );
   return {
     managedToolsTable,
+    systemLimitsTable,
     toolContentTable,
     isDatabaseConfigured: () => state.configured,
     db: {
       select: (projection) => {
         let predicate;
         let joined = false;
+        let source;
         const builder = {
-          from: () => builder,
+          from: (table) => {
+            source = table;
+            return builder;
+          },
           leftJoin: () => {
             joined = true;
             return builder;
@@ -37,6 +42,8 @@ vi.mock("@/db/index.ts", async () => {
           then: (resolve, reject) =>
             Promise.resolve()
               .then(() => {
+                // No system limits configured: specs pass through unclamped.
+                if (source === systemLimitsTable) return [];
                 state.reads++;
                 if (state.failure) throw new Error("Database unavailable");
                 const query = predicate ? dialect.sqlToQuery(predicate) : null;
@@ -120,7 +127,9 @@ function row(app, key, changes = {}) {
           name: value.name,
           description: value.description,
         });
-  return { ...value, translations: { en: { status: "published", messages } } };
+  const base = key === "json-formatter" ? jsonDefinition : markdownDefinition;
+  const spec = app === "paperwork" ? null : { ...base, toolId: value.toolId, app };
+  return { spec, ...value, translations: { en: { status: "published", messages } } };
 }
 const catalog = await import("@/lib/tool-framework/catalog.ts");
 const { getTools, getPublicTools, getPaperworkTools, resolveToolPage } = catalog;
@@ -269,7 +278,7 @@ test("discovery uses published DB copy, excludes unavailable tools, and retries 
     row("paperwork", "disabled", { enabled: false }),
     row("paperwork", "archived", { archived: true }),
     row("paperwork", "invalid", { slug: "api" }),
-    row("devtools", "not-shipped"),
+    row("devtools", "not-shipped", { spec: null }),
   ];
   const redisSpy = vi.spyOn(redis, "createClient").mockImplementation(() => {
     throw new Error("Public reads must not use Redis");
@@ -483,7 +492,7 @@ test("related tools prioritize curated cards, then unique category matches, with
   const target = row("devtools", "markdown-previewer");
   const curated = row("devtools", "json-formatter", { order: 99 });
   const neighbors = [whitespaceDefinition, duplicateDefinition, sorterDefinition].map((definition, index) => {
-    const tool = row("devtools", definition.toolId.split(".")[1], { order: index + 1 });
+    const tool = row("devtools", definition.toolId.split(".")[1], { order: index + 1, spec: definition });
     tool.translations.en.messages = extractToolMessages({
       ...definition,
       name: tool.name,

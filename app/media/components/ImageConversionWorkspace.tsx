@@ -53,7 +53,7 @@ export function ImageConversionWorkspace(props: WorkspaceProps) {
   const running = Boolean(props.running);
   const disabled = Boolean(props.disabled || running);
   const hasFiles = props.input.files.length > 0;
-  const conversion = resolveImageConversion(props.spec, props.settings);
+  const conversion = resolveImageConversion(props.spec, props.settings, props.conversions);
   const activeSpec = conversion.spec;
   const alternateTarget = activeSpec.toolId !== props.spec.toolId;
   const formatName = conversion.target === "webp" ? "WebP" : conversion.target.toUpperCase();

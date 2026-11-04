@@ -26,6 +26,7 @@ import {
   PDF_THUMBNAIL_CACHE_SIZE,
 } from "./limits.ts";
 import type { ToolResult } from "./result";
+import type { ToolSpec } from "./spec";
 import type { ToolPagePreview, ToolRunFile, ToolRunItem, ToolRunProgress } from "./run";
 
 /** The 3x3 placement grid used by watermarks and page numbering. */
@@ -67,6 +68,8 @@ export type ToolWorkerRequest = {
   readonly type: "run";
   readonly jobId: string;
   readonly key: string;
+  /** The stored definition the page was rendered with; required to run. */
+  readonly spec?: ToolSpec;
   readonly text?: string;
   readonly secondary?: string;
   readonly files: readonly ToolRunFile[];
@@ -83,6 +86,8 @@ export type ToolWorkerInspect = {
   readonly type: "inspect";
   readonly jobId: string;
   readonly key: string;
+  /** Required unless `source` is "output". */
+  readonly spec?: ToolSpec;
   readonly source?: "output";
   readonly files: readonly ToolRunFile[];
   readonly thumbnailWidth: number;
@@ -207,6 +212,7 @@ export function createToolJobState(): ToolJobState {
 /** What a caller supplies; the job id is minted by the host that starts it. */
 export type ToolRunRequestInput = {
   readonly key: string;
+  readonly spec?: ToolSpec;
   readonly text?: string;
   readonly secondary?: string;
   readonly files?: readonly ToolRunFile[];
@@ -221,6 +227,7 @@ export function createToolWorkerRequest(input: ToolRunRequestInput & { readonly 
     type: "run",
     jobId: input.jobId.trim(),
     key: input.key.trim(),
+    ...(input.spec === undefined ? {} : { spec: input.spec }),
     text: input.text,
     secondary: input.secondary,
     files: input.files ?? [],
@@ -234,6 +241,7 @@ export const INSPECT_THUMBNAIL_WIDTH = 180;
 
 export type ToolInspectRequestInput = {
   readonly key: string;
+  readonly spec?: ToolSpec;
   readonly file: ToolRunFile;
   readonly source?: "output";
   readonly thumbnailWidth?: number;
@@ -252,6 +260,7 @@ export function createToolInspectRequest(
     type: "inspect",
     jobId: input.jobId.trim(),
     key: input.key.trim(),
+    ...(input.spec === undefined ? {} : { spec: input.spec }),
     ...(input.source === undefined ? {} : { source: input.source }),
     files: [input.file],
     thumbnailWidth,
@@ -315,6 +324,7 @@ export function isToolWorkerMessage(value: unknown): value is ToolWorkerMessage 
   if (value.type === "inspect") {
     return (
       isNonEmptyString(value.key) &&
+      (value.spec === undefined || isRecord(value.spec)) &&
       (value.source === undefined || value.source === "output") &&
       Array.isArray(value.files) &&
       value.files.length === 1 &&
@@ -326,6 +336,7 @@ export function isToolWorkerMessage(value: unknown): value is ToolWorkerMessage 
   return (
     value.type === "run" &&
     isNonEmptyString(value.key) &&
+    (value.spec === undefined || isRecord(value.spec)) &&
     isOptionalString(value.text) &&
     isOptionalString(value.secondary) &&
     Array.isArray(value.files) &&

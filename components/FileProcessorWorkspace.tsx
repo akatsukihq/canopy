@@ -180,7 +180,7 @@ function useInspectedPages(
 } {
   const t = useTranslations("Workbench");
   const toolText = useTranslations("Tool.runtime");
-  const { closeInspection, inspect, previews, requestThumbnails, reset, state } = useToolRun();
+  const { closeInspection, inspect, previews, requestThumbnails, reset, state } = useToolRun(spec);
   const key = spec.input.kind === "files" && spec.input.inspect === true ? (spec.toolId.split(".")[1] ?? "") : "";
   const file = runFiles[0];
   // Derived identity again: `runFiles` is a new array on every read.

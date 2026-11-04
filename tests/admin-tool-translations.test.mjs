@@ -33,7 +33,7 @@ const ROW = {
 
 vi.mock("@/lib/tool-framework/catalog.ts", () => ({
   definitionKeyOf: (toolId) => toolId.split(".")[1],
-  loadSpec: async () => specFixture.value,
+  specFromRow: async () => specFixture.value,
 }));
 
 function permissionRows(access = { edit: true, toggle: true }) {

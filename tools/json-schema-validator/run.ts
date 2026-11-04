@@ -7,12 +7,11 @@
 
 import type { ToolRun } from "../../lib/tool-framework/run.ts";
 import type { ToolValidationIssue } from "../../lib/tool-framework/result.ts";
-import type { SettingsOf } from "../../lib/tool-framework/settings.ts";
 import { jsonType, parseStrictJson } from "../../lib/devtools/shared/json-input.ts";
 import { isRecord } from "../../lib/devtools/shared/json.ts";
 import type { JsonSchemaResult } from "./result.ts";
 
-type Settings = SettingsOf<typeof import("./definition.ts").default.settings>;
+type Settings = {};
 
 type ValidationProgress = {
   valuesChecked: number;

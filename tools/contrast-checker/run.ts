@@ -1,7 +1,12 @@
 import type { ToolRun } from "../../lib/tool-framework/run.ts";
-import type { SettingsOf } from "../../lib/tool-framework/settings.ts";
 import { contrast, CONTRAST_CHECKS } from "./model.ts";
-type Settings = SettingsOf<typeof import("./definition.ts").default.settings>;
+type Settings = {
+  readonly foreground: string;
+  readonly background: string;
+  readonly canvas: string;
+  readonly sample: string;
+  readonly bodySample: string;
+};
 export const run: ToolRun<Settings> = ({ settings }) => {
   const value = contrast(
     settings.foreground ?? "#334155",

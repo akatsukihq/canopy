@@ -15,9 +15,11 @@ import {
 } from "../../lib/devtools/shared/streaming-json-tool.ts";
 import type { ToolResult } from "../../lib/tool-framework/result.ts";
 import { ToolError, type ToolRun } from "../../lib/tool-framework/run.ts";
-import type { SettingsOf } from "../../lib/tool-framework/settings.ts";
 
-type Settings = SettingsOf<typeof import("./definition.ts").default.settings>;
+type Settings = {
+  readonly largeFileOperation: string;
+  readonly repairMode: string;
+};
 
 export const run: ToolRun<Settings> = async (ctx): Promise<ToolResult> => {
   if (isLargeJsonRun(ctx)) {

@@ -3,10 +3,8 @@
 import { PdfFileWorkspace } from "@/components/PdfFileWorkspace";
 import type { WorkspaceProps } from "@/components/ToolWorkspace";
 import { parseSettings } from "@/lib/tool-framework/settings";
-import definition from "./definition";
-
-function getPlan(values: WorkspaceProps["settings"], pageCount: number) {
-  const settings = parseSettings(definition.settings, values);
+function getPlan(spec: WorkspaceProps["spec"], values: WorkspaceProps["settings"], pageCount: number) {
+  const settings = parseSettings(spec.settings, values);
   if (!/^#[\da-f]{6}$/i.test(String(values.textColor ?? settings.textColor))) {
     throw new Error("Enter a six-digit hex text color, such as #1a1a1a.");
   }
@@ -22,7 +20,7 @@ export default function AddPageNumbersWorkspace(props: WorkspaceProps) {
       {...props}
       definitionKey="add-page-numbers"
       optionsTitle="Page number settings"
-      getPlan={getPlan}
+      getPlan={(values, pageCount) => getPlan(props.spec, values, pageCount)}
     />
   );
 }

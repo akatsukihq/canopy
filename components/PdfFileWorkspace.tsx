@@ -103,7 +103,7 @@ export function PdfFileWorkspace({
   const actionLabel = props.primaryAction?.label ?? t("run");
   const file = props.input.files[0];
   const inputSpec = props.spec.input;
-  const { inspect, previews, requestThumbnails, reset, state } = useToolRun();
+  const { inspect, previews, requestThumbnails, reset, state } = useToolRun(props.spec);
   const inspectedPages = usePdfPageImages(previews);
   const [inspectedFile, setInspectedFile] = useState<File>();
   const pages = inspectedFile === file ? inspectedPages : [];

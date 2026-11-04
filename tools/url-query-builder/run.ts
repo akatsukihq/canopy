@@ -9,12 +9,17 @@
 
 import { ToolError, type ToolRun } from "../../lib/tool-framework/run.ts";
 import type { ToolResult } from "../../lib/tool-framework/result.ts";
-import type { SettingsOf } from "../../lib/tool-framework/settings.ts";
+import type { SettingRow } from "../../lib/tool-framework/settings.ts";
 import { requireUtilityInput } from "../../lib/devtools/shared/options.ts";
 import { safeUrl } from "../../lib/devtools/shared/url.ts";
 import { parseQueryRows } from "./parameters.ts";
 
-type Settings = SettingsOf<typeof import("./definition.ts").default.settings>;
+type Settings = {
+  readonly parameters: readonly SettingRow[];
+  readonly encodeValues: boolean;
+  readonly skipEmptyRows: boolean;
+  readonly sortParameters: boolean;
+};
 
 export const run: ToolRun<Settings> = (ctx): ToolResult => {
   const url = safeUrl(requireUtilityInput(ctx.input.text, "Base URL"), "Base URL");

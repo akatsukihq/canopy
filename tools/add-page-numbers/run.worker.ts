@@ -17,10 +17,16 @@ import {
 import { createOutputFilename, validatePdfSelection } from "../../lib/tool-framework/media/validation.ts";
 import type { ToolResult } from "../../lib/tool-framework/result.ts";
 import { ToolError, type ToolRun } from "../../lib/tool-framework/run.ts";
-import type { SettingsOf } from "../../lib/tool-framework/settings.ts";
+import type { WatermarkPosition } from "../../lib/tool-framework/settings.ts";
 import { parseHexColor } from "../../lib/devtools/shared/color.ts";
 
-type Settings = SettingsOf<typeof import("./definition.ts").default.settings>;
+type Settings = {
+  readonly format: string;
+  readonly start: number;
+  readonly fontSize: number;
+  readonly textColor: string;
+  readonly position: WatermarkPosition;
+};
 
 export const run: ToolRun<Settings> = async (ctx): Promise<ToolResult> => {
   const selection = validatePdfSelection(ctx.input.files.map((file) => ({ size: file.size })));

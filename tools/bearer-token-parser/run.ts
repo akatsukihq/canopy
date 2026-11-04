@@ -9,11 +9,14 @@
 
 import { ToolError, type ToolRun } from "../../lib/tool-framework/run.ts";
 import type { ToolResult } from "../../lib/tool-framework/result.ts";
-import type { SettingsOf } from "../../lib/tool-framework/settings.ts";
 import { decodeJwt } from "../../lib/devtools/shared/jwt.ts";
 import { requireUtilityInput } from "../../lib/devtools/shared/options.ts";
 
-type Settings = SettingsOf<typeof import("./definition.ts").default.settings>;
+type Settings = {
+  readonly inputFormat: string;
+  readonly decodeJwtParts: boolean;
+  readonly maskRawToken: boolean;
+};
 
 export const run: ToolRun<Settings> = (ctx): ToolResult => {
   const input = requireUtilityInput(ctx.input.text, "Authorization header or token").trim();

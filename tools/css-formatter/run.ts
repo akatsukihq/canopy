@@ -1,10 +1,13 @@
 import type { ToolRun } from "../../lib/tool-framework/run.ts";
 import type { ToolResult } from "../../lib/tool-framework/result.ts";
-import type { SettingsOf } from "../../lib/tool-framework/settings.ts";
 import { formatDelimitedCode, protectCssStrings } from "../../lib/devtools/shared/code.ts";
 import { requireUtilityInput } from "../../lib/devtools/shared/options.ts";
 
-type Settings = SettingsOf<typeof import("./definition.ts").default.settings>;
+type Settings = {
+  readonly indentWidth: string;
+  readonly printWidth: string;
+  readonly propertyOrder: string;
+};
 
 function sortDeclarations(css: string): string {
   const lines = css.split("\n");

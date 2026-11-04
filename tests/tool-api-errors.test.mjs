@@ -13,21 +13,17 @@ vi.mock("@/lib/tool-framework/catalog", () => ({
   getPublicTools: async () => {
     throw state.failure;
   },
+  // The route reads the spec from the database; only the test tool has a row.
+  loadSpecByDefinitionKey: async (key) =>
+    key === "test-error-tool" ? { toolId: `devtools.${key}`, app: "devtools", settings: { fields: {} } } : null,
 }));
 vi.mock("@/lib/tool-framework/categories", () => ({ TOOL_CATEGORIES: {} }));
 vi.mock("@/lib/tool-framework/icons", () => ({ resolveIcon: () => null }));
 vi.mock("@/lib/tool-framework/manifest", () => ({ getToolManifest: async () => [] }));
 vi.mock("@/lib/admin/index.ts", () => ({ getAvailableTools: async () => [] }));
-vi.mock("@/tools/test-error-tool/definition", () => ({ default: { settings: { fields: {} } } }));
 vi.mock("@/tools/test-error-tool/run.server", () => ({ run: (...args) => state.run(...args) }));
-vi.mock("@/tools/test-module-error/definition", () => {
-  throw new Error("Tool module dependency unavailable");
-});
 vi.mock("@/tools/test-module-error/run.server", () => {
   throw new Error("Tool module dependency unavailable");
-});
-vi.mock("@/tools/test-module-empty/definition", () => {
-  throw new Error("");
 });
 vi.mock("@/tools/test-module-empty/run.server", () => {
   throw new Error("");

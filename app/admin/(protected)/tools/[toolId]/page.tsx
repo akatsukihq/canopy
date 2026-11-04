@@ -24,7 +24,8 @@ import { ToolContentForm } from "./components/ToolContentForm";
 import { ActivationPanel, ToolIdentifier } from "./components/ToolConfigurationPanels";
 import { DeveloperHandoff } from "../components/DeveloperHandoff";
 import { ToolIconPanel } from "./components/ToolIconPanel";
-import { inheritedContent, loadToolSpec } from "./toolSpec";
+import { inheritedContent } from "./toolSpec";
+import { loadSpec } from "@/lib/tool-framework/catalog";
 import { ToolTranslationsForm } from "./components/ToolTranslationsForm";
 
 type ConfigurationSection = "overview" | "content" | "translations";
@@ -65,9 +66,9 @@ export default async function ToolContentPage({
   if (!tool) notFound();
 
   const configured = isDatabaseConfigured();
-  const [contentRow, spec]: [ToolContentRow | null, Awaited<ReturnType<typeof loadToolSpec>>] = await Promise.all([
+  const [contentRow, spec]: [ToolContentRow | null, Awaited<ReturnType<typeof loadSpec>>] = await Promise.all([
     configured ? getToolContentRow(toolId) : Promise.resolve(null),
-    loadToolSpec(toolId),
+    loadSpec(toolId),
   ]);
   const [managedRow] =
     configured && section === "translations"
