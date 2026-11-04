@@ -2,6 +2,7 @@ import type { Access } from "../lib/authorization/index.ts";
 import type { ToolTranslations } from "../lib/tool-framework/translations.ts";
 import { sql } from "drizzle-orm";
 import {
+  bigint,
   boolean,
   check,
   customType,
@@ -235,6 +236,8 @@ export const managedToolsTable = pgTable(
     description: text("description").notNull(),
     order: integer("sort_order").default(0).notNull(),
     translations: jsonb("translations").$type<ToolTranslations>().default({}).notNull(),
+    /** The tool definition; untrusted JSON, validated where it is loaded. */
+    spec: jsonb("spec").$type<unknown>(),
     enabled: boolean("enabled").default(false).notNull(),
     archived: boolean("archived").default(false).notNull(),
     createdAt: timestamp("created_at").defaultNow().notNull(),
@@ -244,8 +247,17 @@ export const managedToolsTable = pgTable(
     unique("managed_tools_app_slug_unique").on(table.app, table.slug),
     unique("managed_tools_app_sort_order_unique").on(table.app, table.order),
     check("managed_tools_translations_object_check", sql`jsonb_typeof(${table.translations}) = 'object'`),
+    check("managed_tools_spec_object_check", sql`${table.spec} IS NULL OR jsonb_typeof(${table.spec}) = 'object'`),
   ],
 );
+
+export const systemLimitsTable = pgTable("system_limits", {
+  key: text("key").primaryKey(),
+  value: bigint("value", { mode: "number" }).notNull(),
+  unit: text("unit").$type<"bytes" | "chars" | "count" | "px">().notNull(),
+  description: text("description").notNull(),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull(),
+});
 
 export const toolContentTable = pgTable("tool_content", {
   toolId: text("tool_id")
