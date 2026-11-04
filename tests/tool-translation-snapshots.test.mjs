@@ -90,6 +90,18 @@ test("adds only missing locales, preserves all administrator data, and is idempo
   assert.deepEqual(second.unchanged, ["devtools.example"]);
 });
 
+test("force overwrites differing locales and English source but keeps DB-only locales", () => {
+  const current = row();
+  current.translations.en.messages = { name: "Old" };
+  current.translations.es = { status: "draft", messages: { name: "Admin edit" } };
+  current.translations.de = { status: "draft", messages: { name: "Vorhanden" } };
+  const [update] = planImport([snapshot()], [current], { force: true }).updates;
+  assert.deepEqual(update.translations.en, snapshot().translations.en);
+  assert.deepEqual(update.translations.es, snapshot().translations.es);
+  assert.deepEqual(update.translations.fr, snapshot().translations.fr);
+  assert.deepEqual(update.translations.de, current.translations.de);
+});
+
 test("compares English keys and text exactly, independently of property order", () => {
   const reordered = row();
   reordered.translations.en.messages = { "runtime.hello": "Hello {name}", name: "Example" };

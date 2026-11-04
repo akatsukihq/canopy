@@ -158,7 +158,7 @@ export async function readSnapshots({ root = repositoryRoot, toolId } = {}) {
 }
 
 /** Preserve every existing locale, including drafts and administrator edits. */
-export function planImport(snapshots, rows) {
+export function planImport(snapshots, rows, { force = false } = {}) {
   assertSnapshots(snapshots);
   const records = new Map(rows.map((row) => [row.tool_id, row]));
   const result = { updates: [], missing: [], preserved: [], unchanged: [] };
@@ -169,7 +169,7 @@ export function planImport(snapshots, rows) {
       result.missing.push(snapshot.toolId);
       continue;
     }
-    if (!isDeepStrictEqual(row.translations?.en?.messages, snapshot.translations.en.messages)) {
+    if (!force && !isDeepStrictEqual(row.translations?.en?.messages, snapshot.translations.en.messages)) {
       mismatches.push(snapshot.toolId);
       continue;
     }
@@ -178,7 +178,11 @@ export function planImport(snapshots, rows) {
     for (const [locale, translation] of Object.entries(snapshot.translations)) {
       if (Object.hasOwn(translations, locale)) {
         if (!isDeepStrictEqual(translations[locale], translation)) {
-          result.preserved.push({ toolId: snapshot.toolId, locale });
+          // --force: snapshot wins over the database copy of this locale.
+          if (force) {
+            translations[locale] = translation;
+            addedLocales.push(locale);
+          } else result.preserved.push({ toolId: snapshot.toolId, locale });
         }
       } else {
         translations[locale] = translation;
@@ -196,7 +200,7 @@ export function planImport(snapshots, rows) {
   return result;
 }
 
-export async function importSnapshots(client, snapshots, { apply = false } = {}) {
+export async function importSnapshots(client, snapshots, { apply = false, force = false } = {}) {
   assertSnapshots(snapshots);
   const toolIds = snapshots.map((snapshot) => snapshot.toolId).sort();
   let transaction = false;
@@ -210,7 +214,7 @@ export async function importSnapshots(client, snapshots, { apply = false } = {})
       `SELECT tool_id, translations FROM managed_tools WHERE tool_id = ANY($1::text[]) ORDER BY tool_id${apply ? " FOR UPDATE" : ""}`,
       [toolIds],
     );
-    const plan = planImport(snapshots, rows);
+    const plan = planImport(snapshots, rows, { force });
     if (apply) {
       for (const update of plan.updates) {
         const result = await client.query(
@@ -240,14 +244,16 @@ async function main() {
   const [mode, ...args] = process.argv.slice(2);
   let toolId;
   let apply = false;
+  let force = false;
   for (let index = 0; index < args.length; index++) {
     if (args[index] === "--apply" && !apply) apply = true;
+    else if (args[index] === "--force" && !force) force = true;
     else if (args[index] === "--tool" && !toolId && args[index + 1]) toolId = args[++index];
     else throw new Error(`Unknown or incomplete argument: ${args[index]}`);
   }
-  if (!["export", "validate", "import"].includes(mode) || (apply && mode !== "import")) {
+  if (!["export", "validate", "import"].includes(mode) || ((apply || force) && mode !== "import")) {
     throw new Error(
-      "Usage: pnpm db:translations export|validate|import [--tool <stable-tool-id>] [--apply (import only)]",
+      "Usage: pnpm db:translations export|validate|import [--tool <stable-tool-id>] [--apply (import only)] [--force (import only: overwrite existing locales and English source from snapshots)]",
     );
   }
   if (toolId) assertToolId(toolId);
@@ -264,7 +270,7 @@ async function main() {
   try {
     await client.connect();
     if (mode === "import") {
-      console.log(JSON.stringify(await importSnapshots(client, snapshots, { apply }), null, 2));
+      console.log(JSON.stringify(await importSnapshots(client, snapshots, { apply, force }), null, 2));
       return;
     }
     const { rows } = await client.query(
