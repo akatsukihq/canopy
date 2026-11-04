@@ -110,7 +110,7 @@ export default async function ToolSpecPreviewPage({ params }: { params: Promise<
           conversions={conversions}
           definitionKey={definitionKey}
           description={localized.description}
-          icon={resolveIcon(row.toolId, localized.name, row.iconUrl)}
+          icon={resolveIcon(row.toolId, localized.name, row.icon)}
           limits={await loadRuntimeLimits()}
           relatedTools={[]}
           spec={localized}

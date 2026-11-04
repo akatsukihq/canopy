@@ -1,6 +1,7 @@
 import { captureException } from "@sentry/nextjs";
 import { z } from "zod";
 import type { BlogImage } from "@/lib/blog/document";
+import { mediaUrl, type MediaRef } from "@/lib/media";
 import { completeBlogImageUploadAction, prepareBlogImageUploadAction } from "../actions.ts";
 
 type UploadResult = { ok: true; data: BlogImage } | { ok: false; message: string };
@@ -80,6 +81,7 @@ export async function uploadBlogImageDirect(file: File): Promise<UploadResult> {
       const { uploadUrl, fields, completion } = prepared.data;
       if (
         !/^https:\/\/api\.cloudinary\.com\/v1_1\/[a-zA-Z0-9_-]+\/image\/upload$/.test(uploadUrl) ||
+        uploadUrl !== `https://api.cloudinary.com/v1_1/${completion.cloudName}/image/upload` ||
         !fields ||
         Object.values(fields).some((value) => typeof value !== "string") ||
         "file" in fields
@@ -110,16 +112,20 @@ export async function uploadBlogImageDirect(file: File): Promise<UploadResult> {
       if (!parsed.success || parsed.data.public_id !== completion.publicId)
         return failed("The image service returned an incomplete response. Try uploading again.");
       const { public_id, version, format, width, height, secure_url } = parsed.data;
-      const cloudName = new URL(uploadUrl).pathname.split("/")[2];
-      const imageUrl = `https://res.cloudinary.com/${cloudName}/image/upload/v${version}/${public_id.split("/").map(encodeURIComponent).join("/")}.${format}`;
-      if (secure_url !== imageUrl)
-        return failed("The image service returned an incomplete response. Try uploading again.");
-      const image: BlogImage = {
-        publicId: public_id,
-        version,
+      const media: MediaRef = {
+        v: 1,
+        provider: "cloudinary",
         format,
         width,
         height,
+        bytes: file.size,
+        uploadedAt: new Date().toISOString(),
+        entry: { cloudName: completion.cloudName, publicId: public_id, version },
+      };
+      if (secure_url !== mediaUrl(media))
+        return failed("The image service returned an incomplete response. Try uploading again.");
+      const image: BlogImage = {
+        media,
         alt: completion.name
           .replace(/\.[^.]*$/u, "")
           .replace(/[-_\s\u0000-\u001f\u007f]+/gu, " ")

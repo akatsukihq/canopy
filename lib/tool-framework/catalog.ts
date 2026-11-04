@@ -210,7 +210,7 @@ async function buildTool(
     seoTitle: formatToolMessage(locale, translation.messages.seoTitle!),
     seoDescription: formatToolMessage(locale, translation.messages.seoDescription!),
     content: localizedSpec.content,
-    icon: resolveIcon(row.toolId, row.name, row.iconUrl),
+    icon: resolveIcon(row.toolId, row.name, row.icon),
     href: localizeHref(`/${spec.app}/${row.slug}`, locale),
     spec: { ...localizedSpec, messages: undefined },
   };
@@ -290,7 +290,7 @@ async function buildToolListing(
     order: row.order,
     category: source.resolved.category,
     ...text,
-    icon: resolveIcon(row.toolId, row.name, row.iconUrl),
+    icon: resolveIcon(row.toolId, row.name, row.icon),
     href: localizeHref(`/${source.spec.app}/${row.slug}`, text.locale),
   };
 }
@@ -348,7 +348,7 @@ export const getPublicToolListings = cache(
               app: tool.app,
               ...text,
               href: localizeHref(`/paperwork/${tool.slug}`, text.locale),
-              icon: resolveIcon(tool.toolId, text.name, tool.iconUrl),
+              icon: resolveIcon(tool.toolId, text.name, tool.icon),
               category: common.Common.documents,
               categoryKey: null,
             },
@@ -449,7 +449,7 @@ const loadCatalog = cache(async (locale: Locale = defaultLocale, app?: PublicToo
         name: tool.name,
         description: tool.description,
         href: tool.href,
-        icon: resolveIcon(tool.toolId, tool.name, tool.iconUrl),
+        icon: resolveIcon(tool.toolId, tool.name, tool.icon),
         keywords: tool.keywords ?? [],
         category: getCommonMessages(locale).Common.documents,
         categoryKey: null,

@@ -1,4 +1,6 @@
 import { test, expect, vi, afterEach } from "vitest";
+
+vi.mock("server-only", () => ({}));
 import { PgDialect } from "drizzle-orm/pg-core";
 import { ADMIN_ACCESS } from "../lib/authorization/index.ts";
 import {

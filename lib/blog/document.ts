@@ -3,15 +3,12 @@ import { slugFromName } from "../tool-catalog/index.ts";
 import { highlightCode } from "../markdown/codeHighlight.ts";
 import { normalizeBlogMath } from "./math.ts";
 import { MAX_MATH_LENGTH, renderMath } from "../markdown/math.ts";
-import { BLOG_TITLE_WORD_LIMIT, blogTitleWordCount, blogImageDelivery } from "./utils.ts";
+import { BLOG_IMAGE_PUBLIC_ID, BLOG_TITLE_WORD_LIMIT, blogTitleWordCount, blogImageDelivery } from "./utils.ts";
 import { safeLink as validateLink } from "../content/links.ts";
+import { mediaRef, mediaUrl, type MediaRef } from "../media/index.ts";
 
 export interface BlogImage {
-  publicId: string;
-  version: number;
-  format: "jpg" | "jpeg" | "png" | "webp";
-  width: number;
-  height: number;
+  media: MediaRef;
   alt: string;
   caption: string;
 }
@@ -47,7 +44,7 @@ type NodeType =
   | "image";
 export interface BlogNode {
   type: NodeType;
-  attrs?: Record<string, string | number | number[] | boolean | null>;
+  attrs?: Record<string, string | number | number[] | boolean | null | MediaRef>;
   content?: BlogNode[];
   text?: string;
   marks?: BlogMark[];
@@ -65,10 +62,6 @@ export interface BlogDocument {
   seoDescription: string | null;
   relatedToolIds: string[];
 }
-export interface BlogDocumentOptions {
-  cloudName?: string;
-}
-
 export class BlogValidationError extends Error {
   constructor(message: string) {
     super(message);
@@ -163,35 +156,35 @@ function checkJson(input: unknown) {
 }
 
 /** Delivery URL for an image already checked by validateBlogImage. */
-export function blogImageUrl(image: BlogImage, options: BlogDocumentOptions): string {
-  if (!options.cloudName || !/^[a-zA-Z0-9_-]+$/.test(options.cloudName))
-    fail("A configured Cloudinary cloud is required for blog images.");
-  return `https://res.cloudinary.com/${options.cloudName}/image/upload/v${image.version}/${image.publicId.split("/").map(encodeURIComponent).join("/")}.${image.format}`;
+export function blogImageUrl(image: BlogImage): string {
+  return mediaUrl(image.media);
 }
-export function validateBlogImage(input: unknown, options: BlogDocumentOptions = {}): BlogImage {
+export function validateBlogImage(input: unknown): BlogImage {
   const object = record(input, "Image");
-  keys(object, ["publicId", "version", "format", "width", "height", "alt", "caption", "src"], "Image");
-  const publicId = string(object.publicId, "Image public ID", 250);
+  keys(object, ["media", "alt", "caption", "src"], "Image");
+  const parsed = mediaRef.safeParse(object.media);
+  if (!parsed.success) {
+    const field = parsed.error.issues[0]?.path.at(-1);
+    fail(
+      field === "format"
+        ? "Image format must be JPEG, PNG or WebP."
+        : field === "publicId"
+          ? "Image public ID must identify an uploaded immutable blog asset."
+          : "Image details are incomplete or invalid. Upload the image again.",
+    );
+  }
+  const media = parsed.data;
   if (
-    !/^(?:smarttools|Canopy\/(?:production|development|test))\/blog\/[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/.test(
-      publicId,
-    )
+    !BLOG_IMAGE_PUBLIC_ID.test(media.entry.publicId)
   )
     fail("Image public ID must identify an uploaded immutable blog asset.");
-  if (!["jpg", "jpeg", "png", "webp"].includes(object.format as string))
-    fail("Image format must be JPEG, PNG or WebP.");
   const image: BlogImage = {
-    publicId,
-    version: integer(object.version, "Image version", 1, Number.MAX_SAFE_INTEGER),
-    format: object.format as BlogImage["format"],
-    width: integer(object.width, "Image width", 1, 30000),
-    height: integer(object.height, "Image height", 1, 30000),
+    media,
     alt: string(object.alt, "Image alt text", 500),
     caption: string(object.caption, "Image caption", 1000),
   };
-  const url = blogImageUrl(image, options);
-  if (object.src !== undefined && object.src !== url)
-    fail("Image URL must match its immutable configured-cloud asset.");
+  if (object.src !== undefined && object.src !== blogImageUrl(image))
+    fail("Image URL must match its immutable uploaded asset.");
   return image;
 }
 export function safeLink(input: unknown): string {
@@ -308,7 +301,7 @@ function validateTable(node: BlogNode) {
   return columnWidths;
 }
 
-function validateBody(input: unknown, options: BlogDocumentOptions): BlogNode {
+function validateBody(input: unknown): BlogNode {
   let nodes = 0;
   function visit(value: unknown, depth: number): BlogNode {
     if (++nodes > 10000) fail("Document has too many nodes.");
@@ -393,7 +386,7 @@ function validateBody(input: unknown, options: BlogDocumentOptions): BlogNode {
       if (alignment != null && !["left", "center", "right"].includes(alignment as string))
         fail("Image alignment is unsupported.");
       node.attrs = {
-        ...validateBlogImage(asset, options),
+        ...validateBlogImage(asset),
         displayWidth: displayWidth == null ? 100 : integer(displayWidth, "Image display width", 10, 100),
         alignment: alignment == null ? "center" : (alignment as string),
       };
@@ -449,7 +442,7 @@ function term(input: unknown): BlogTerm {
   return { id, label };
 }
 
-export function validateBlogDocument(input: unknown, options: BlogDocumentOptions = {}): BlogDocument {
+export function validateBlogDocument(input: unknown): BlogDocument {
   checkJson(input);
   const object = record(input, "Article document");
   keys(
@@ -484,8 +477,8 @@ export function validateBlogDocument(input: unknown, options: BlogDocumentOption
     schemaVersion: 1,
     title: string(object.title, "Title", 200),
     excerpt: string(object.excerpt, "Excerpt", 500),
-    body: validateBody(object.body, options),
-    coverImage: object.coverImage === null ? null : validateBlogImage(object.coverImage, options),
+    body: validateBody(object.body),
+    coverImage: object.coverImage === null ? null : validateBlogImage(object.coverImage),
     authorName: string(object.authorName, "Author name", 150),
     category: object.category === null ? null : term(object.category),
     tags,
@@ -574,16 +567,13 @@ function escapeHtml(value: unknown): string {
   );
 }
 
-export function renderBlogDocument(
-  input: BlogDocument,
-  options: BlogDocumentOptions = {},
-): {
+export function renderBlogDocument(input: BlogDocument): {
   html: string;
   headings: { id: string; level: number; text: string }[];
   readingMinutes: number;
 } {
   // Stored JSON is also a trust boundary: never assume database content is safe HTML.
-  const document = validateBlogDocument(input, options);
+  const document = validateBlogDocument(input);
   const headings: { id: string; level: number; text: string }[] = [];
   function render(node: BlogNode): string {
     const content = () => (node.content ?? []).map(render).join("");
@@ -680,11 +670,11 @@ export function renderBlogDocument(
       }
       case "image": {
         const { displayWidth, alignment: imageAlignment, ...asset } = node.attrs!;
-        const image = validateBlogImage(asset, options);
+        const image = validateBlogImage(asset);
         const layout = `width:${displayWidth}%;margin-left:${imageAlignment === "left" ? "0" : "auto"};margin-right:${imageAlignment === "right" ? "0" : "auto"}`;
-        const delivery = blogImageDelivery(image, options.cloudName!);
+        const delivery = blogImageDelivery(image);
         const sizes = `auto, (min-width: 1440px) ${Math.round((1015 * Number(displayWidth)) / 100)}px, ${displayWidth}vw`;
-        return `<figure style="${layout}"><img src="${escapeHtml(delivery.src)}" srcset="${escapeHtml(delivery.srcSet)}" sizes="${sizes}" alt="${escapeHtml(image.alt)}" width="${image.width}" height="${image.height}" style="width:100%;height:auto" loading="lazy" decoding="async">${image.caption ? `<figcaption>${escapeHtml(image.caption)}</figcaption>` : ""}</figure>`;
+        return `<figure style="${layout}"><img src="${escapeHtml(delivery.src)}" srcset="${escapeHtml(delivery.srcSet)}" sizes="${sizes}" alt="${escapeHtml(image.alt)}" width="${image.media.width}" height="${image.media.height}" style="width:100%;height:auto" loading="lazy" decoding="async">${image.caption ? `<figcaption>${escapeHtml(image.caption)}</figcaption>` : ""}</figure>`;
       }
     }
   }

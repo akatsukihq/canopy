@@ -6,7 +6,7 @@
 import { cloudinaryCredentials } from "../config/integrations.ts";
 import { v2 as cloudinary } from "cloudinary";
 import { cloudinaryFolder } from "../cloudinary/paths.ts";
-import { toolIconUrl } from "./icons.ts";
+import { mediaRef, type MediaRef } from "../media/index.ts";
 
 const MAX_ICON_BYTES = 1_048_576;
 const ALLOWED_MIME_TYPES = new Set(["image/jpeg", "image/png", "image/webp"]);
@@ -18,7 +18,7 @@ type CloudinaryCredentials = {
 };
 
 export type ToolIconUploadResult =
-  { ok: true; iconUrl: string; publicId: string; format: "png" } | { ok: false; reason: string };
+  { ok: true; icon: MediaRef } | { ok: false; reason: string };
 
 
 function looksLikeSvg(bytes: Uint8Array): boolean {
@@ -100,15 +100,19 @@ export async function uploadToolIcon(
       return { ok: false, reason: "The icon could not be uploaded. Try again." };
     }
 
-    return {
-      ok: true,
-      iconUrl: toolIconUrl(credentials.cloud_name, {
-        publicId: uploaded.public_id,
-        version: String(uploaded.version),
-      }),
-      publicId: uploaded.public_id,
+    // Validates what Cloudinary returned before it is stored.
+    const icon = mediaRef.safeParse({
+      v: 1,
+      provider: "cloudinary",
       format: "png",
-    };
+      width: uploaded.width,
+      height: uploaded.height,
+      bytes: uploaded.bytes,
+      uploadedAt: new Date().toISOString(),
+      entry: { cloudName: credentials.cloud_name, publicId: uploaded.public_id, version: uploaded.version },
+    });
+    if (!icon.success) return { ok: false, reason: "The icon could not be uploaded. Try again." };
+    return { ok: true, icon: icon.data };
   } catch {
     return { ok: false, reason: "The icon could not be uploaded. Try again." };
   }

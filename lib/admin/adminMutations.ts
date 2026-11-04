@@ -76,6 +76,7 @@ import {
 } from "../tool-framework/translations.ts";
 import { isLocale } from "../i18n/config.ts";
 import type { ToolSpec } from "../tool-framework/spec.ts";
+import { toolIconUrl } from "../tool-framework/icons.ts";
 
 export async function invalidateAfterCommit<T>(namespace: string, result: T): Promise<T> {
   if (namespace === CACHE_NAMESPACES.CATALOG) catalogCache.clear();
@@ -1124,7 +1125,7 @@ export async function saveToolIcon(actorUserId: string, toolId: string, upload: 
   // purpose: a network round trip must not hold row locks open.
   const uploaded = await uploadToolIcon(toolId, upload.bytes, mimeType);
   if (!uploaded.ok) throw new Error(uploaded.reason);
-  const { iconUrl, publicId, format } = uploaded;
+  const { icon } = uploaded;
 
   return db
     .transaction(async (transaction) => {
@@ -1132,14 +1133,11 @@ export async function saveToolIcon(actorUserId: string, toolId: string, upload: 
       await getToolForUpdate(transaction, toolId);
       await transaction
         .update(managedToolsTable)
-        .set({ iconUrl, updatedAt: new Date() })
+        .set({ icon, updatedAt: new Date() })
         .where(eq(managedToolsTable.toolId, toolId));
 
-      await writeAudit(transaction, actorUserId, "tool.icon-upload", "tool", toolId, {
-        publicId,
-        format,
-      });
-      return iconUrl;
+      await writeAudit(transaction, actorUserId, "tool.icon-upload", "tool", toolId, { icon });
+      return toolIconUrl(icon);
     })
     .then((result) => invalidateAfterCommit(CACHE_NAMESPACES.CATALOG, result));
 }
@@ -1152,7 +1150,7 @@ export async function removeToolIcon(actorUserId: string, toolId: string): Promi
       await getToolForUpdate(transaction, toolId);
       await transaction
         .update(managedToolsTable)
-        .set({ iconUrl: null, updatedAt: new Date() })
+        .set({ icon: null, updatedAt: new Date() })
         .where(eq(managedToolsTable.toolId, toolId));
       await writeAudit(transaction, actorUserId, "tool.icon-remove", "tool", toolId, {});
     })

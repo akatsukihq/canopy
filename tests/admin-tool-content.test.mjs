@@ -1,5 +1,7 @@
 import { expect, test, vi } from "vitest";
 
+vi.mock("server-only", () => ({}));
+
 // vi.hoisted runs before the hoisted vi.mock factory so the fake Cloudinary
 // upload can record its calls where the test can read them.
 const uploadCalls = vi.hoisted(() => []);
@@ -9,9 +11,15 @@ vi.mock("@/lib/tool-framework/cloudinary.ts", () => ({
     uploadCalls.push(args);
     return {
       ok: true,
-      iconUrl: "https://res.cloudinary.com/demo/image/upload/f_png,c_fill,w_256,h_256,q_auto/v1/icons/stored-tool.png",
-      publicId: "icons/stored-tool",
-      format: "png",
+      icon: {
+        v: 1,
+        provider: "cloudinary",
+        format: "png",
+        width: 256,
+        height: 256,
+        uploadedAt: "2026-01-01T00:00:00Z",
+        entry: { cloudName: "demo", publicId: "icons/stored-tool", version: 1 },
+      },
     };
   },
 }));
@@ -396,13 +404,13 @@ test("SVG is rejected by MIME type and by its leading bytes", async () => {
   });
 });
 
-test("upload stores the URL on its tool and records the existing audit event", async () => {
+test("upload stores the media ref on its tool and records the existing audit event", async () => {
   const permissions = permissionRows({ tools: { view: true, edit: true } });
   await withFakeDatabase([permissions, TOOL_ROW, permissions, TOOL_ROW], async (state) => {
     const iconUrl = await saveToolIcon("actor", TOOL_ID, { bytes: pngBytes(), mimeType: "image/png" });
-    expect(typeof iconUrl).toBe("string");
+    expect(iconUrl).toBe("https://res.cloudinary.com/demo/image/upload/f_png,c_fill,w_256,h_256,q_auto/v1/icons/stored-tool.png");
     expect(state.updates[0].table).toBe(managedToolsTable);
-    expect(state.updates[0].values.iconUrl).toBe(iconUrl);
+    expect(state.updates[0].values.icon.entry.publicId).toBe("icons/stored-tool");
     expect(state.updates[0].values.updatedAt instanceof Date).toBeTruthy();
     expect(state.inserts.filter(({ table }) => table !== auditEventsTable).length).toBe(0);
     expect(auditWrite(state).values.action).toBe("tool.icon-upload");
@@ -422,11 +430,11 @@ test("revoked permission after upload leaves the stored icon unchanged", async (
   );
 });
 
-test("removing an icon clears the URL and falls back to the identicon", async () => {
+test("removing an icon clears it and falls back to the identicon", async () => {
   await withFakeDatabase([permissionRows({ tools: { view: true, edit: true } }), TOOL_ROW], async (state) => {
     await removeToolIcon("actor", TOOL_ID);
     expect(state.updates[0].table).toBe(managedToolsTable);
-    expect(state.updates[0].values.iconUrl).toBe(null);
+    expect(state.updates[0].values.icon).toBe(null);
     expect(state.deletes).toEqual([]);
     expect(auditWrite(state).values.action).toBe("tool.icon-remove");
   });

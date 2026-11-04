@@ -1,6 +1,8 @@
 import { expect, test } from "vitest";
 import pg from "pg";
 import { assignToolIcons, planToolIconUpdates } from "../scripts/update-tool-icons.mjs";
+import { mediaRef } from "@/lib/media/index.ts";
+import { toolIconUrl } from "@/lib/tool-framework/icons.ts";
 
 const cloudName = "demo";
 const icon = {
@@ -14,14 +16,21 @@ const icon = {
 };
 const tools = [{ tool_id: "json_editor_v2", slug: "json-editor" }];
 
-test("maps only successful uploads to database IDs with their complete delivery URLs", () => {
-  expect(planToolIconUpdates({ icons: [icon], failures: [{ slug: "missing-tool" }] }, tools, cloudName)).toEqual([
-    {
-      tool_id: "json_editor_v2",
-      icon_url:
-        "https://res.cloudinary.com/demo/image/upload/f_png,c_fill,w_256,h_256,q_auto/v123/Canopy/platform/assets/default/icons/json-editor.png",
-    },
-  ]);
+const at = "2026-01-01T00:00:00.000Z";
+
+test("maps only successful uploads to database IDs as media refs that deliver the PNG", () => {
+  const [row, ...rest] = planToolIconUpdates(
+    { icons: [icon], failures: [{ slug: "missing-tool" }] },
+    tools,
+    cloudName,
+    at,
+  );
+  expect(rest).toEqual([]);
+  expect(row.tool_id).toBe("json_editor_v2");
+  expect(toolIconUrl(mediaRef.parse(row.icon))).toBe(
+    "https://res.cloudinary.com/demo/image/upload/f_png,c_fill,w_256,h_256,q_auto/v123/Canopy/platform/assets/default/icons/json-editor.png",
+  );
+  expect(row.icon).toMatchObject({ width: 104, height: 88, uploadedAt: at });
   expect(planToolIconUpdates({ icons: [], failures: [{ slug: "missing-tool" }] }, [], cloudName)).toEqual([]);
 });
 
@@ -66,7 +75,8 @@ test("requires exactly one database match for every successful slug", () => {
 
 test("bulk icon updates bind their values and skip an empty batch", async () => {
   const calls = [];
-  const rows = [{ tool_id: "tool'id", icon_url: "https://example.com/icon's.png" }];
+  const rows = [{ tool_id: "tool'id", icon: { entry: { publicId: "icon's" } } }];
+  const json = JSON.stringify(rows[0].icon);
   const updated = [{ tool_id: rows[0].tool_id }];
   const client = {
     async query(text, values) {
@@ -77,11 +87,11 @@ test("bulk icon updates bind their values and skip an empty batch", async () => 
   expect(await assignToolIcons(client, [])).toEqual([]);
   expect(calls.length).toBe(0);
   expect(await assignToolIcons(client, rows, { missingOnly: true })).toEqual(updated);
-  expect(calls[0].values).toEqual([[rows[0].tool_id], [rows[0].icon_url], true]);
+  expect(calls[0].values).toEqual([[rows[0].tool_id], [json], true]);
   expect(!calls[0].text.includes(rows[0].tool_id)).toBeTruthy();
-  expect(!calls[0].text.includes(rows[0].icon_url)).toBeTruthy();
+  expect(!calls[0].text.includes("icon's")).toBeTruthy();
   await assignToolIcons(client, rows);
-  expect(calls[1].values).toEqual([[rows[0].tool_id], [rows[0].icon_url], false]);
+  expect(calls[1].values).toEqual([[rows[0].tool_id], [json], false]);
 });
 
 test(
@@ -98,13 +108,12 @@ test(
       await client.query("BEGIN");
       try {
         await client.query(`CREATE TEMP TABLE managed_tools (
-          tool_id text PRIMARY KEY, icon_url text, updated_at timestamptz NOT NULL DEFAULT NOW()
+          tool_id text PRIMARY KEY, icon jsonb, updated_at timestamptz NOT NULL DEFAULT NOW()
         ) ON COMMIT DROP`);
         const [row] = planToolIconUpdates({ icons: [icon] }, tools, cloudName);
         await client.query(
-          `INSERT INTO managed_tools (tool_id, icon_url) VALUES
-          ($1, 'https://example.com/custom.png'), ('another-tool', NULL)`,
-          [row.tool_id],
+          `INSERT INTO managed_tools (tool_id, icon) VALUES ($1, $2), ('another-tool', NULL)`,
+          [row.tool_id, { ...row.icon, entry: { ...row.icon.entry, version: 1 } }],
         );
         const before = (await client.query("SELECT * FROM managed_tools WHERE tool_id = $1", [row.tool_id])).rows;
         const missing = { ...row, tool_id: "another-tool" };
@@ -118,8 +127,8 @@ test(
         expect((await assignToolIcons(client, [row, missing], { missingOnly: true })).length).toBe(0);
         expect((await assignToolIcons(client, [row])).length).toBe(1);
         expect(
-          (await client.query("SELECT icon_url FROM managed_tools WHERE tool_id = $1", [row.tool_id])).rows[0].icon_url,
-        ).toBe(row.icon_url);
+          (await client.query("SELECT icon FROM managed_tools WHERE tool_id = $1", [row.tool_id])).rows[0].icon,
+        ).toEqual(row.icon);
         expect((await client.query("SELECT * FROM managed_tools")).rows.length).toBe(2);
         expect((await assignToolIcons(client, [row])).length).toBe(0);
         expect(await assignToolIcons(client, [], { missingOnly: true })).toEqual([]);

@@ -1,4 +1,3 @@
-import config from "@/lib/config/config.ts";
 import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 import { getLocale, getTranslations } from "next-intl/server";
@@ -207,11 +206,11 @@ export default async function BlogPage({ searchParams }: Props) {
           {featured.coverImage && (
             <img
               className="aspect-[62/41] w-full rounded-lg object-cover lg:aspect-auto lg:h-65"
-              {...blogImageDelivery(featured.coverImage, config.cloudinary.cloudName?.trim() ?? "")}
+              {...blogImageDelivery(featured.coverImage)}
               sizes="(min-width: 1440px) 560px, (min-width: 1024px) calc((100vw - 248px) * 0.4698), (min-width: 640px) calc(100vw - 104px), calc(100vw - 80px)"
               alt={featured.coverImage.alt}
-              width={featured.coverImage.width}
-              height={featured.coverImage.height}
+              width={featured.coverImage.media.width}
+              height={featured.coverImage.media.height}
               fetchPriority="high"
             />
           )}
@@ -243,9 +242,7 @@ export default async function BlogPage({ searchParams }: Props) {
         filters={postFilters}
         featuredId={featured?.id}
         searchCoverDelivery={
-          filters.search && posts.items[0]?.coverImage
-            ? blogImageDelivery(posts.items[0].coverImage, config.cloudinary.cloudName?.trim() ?? "")
-            : undefined
+          filters.search && posts.items[0]?.coverImage ? blogImageDelivery(posts.items[0].coverImage) : undefined
         }
         intro={
           <>

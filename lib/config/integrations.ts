@@ -85,7 +85,7 @@ export async function cloudinaryCredentials(): Promise<{
   apiSecret: string;
 } | null> {
   const settings = await loadRuntimeSettings();
-  const cloudName = config.cloudinary.cloudName?.trim() ?? "";
+  const cloudName = text(settings, "uploads.cloudinary.cloudName");
   const apiKey = text(settings, "uploads.cloudinary.apiKey");
   const apiSecret = text(settings, "uploads.cloudinary.apiSecret");
   return cloudName && apiKey && apiSecret ? { cloudName, apiKey, apiSecret } : null;

@@ -242,13 +242,22 @@ export const RUNTIME_SETTINGS = {
     schema: z.string().min(1).max(500),
     env: () => env("SMTP_PASSWORD"),
   },
+  "uploads.cloudinary.cloudName": {
+    group: "uploads",
+    kind: "text",
+    format: "plain",
+    label: "Cloud name",
+    description:
+      "Cloudinary account that receives new uploads. Files uploaded earlier keep loading from the account they were saved to.",
+    schema: plainText(100).regex(/^[a-zA-Z0-9_-]*$/, "Use letters, digits, hyphens and underscores."),
+    env: () => config.cloudinary.cloudName?.trim() ?? "",
+  },
   "uploads.cloudinary.apiKey": {
     group: "uploads",
     kind: "text",
     format: "plain",
     label: "API key",
-    description:
-      "Cloudinary API key for blog images and tool icons. The cloud name stays in the environment because stored images point at it.",
+    description: "Cloudinary API key for blog images and tool icons.",
     schema: plainText(64).regex(/^[0-9]*$/, "Cloudinary API keys are digits."),
     env: () => config.cloudinary.apiKey?.trim() ?? "",
   },

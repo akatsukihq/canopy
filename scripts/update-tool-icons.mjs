@@ -11,7 +11,7 @@ import pg from "pg";
 
 const ROOT = fileURLToPath(new URL("../", import.meta.url));
 
-export function planToolIconUpdates(manifest, tools, cloudName) {
+export function planToolIconUpdates(manifest, tools, cloudName, uploadedAt = new Date().toISOString()) {
   if (typeof cloudName !== "string" || !/^[A-Za-z0-9_-]+$/.test(cloudName)) {
     throw new Error("NEXT_PUBLIC_CLOUDINARY_CLOUD_NAME or CLOUDINARY_CLOUD_NAME is required.");
   }
@@ -39,9 +39,18 @@ export function planToolIconUpdates(manifest, tools, cloudName) {
     if (matches.length !== 1) {
       throw new Error(`${matches.length ? "Ambiguous" : "Missing"} database slug: ${icon.slug}. No icons updated.`);
     }
+    // MediaRef (lib/media): the icon is delivered as PNG, so that is its format.
     return {
       tool_id: matches[0].tool_id,
-      icon_url: `https://res.cloudinary.com/${encodeURIComponent(cloudName)}/image/upload/f_png,c_fill,w_256,h_256,q_auto/v${encodeURIComponent(icon.version)}/${icon.publicId.split("/").map(encodeURIComponent).join("/")}.png`,
+      icon: {
+        v: 1,
+        provider: "cloudinary",
+        format: "png",
+        width: icon.width,
+        height: icon.height,
+        uploadedAt,
+        entry: { cloudName, publicId: icon.publicId, version: icon.version },
+      },
     };
   });
 }
@@ -51,14 +60,14 @@ export async function assignToolIcons(client, rows, { missingOnly = false } = {}
   const result = await client.query(
     `
     UPDATE managed_tools AS tools
-    SET icon_url = updates.icon_url, updated_at = NOW()
-    FROM unnest($1::text[], $2::text[]) AS updates(tool_id, icon_url)
+    SET icon = updates.icon::jsonb, updated_at = NOW()
+    FROM unnest($1::text[], $2::text[]) AS updates(tool_id, icon)
     WHERE tools.tool_id = updates.tool_id
-      AND tools.icon_url IS DISTINCT FROM updates.icon_url
-      AND (NOT $3::boolean OR tools.icon_url IS NULL)
+      AND tools.icon->'entry' IS DISTINCT FROM updates.icon::jsonb->'entry'
+      AND (NOT $3::boolean OR tools.icon IS NULL)
     RETURNING tools.tool_id
   `,
-    [rows.map((row) => row.tool_id), rows.map((row) => row.icon_url), missingOnly],
+    [rows.map((row) => row.tool_id), rows.map((row) => JSON.stringify(row.icon)), missingOnly],
   );
   return result.rows;
 }
@@ -88,7 +97,7 @@ async function main() {
       const { rows: tools } = await client.query("SELECT tool_id, slug FROM managed_tools");
       const rows = planToolIconUpdates(manifest, tools, cloudName);
       if (values["dry-run"]) {
-        for (const row of rows) console.log(`${row.tool_id} -> ${row.icon_url}`);
+        for (const row of rows) console.log(`${row.tool_id} -> ${row.icon.entry.publicId} v${row.icon.entry.version}`);
         console.log(`Dry run: ${rows.length} successful icons matched; no database writes.`);
       } else if (!rows.length) {
         console.log("No successful icons to update.");

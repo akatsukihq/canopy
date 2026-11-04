@@ -27,8 +27,6 @@ export type SettingField = {
   /** `secret` values never reach the browser: `value` is "" and typing replaces the saved one. */
   kind: "boolean" | "choice" | "number" | "text" | "secret" | "model";
   format?: "email" | "plain";
-  /** Shown for reference only; never edited or saved. */
-  readOnly?: boolean;
   /** Model fields: whose model list to suggest. */
   provider?: string;
   /** Secrets only: whether a value applies now (saved here or from the environment). */
@@ -278,7 +276,7 @@ function FieldRow({
   field: SettingField;
   onChange: (value: string | null) => void;
 }) {
-  const editable = canEdit && !field.readOnly;
+  const editable = canEdit;
   const id = `setting-${field.key}`;
   const errorId = `${id}-error`;
   const resetting = draft === null;

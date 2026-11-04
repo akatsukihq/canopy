@@ -151,24 +151,24 @@ export default async function ToolContentPage({
           </div>
         </header>
 
-        <nav aria-label="Tool configuration sections" className="shrink-0 overflow-x-auto border-b border-border">
-          <div className="flex min-w-max gap-1">
-            {SECTIONS.map(({ icon: Icon, key, label }) => (
-              <Link
-                aria-current={section === key ? "page" : undefined}
-                className={`relative inline-flex min-h-10 items-center gap-2 px-3 outline-none transition-colors focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-inset ${section === key ? "text-primary after:absolute after:inset-x-3 after:bottom-0 after:h-0.5 after:bg-primary" : "text-muted-foreground hover:text-foreground"}`}
-                href={appHref(`/admin/tools/${encodeURIComponent(tool.id)}?section=${key}`)}
-                key={key}
-                scroll={false}
-              >
-                <Icon aria-hidden="true" className="size-4" />
-                {label}
-              </Link>
-            ))}
-          </div>
-        </nav>
-
         <ToolAssistantDock>
+          <nav aria-label="Tool configuration sections" className="shrink-0 overflow-x-auto border-b border-border">
+            <div className="flex min-w-max gap-1">
+              {SECTIONS.map(({ icon: Icon, key, label }) => (
+                <Link
+                  aria-current={section === key ? "page" : undefined}
+                  className={`relative inline-flex min-h-10 items-center gap-2 px-3 outline-none transition-colors focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-inset ${section === key ? "text-primary after:absolute after:inset-x-3 after:bottom-0 after:h-0.5 after:bg-primary" : "text-muted-foreground hover:text-foreground"}`}
+                  href={appHref(`/admin/tools/${encodeURIComponent(tool.id)}?section=${key}`)}
+                  key={key}
+                  scroll={false}
+                >
+                  <Icon aria-hidden="true" className="size-4" />
+                  {label}
+                </Link>
+              ))}
+            </div>
+          </nav>
+
           <main className="flex min-h-0 flex-1 flex-col overflow-hidden rounded-xl border border-border bg-card p-4 sm:p-5">
             {section === "overview" ? (
               <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain">
@@ -177,7 +177,7 @@ export default async function ToolContentPage({
                   inherited={inheritedView}
                   leading={
                     <ToolIconPanel
-                      iconUrl={tool.iconUrl}
+                      icon={tool.icon}
                       name={tool.name}
                       toolId={tool.id}
                       uploadsEnabled={await iconUploadsConfigured()}

@@ -232,7 +232,8 @@ export const managedToolsTable = pgTable(
     toolId: text("tool_id").primaryKey(),
     app: text("app").$type<"paperwork" | "devtools" | "media">().notNull(),
     slug: text("slug"),
-    iconUrl: text("icon_url"),
+    /** Uploaded icon as a `MediaRef` (lib/media); untrusted JSON, validated where it is loaded. */
+    icon: jsonb("icon").$type<unknown>(),
     name: text("name").notNull(),
     description: text("description").notNull(),
     order: integer("sort_order").default(0).notNull(),

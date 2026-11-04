@@ -117,7 +117,7 @@ vi.mock("@/app/admin/(protected)/blog/lib/imageNode", () => ({
       };
     },
   },
-  blogEditorImageSource: (image) => "https://example.test/" + image.publicId,
+  blogEditorImageSource: (media) => "https://example.test/" + media.entry.publicId,
 }));
 vi.mock("@/app/admin/(protected)/blog/lib/formattingExtensions", () => ({ blogFormattingExtensions: [] }));
 vi.mock("@/lib/markdown/codeHighlight", () => ({ codeLowlight: {} }));
@@ -183,28 +183,32 @@ afterAll(() => {
   delete globalThis.__coverCropTest;
 });
 
+function coverMedia(publicId, version, width, height) {
+  return {
+    v: 1,
+    provider: "cloudinary",
+    format: "png",
+    width,
+    height,
+    uploadedAt: "2026-01-01T00:00:00.000Z",
+    entry: { cloudName: "demo", publicId, version },
+  };
+}
+
 test("cover crop preserves metadata and current draft, rejects failures and stale images, and cancels without mutation", async () => {
   const original = {
-    publicId: "original",
-    version: 1,
-    format: "png",
-    width: 800,
-    height: 600,
+    media: coverMedia("original", 1, 800, 600),
     alt: "Cover description",
     caption: "Credit",
   };
   const cropped = {
-    ...original,
-    publicId: "cropped",
-    width: 400,
-    height: 300,
+    media: coverMedia("cropped", 1, 400, 300),
     alt: "",
     caption: "",
   };
   const props = {
     actorId: "admin",
     canEdit: true,
-    cloudName: "demo",
     categories: { items: [] },
     tags: { items: [] },
     tools: [],
@@ -290,7 +294,6 @@ test("cover settings open only on activation and remain open until dismissed", (
   const props = {
     actorId: "admin",
     canEdit: true,
-    cloudName: "demo",
     categories: { items: [] },
     tags: { items: [] },
     tools: [],
@@ -307,11 +310,7 @@ test("cover settings open only on activation and remain open until dismissed", (
         relatedToolIds: [],
         body: { type: "doc" },
         coverImage: {
-          publicId: "cover",
-          version: 1,
-          format: "png",
-          width: 800,
-          height: 600,
+          media: coverMedia("cover", 1, 800, 600),
           alt: "Cover",
           caption: "",
         },
@@ -364,18 +363,12 @@ test("cover settings open only on activation and remain open until dismissed", (
 });
 
 const savedCover = {
-  publicId: "saved-cover",
-  version: 1,
-  format: "png",
-  width: 800,
-  height: 600,
+  media: coverMedia("saved-cover", 1, 800, 600),
   alt: "Saved description",
   caption: "Credit",
 };
 const uploadedCover = {
-  ...savedCover,
-  publicId: "uploaded-cover",
-  version: 2,
+  media: coverMedia("uploaded-cover", 2, 800, 600),
   alt: "Uploaded description",
   caption: "",
 };
@@ -420,7 +413,6 @@ function coverUploadHarness(coverImage = null) {
   const props = {
     actorId: "admin",
     canEdit: true,
-    cloudName: "demo",
     categories: { items: [] },
     tags: { items: [] },
     tools: [],

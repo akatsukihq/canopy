@@ -36,6 +36,16 @@ vi.mock("@/lib/admin/adminMutations.ts", () => ({
     fixture.events.push(["audit", ...args.slice(1)]);
   },
 }));
+vi.mock("@/lib/config/integrations.ts", () => ({
+  async cloudinaryCredentials() {
+    const {
+      CLOUDINARY_CLOUD_NAME: cloudName,
+      CLOUDINARY_API_KEY: apiKey,
+      CLOUDINARY_API_SECRET: apiSecret,
+    } = process.env;
+    return cloudName && apiKey && apiSecret ? { cloudName, apiKey, apiSecret } : null;
+  },
+}));
 vi.mock("cloudinary", async () => {
   const actual = await vi.importActual("cloudinary");
   return {
@@ -133,6 +143,7 @@ test("preparation signs immutable environment-scoped upload fields without trans
     expect(String(result.completion.timestamp)).toBe(signed.timestamp);
     expect({ ...result.completion, publicId: undefined, timestamp: undefined, token: undefined }).toEqual({
       ...metadata(),
+      cloudName: "blog-cloud",
       publicId: undefined,
       timestamp: undefined,
       token: undefined,
@@ -175,11 +186,16 @@ test("completion accepts supplied upload metadata without a resource lookup and 
   const transactionsBefore = fixture.transactions;
   const image = await completeBlogImageUpload("admin", uploadPayload(completion, { width: 640, height: 480 }));
   expect(image).toEqual({
-    publicId: completion.publicId,
-    version: 1234,
-    format: "png",
-    width: 640,
-    height: 480,
+    media: {
+      v: 1,
+      provider: "cloudinary",
+      format: "png",
+      width: 640,
+      height: 480,
+      bytes: 128,
+      uploadedAt: expect.stringMatching(/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z$/),
+      entry: { cloudName: "blog-cloud", publicId: completion.publicId, version: 1234 },
+    },
     alt: "original",
     caption: "",
   });
@@ -195,6 +211,7 @@ test("completion accepts supplied upload metadata without a resource lookup and 
       "blog-image",
       completion.publicId,
       {
+        cloudName: "blog-cloud",
         publicId: completion.publicId,
         version: 1234,
         format: "png",
@@ -211,6 +228,7 @@ test("completion rejects ticket tampering, other users, unknown fields, and inva
   const { completion } = await prepareBlogImageUpload("admin", metadata());
   for (const changed of [
     { publicId: completion.publicId.replace(/.$/, "z") },
+    { cloudName: "other-cloud" },
     { timestamp: completion.timestamp - 1 },
     { name: "other.png" },
     { size: 129 },
@@ -314,7 +332,7 @@ test("default alt text preserves Unicode, length bounds, and HTML escaping", asy
   const image = await completeBlogImageUpload("admin", uploadPayload(completion));
   const document = createBlogDocument("Image filename");
   document.body.content = [{ type: "image", attrs: image }];
-  const { html } = renderBlogDocument(document, { cloudName: "blog-cloud" });
+  const { html } = renderBlogDocument(document);
   expect(html).toMatch(/alt="&quot;&gt;&lt;img src=x onerror=alert\(1\)&gt;"/);
   expect((html.match(/<img /g) ?? []).length).toBe(1);
 });

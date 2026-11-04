@@ -103,7 +103,7 @@ export const SETTINGS_SECTIONS = [
       {
         title: "Cloudinary",
         description: "Rotate the API key and secret here. The cloud name is fixed by the environment.",
-        keys: ["uploads.cloudinary.apiKey", "uploads.cloudinary.apiSecret"],
+        keys: ["uploads.cloudinary.cloudName", "uploads.cloudinary.apiKey", "uploads.cloudinary.apiSecret"],
       },
     ],
   },

@@ -16,6 +16,7 @@ import {
 } from "@/components/ui/index.tsx";
 import type { BlogImage } from "@/lib/blog/document";
 import { blogImageDelivery } from "@/lib/blog/utils";
+import { mediaUrl, type MediaRef } from "@/lib/media";
 import { blogEditorImageSource } from "../lib/imageNode.ts";
 import { BlogImageCropDialog } from "./BlogImageCropDialog.tsx";
 import styles from "./BlogImageView.module.css";
@@ -28,7 +29,7 @@ export function resizedImageWidth(width: number, deltaX: number, containerWidth:
 
 export async function uploadBlogImageReplacement(
   file: File,
-  source: Pick<BlogImage, "publicId" | "version">,
+  source: MediaRef,
   { editor, getPos, updateAttributes }: Pick<NodeViewProps, "editor" | "getPos" | "updateAttributes">,
   upload: (file: File) => Promise<BlogImage | null>,
   isMounted: () => boolean,
@@ -38,11 +39,7 @@ export async function uploadBlogImageReplacement(
       throw new Error("This image is no longer editable. Close crop and select an editable image.");
     const position = getPos();
     const current = typeof position === "number" ? editor.state.doc.nodeAt(position) : null;
-    if (
-      current?.type.name !== "image" ||
-      current.attrs.publicId !== source.publicId ||
-      current.attrs.version !== source.version
-    ) {
+    if (current?.type.name !== "image" || !current.attrs.media || mediaUrl(current.attrs.media) !== mediaUrl(source)) {
       throw new Error("The image changed. Close crop and select the image again.");
     }
     return current;
@@ -89,7 +86,7 @@ export function BlogImageView({
   } | null>(null);
   const [editable, setEditable] = useState(editor.isEditable);
   const [pending, setPending] = useState(false);
-  const [cropSource, setCropSource] = useState<Pick<BlogImage, "publicId" | "version" | "format"> | null>(null);
+  const [cropSource, setCropSource] = useState<MediaRef | null>(null);
   const [message, setMessage] = useState("");
   const [previewWidth, setPreviewWidth] = useState<number | null>(null);
   const [containerWidth, setContainerWidth] = useState(0);
@@ -103,7 +100,6 @@ export function BlogImageView({
     (containerWidth * (100 - imageEdge)) / 100 >= 296 ? (alignment === "right" ? "left" : "right") : "below";
   const [widthText, setWidthText] = useState(String(width));
   const options = extension.options as {
-    cloudName: string;
     onUploadImage: (file: File) => Promise<BlogImage | null>;
   };
 
@@ -211,7 +207,7 @@ export function BlogImageView({
       event.currentTarget.releasePointerCapture(event.pointerId);
     if (!hovered.current) scheduleClose();
   }
-  async function replaceImage(file: File, source?: Pick<BlogImage, "publicId" | "version">) {
+  async function replaceImage(file: File, source?: MediaRef) {
     if (!editor.isEditable || uploading.current) {
       if (source) throw new Error("The image is not ready to update. Try again.");
       return;
@@ -222,7 +218,7 @@ export function BlogImageView({
     try {
       await uploadBlogImageReplacement(
         file,
-        source ?? { publicId: node.attrs.publicId, version: node.attrs.version },
+        source ?? (node.attrs.media as MediaRef),
         { editor, getPos, updateAttributes },
         options.onUploadImage,
         () => mounted.current,
@@ -245,25 +241,18 @@ export function BlogImageView({
     });
   }
 
+  const media = node.attrs.media as MediaRef;
   const image = (
     <img
-      {...blogImageDelivery(
-        {
-          publicId: String(node.attrs.publicId),
-          version: Number(node.attrs.version),
-          format: node.attrs.format as BlogImage["format"],
-          width: Number(node.attrs.width),
-        },
-        options.cloudName,
-      )}
+      {...blogImageDelivery({ media })}
       sizes={
         containerWidth > 0
           ? `${Math.max(1, Math.round((containerWidth * visibleWidth) / 100))}px`
           : `(max-width: 767px) ${visibleWidth}vw, ${Math.round((916 * visibleWidth) / 100)}px`
       }
       alt={String(node.attrs.alt ?? "")}
-      width={Number(node.attrs.width)}
-      height={Number(node.attrs.height)}
+      width={media.width}
+      height={media.height}
       draggable={editable}
       data-drag-handle={editable ? "" : undefined}
       onDragStart={() => {
@@ -455,12 +444,7 @@ export function BlogImageView({
                   variant="outline"
                   disabled={pending}
                   onClick={() => {
-                    if (editor.isEditable && !uploading.current)
-                      setCropSource({
-                        publicId: String(node.attrs.publicId),
-                        version: Number(node.attrs.version),
-                        format: node.attrs.format as BlogImage["format"],
-                      });
+                    if (editor.isEditable && !uploading.current) setCropSource(media);
                   }}
                 >
                   <Crop aria-hidden="true" />
@@ -541,7 +525,7 @@ export function BlogImageView({
       </Popover.Root>
       {cropSource && (
         <BlogImageCropDialog
-          src={blogEditorImageSource(cropSource, options.cloudName)}
+          src={blogEditorImageSource(cropSource)}
           format={cropSource.format}
           title="Crop image"
           onApply={(file) => replaceImage(file, cropSource)}

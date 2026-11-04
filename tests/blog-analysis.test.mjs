@@ -237,37 +237,35 @@ test("whole-draft proposals cannot silently remove rich blocks or links", () => 
       ).toThrow(/preserve/);
   }
 });
-test("agent images validate against configured cloud and preserve image identity", () => {
+test("agent images keep their stored media record and reject a mismatched URL", () => {
   const cloud = "fixture-cloud";
+  const publicId = "smarttools/blog/12345678-1234-4234-8234-123456789012";
   const image = {
-    publicId: "smarttools/blog/12345678-1234-4234-8234-123456789012",
-    version: 1,
-    format: "png",
-    width: 400,
-    height: 300,
+    media: {
+      v: 1,
+      provider: "cloudinary",
+      format: "png",
+      width: 400,
+      height: 300,
+      uploadedAt: "2026-01-01T00:00:00.000Z",
+      entry: { cloudName: cloud, publicId, version: 1 },
+    },
     alt: "Diagram",
     caption: "Original caption",
   };
-  const rich = {
+  const withSource = (src) => ({
     ...document,
     coverImage: image,
-    body: {
-      type: "doc",
-      content: [
-        paragraph("Intro"),
-        {
-          type: "image",
-          attrs: { ...image, src: `https://res.cloudinary.com/${cloud}/image/upload/v1/${image.publicId}.png` },
-        },
-      ],
-    },
-  };
-  const input = validateRunRequest(request("optimizer", { context: { document: rich } }), cloud);
+    body: { type: "doc", content: [paragraph("Intro"), { type: "image", attrs: { ...image, src } }] },
+  });
+  const rich = withSource(`https://res.cloudinary.com/${cloud}/image/upload/v1/${publicId}.png`);
+  const input = validateRunRequest(request("optimizer", { context: { document: rich } }));
   expect(
-    validateAgentOutput(result(optimization(input.context.document.body)), input, [], cloud).artifact.content.document
+    validateAgentOutput(result(optimization(input.context.document.body)), input, []).artifact.content.document
       .coverImage,
   ).toEqual(image);
-  expect(() => validateRunRequest(request("auditor", { context: { document: rich } }), "other-cloud")).toThrow();
+  const other = withSource(`https://res.cloudinary.com/other-cloud/image/upload/v1/${publicId}.png`);
+  expect(() => validateRunRequest(request("auditor", { context: { document: other } }))).toThrow();
 });
 
 test("Planner validates complete planning sections and Writer accepts an empty draft base", () => {

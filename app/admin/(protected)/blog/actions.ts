@@ -1,6 +1,5 @@
 "use server";
 
-import config from "@/lib/config/config.ts";
 import { measureServerAction } from "../../../../lib/observability/sentry.ts";
 import { captureException, getActiveSpan } from "@sentry/core";
 import { z, ZodError } from "zod";
@@ -180,9 +179,7 @@ export async function readBlogAction(input: unknown) {
             ok: true as const,
             data: {
               document,
-              ...renderBlogDocument(document, {
-                cloudName: config.cloudinary.cloudName?.trim(),
-              }),
+              ...renderBlogDocument(document),
               robots: "noindex, nofollow",
             },
           };

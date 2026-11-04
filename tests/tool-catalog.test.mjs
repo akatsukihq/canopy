@@ -136,7 +136,7 @@ test("merging keeps every code registration and drops unknown stored tool ids", 
   expect(tools.length).toBe(MANIFEST.length);
   expect(tools.find((tool) => tool.id === secondPaperwork.id)).toEqual({
     ...secondPaperwork,
-    iconUrl: null,
+    icon: null,
     toolId: secondPaperwork.id,
     slug: "receipts",
     name: "Receipt Maker",
@@ -204,7 +204,7 @@ test("an unconfigured tool is setup-required and disabled by default", () => {
   expect(merge()).toEqual([
     ...MANIFEST.map((entry) => ({
       ...entry,
-      iconUrl: null,
+      icon: null,
       toolId: entry.id,
       slug: null,
       name: entry.defaultName,
@@ -331,10 +331,8 @@ test("disabled, archived, setup-required, and ambiguous tools are blocked", () =
   }
 });
 
-test("stored tool icon URLs survive catalog resolution and missing icons stay null", () => {
-  const iconUrl = "https://example.test/tool.png";
-  expect(resolve(row(firstPaperwork, { iconUrl })).iconUrl).toBe(iconUrl);
-  for (const missing of [null, undefined, "", "  ", 42]) {
-    expect(resolve(row(firstPaperwork, { iconUrl: missing })).iconUrl).toBe(null);
-  }
+test("stored tool icons pass through catalog resolution and missing icons stay null", () => {
+  const icon = { v: 1, provider: "cloudinary", format: "png", width: 256, height: 256, uploadedAt: "2026-01-01T00:00:00Z", entry: { cloudName: "c", publicId: "a/b/x", version: 1 } };
+  expect(resolve(row(firstPaperwork, { icon })).icon).toEqual(icon);
+  for (const missing of [null, undefined]) expect(resolve(row(firstPaperwork, { icon: missing })).icon).toBe(null);
 });

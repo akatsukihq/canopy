@@ -14,7 +14,8 @@ served from `tools/<key>/icon.svg` (`scripts/copy-tool-icons.mjs`, run by
 `prepare:vendor` and `postinstall`); Admin → Settings: all 12 `system_limits`
 editable below their code ceilings, tools over a lowered limit listed, and
 Runtime overrides in `platform_settings` (migration `0011-platform-settings`,
-`lib/config/runtimeSettings.ts`).
+`lib/config/runtimeSettings.ts`); stored media as self-describing `MediaRef`
+JSON (migration `0012-media-refs`, `lib/media`).
 
 Open: the tool AI assistant is being widened from Translations to every tool
 section (content/SEO, Definition, Translations); `invoice-generator.svg` has no
@@ -74,7 +75,7 @@ removed (after an LFS archive). A tool folder keeps only code and its icon:
 | Runtime translations | `managed_tools.translations` | Source of truth for public pages |
 | Seeding | `db/seedManagedTools.ts` via `pnpm db:seed` | Creates rows + English from definitions |
 | Snapshots | 183 `translations.json`, `db/scripts/tool-translations.mjs` | Export/import copies only |
-| Icons | `scripts/seed-assets/tool-icons/*.svg` (166) → Cloudinary → `icon_url` | Uploaded by `db:seed` |
+| Icons | `tools/<key>/icon.svg`, or an Admin upload stored as `managed_tools.icon` (`MediaRef`) | Folder icons static; uploads on Cloudinary |
 | Assistant | `lib/assistant/*`, registry `app/api/assistant/integrations.ts` | Only blog registered |
 
 ## Target data model
@@ -176,6 +177,27 @@ Each tool's icon moves to `tools/<key>/icon.svg`; paperwork icons move to their
 folder under `app/paperwork/components/`. They are copied to `public/tool-icons/`
 at `dev`/`build` time and served as static files (see Decisions 2). The release
 SQL carries no icon URL.
+
+### Stored media (`MediaRef`)
+
+Uploaded files (tool icons in `managed_tools.icon`, blog cover and body images
+inside the blog documents) are stored as JSON that names its own provider and
+account, defined and validated by `mediaRef` in `lib/media/index.ts`:
+
+```json
+{ "v": 1, "provider": "cloudinary", "format": "png", "width": 256, "height": 256,
+  "bytes": 9000, "uploadedAt": "2026-11-04T00:00:00Z",
+  "entry": { "cloudName": "acct", "publicId": "Canopy/production/tool-icons/x", "version": 3 } }
+```
+
+URLs are built from the record (`mediaUrl`, `responsiveMedia`), never from the
+current settings, so changing the Cloudinary cloud in Admin → Uploads, or a later
+provider switch, only affects new uploads. To add a provider (for example S3):
+add `lib/media/<provider>.ts` with its `entry` schema and URL builder, then a
+branch in `mediaRef`, `mediaUrl` and `mediaAccount`. Invalid stored icons fall
+back to the folder icon or identicon. Migration `0012-media-refs` converted the
+old `icon_url` column and the legacy blog image fields using the
+`CLOUDINARY_CLOUD_NAME` they were uploaded with.
 
 ## AI translation helper
 

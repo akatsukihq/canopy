@@ -291,7 +291,7 @@ function ToolRow({
             {isSetupRequired ? (
               <TriangleAlert strokeWidth={1.8} />
             ) : (
-              <ToolIcon name={tool.name} iconUrl={tool.iconUrl} size={20} toolId={tool.id} />
+              <ToolIcon name={tool.name} media={tool.icon} size={20} toolId={tool.id} />
             )}
           </IconTile>
           <span className="min-w-0 flex-1">

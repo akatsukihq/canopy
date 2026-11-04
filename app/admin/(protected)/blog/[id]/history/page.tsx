@@ -1,6 +1,5 @@
 import { appHref } from "@/lib/routing/subdomains.ts";
 import { z } from "zod";
-import config from "@/lib/config/config.ts";
 import { notFound } from "next/navigation";
 import { hasPermission } from "@/lib/authorization/index.ts";
 import { getUserAuthorization } from "@/lib/admin/index.ts";
@@ -35,9 +34,7 @@ export default async function BlogHistoryPage({
   const compared = revision ? await getBlogRevision(session.user.id, id, revision) : null;
   if (revision && !compared) notFound();
   const previewHtml = (document: typeof post.draftDocument) =>
-    renderBlogDocument(document, {
-      cloudName: config.cloudinary.cloudName?.trim(),
-    }).html.replace(
+    renderBlogDocument(document).html.replace(
       /<a href="([^"]*)"[^>]*>([\s\S]*?)<\/a>/g,
       '<span>$2 <span class="text-sm text-muted-foreground">($1)</span></span>',
     );
@@ -75,15 +72,16 @@ export default async function BlogHistoryPage({
               <figure className="mb-6 space-y-2">
                 <img
                   className="h-auto max-w-full rounded-md"
-                  {...blogImageDelivery(document.coverImage, config.cloudinary.cloudName?.trim() ?? "")}
+                  {...blogImageDelivery(document.coverImage)}
                   sizes="(max-width: 767px) calc(100vw - 80px), calc(50vw - 108px)"
                   alt={document.coverImage.alt}
-                  width={document.coverImage.width}
-                  height={document.coverImage.height}
+                  width={document.coverImage.media.width}
+                  height={document.coverImage.media.height}
                 />
                 <figcaption className="break-words text-xs text-muted-foreground">
-                  Cover: {document.coverImage.publicId} · Version {document.coverImage.version} ·{" "}
-                  {document.coverImage.width} × {document.coverImage.height} · {document.coverImage.format}
+                  Cover: {document.coverImage.media.entry.publicId} · Version {document.coverImage.media.entry.version}{" "}
+                  · {document.coverImage.media.width} × {document.coverImage.media.height} ·{" "}
+                  {document.coverImage.media.format}
                   <br />
                   Alt text: {document.coverImage.alt || "Not set"}
                   <br />

@@ -154,7 +154,6 @@ export function validateAgentOutput(
   result: AIResult,
   request: BlogAssistantRequest,
   inputArtifactIds: string[],
-  cloudName?: string,
 ): { label: string; artifact: BlogArtifact } {
   const agent = getBlogAgent(request.agentId);
   if (!agent) throw new Error("This agent is unavailable. Select it again.");
@@ -191,10 +190,11 @@ export function validateAgentOutput(
     if (!value.document || !request.context?.document)
       throw new Error("The agent did not return a complete draft preview.");
     const { bodyJson, ...fields } = value.document;
-    const document = validateBlogDocument(
-      { ...request.context?.document, ...fields, body: parseAgentBody(bodyJson) },
-      { cloudName },
-    );
+    const document = validateBlogDocument({
+      ...request.context?.document,
+      ...fields,
+      body: parseAgentBody(bodyJson),
+    });
     if (!blogDocumentText(document).trim()) throw new Error("The agent returned an empty draft.");
     assertProtectedContent(request.context?.document, document);
     content.document = document;

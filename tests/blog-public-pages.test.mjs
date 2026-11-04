@@ -1,6 +1,8 @@
 import { createElement } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import { afterAll, expect, test, vi } from "vitest";
+
+vi.mock("server-only", () => ({}));
 import { NextIntlClientProvider } from "next-intl";
 import { createBlogDocument, BlogValidationError } from "../lib/blog/document.ts";
 import { getCommonMessages } from "../lib/i18n/messages.ts";

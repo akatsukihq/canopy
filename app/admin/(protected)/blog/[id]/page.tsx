@@ -31,7 +31,10 @@ export default async function BlogEditorPage({
     Promise.all([getToolListings("devtools"), getToolListings("media")]).then((groups) => groups.flat()),
   ]);
   if (!post) notFound();
-  const generation = (await loadRuntimeSettings())["ai.enabled"].value === true ? await getInitialBlogGeneration(session.user.id, id) : null;
+  const generation =
+    (await loadRuntimeSettings())["ai.enabled"].value === true
+      ? await getInitialBlogGeneration(session.user.id, id)
+      : null;
   if (generation && (activeRun(generation.status) || (generation.status !== "completed" && query.edit !== "1")))
     return <BlogGenerationRecovery initialRun={generation} />;
   return (
@@ -47,7 +50,6 @@ export default async function BlogEditorPage({
       canEdit={hasPermission(authorization.access, "blog", "edit")}
       canPublish={hasPermission(authorization.access, "blog", "publish")}
       canCreate={hasPermission(authorization.access, "blog", "create")}
-      cloudName={config.cloudinary.cloudName?.trim() ?? ""}
     />
   );
 }

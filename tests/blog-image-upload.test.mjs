@@ -19,17 +19,26 @@ afterAll(() => {
   delete globalThis.__blogDirectUploadTest;
 });
 
-const image = {
-  publicId: "production/blog/test",
-  version: 1,
-  format: "png",
-  width: 640,
-  height: 480,
-  alt: "image",
+const publicId = "production/blog/test";
+const imageWith = ({ version = 1, format = "png", width = 640, height = 480, alt = "image" } = {}) => ({
+  media: {
+    v: 1,
+    provider: "cloudinary",
+    format,
+    width,
+    height,
+    // The browser records the local file size and upload time.
+    bytes: expect.any(Number),
+    uploadedAt: expect.stringMatching(/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z$/),
+    entry: { cloudName: "test-cloud", publicId, version },
+  },
+  alt,
   caption: "",
-};
+});
+const image = imageWith();
 const completion = {
-  publicId: image.publicId,
+  cloudName: "test-cloud",
+  publicId,
   timestamp: 123,
   name: "image.png",
   size: 24,
@@ -40,20 +49,20 @@ const prepared = {
   ok: true,
   data: {
     uploadUrl: "https://api.cloudinary.com/v1_1/test-cloud/image/upload",
-    fields: { public_id: image.publicId, timestamp: "123", api_key: "public-key", signature: "signed-fields" },
+    fields: { public_id: publicId, timestamp: "123", api_key: "public-key", signature: "signed-fields" },
     completion,
   },
 };
 const uploaded = {
-  public_id: image.publicId,
-  version: image.version,
-  format: image.format,
-  width: image.width,
-  height: image.height,
+  public_id: publicId,
+  version: 1,
+  format: "png",
+  width: 640,
+  height: 480,
   bytes: 128,
   resource_type: "image",
   type: "upload",
-  secure_url: `https://res.cloudinary.com/test-cloud/image/upload/v${image.version}/${image.publicId}.png`,
+  secure_url: `https://res.cloudinary.com/test-cloud/image/upload/v1/${publicId}.png`,
 };
 const response = () =>
   new Response(JSON.stringify({ ...uploaded, asset_id: "provider-extra-field", signature: "provider-signature" }));
@@ -84,7 +93,9 @@ function setup() {
 test("a 1.51 MiB image uploads directly and forwards only image metadata with its completion ticket", async () => {
   const calls = setup();
   const file = png(Math.round(1.51 * 1024 * 1024));
-  expect(await uploadBlogImageDirect(file)).toEqual({ ok: true, data: image });
+  const result = await uploadBlogImageDirect(file);
+  expect(result).toEqual({ ok: true, data: image });
+  expect(result.data.media.bytes).toBe(file.size);
   expect(calls.prepare).toEqual([{ name: file.name, size: file.size, type: file.type }]);
   const [url, request] = calls.fetch[0];
   expect(url).toBe(prepared.data.uploadUrl);
@@ -229,18 +240,28 @@ for (const metadata of [
     vi.stubGlobal("fetch", () => new Response(JSON.stringify(providerMetadata)));
     expect(await uploadBlogImageDirect(png())).toEqual({
       ok: true,
-      data: {
-        ...image,
+      data: imageWith({
         version: metadata.version,
         format: metadata.format,
         width: metadata.width,
         height: metadata.height,
-      },
+      }),
     });
     expect(calls.complete).toEqual([{ ...completion, uploaded: providerMetadata }]);
     expect(state.errors.length).toBe(0);
   });
 }
+
+test("a completion cloud that differs from the signed upload URL fails before uploading", async () => {
+  const calls = setup();
+  state.prepare = async () => ({
+    ...prepared,
+    data: { ...prepared.data, completion: { ...completion, cloudName: "other-cloud" } },
+  });
+  expect((await uploadBlogImageDirect(png())).ok).toBe(false);
+  expect(calls.fetch.length).toBe(0);
+  expect(calls.complete.length).toBe(0);
+});
 
 test("prepare failure remains a failure and does not upload or complete", async () => {
   const calls = setup();

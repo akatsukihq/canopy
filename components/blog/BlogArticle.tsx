@@ -1,4 +1,3 @@
-import config from "@/lib/config/config.ts";
 import { useLocale, useTranslations } from "next-intl";
 import { localizeHref, type Locale } from "@/lib/i18n/config";
 import { ArrowRight } from "lucide-react";
@@ -41,9 +40,7 @@ type Props = {
 export function BlogArticle({ document, publication }: Props) {
   const t = useTranslations("Blog");
   const locale = useLocale() as Locale;
-  const content = renderBlogDocument(document, {
-    cloudName: config.cloudinary.cloudName?.trim(),
-  });
+  const content = renderBlogDocument(document);
   // Only transform the renderer's validated HTML, never the stored draft. Keep link
   // styling in previews without exposing navigation or keyboard-focusable links.
   const html = publication
@@ -121,10 +118,10 @@ export function BlogArticle({ document, publication }: Props) {
           <figure className={styles.cover}>
             <img
               alt={document.coverImage.alt}
-              {...blogImageDelivery(document.coverImage, config.cloudinary.cloudName?.trim() ?? "")}
+              {...blogImageDelivery(document.coverImage)}
               sizes="(min-width: 1440px) 1280px, (min-width: 1024px) calc(100vw - 160px), (min-width: 640px) calc(100vw - 64px), calc(100vw - 40px)"
-              width={document.coverImage.width}
-              height={document.coverImage.height}
+              width={document.coverImage.media.width}
+              height={document.coverImage.media.height}
               fetchPriority="high"
             />
             {document.coverImage.caption && <figcaption>{document.coverImage.caption}</figcaption>}

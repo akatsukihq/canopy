@@ -1,5 +1,5 @@
 import type { CropBox } from "@/components/CropFrame";
-import type { BlogImage } from "@/lib/blog/document";
+import type { MediaFormat } from "@/lib/media";
 
 type Bounds = { width: number; height: number };
 
@@ -35,7 +35,7 @@ export function resizeCrop(next: CropBox, previous: CropBox, bounds: Bounds, rat
   return { ...next, width: Math.round(width), height: Math.max(1, Math.round(width / ratio)) };
 }
 
-export async function cropBlogImage(image: HTMLImageElement, box: CropBox, format: BlogImage["format"]): Promise<File> {
+export async function cropBlogImage(image: HTMLImageElement, box: CropBox, format: MediaFormat): Promise<File> {
   validateCropDimensions({ width: image.naturalWidth, height: image.naturalHeight });
   if (
     ![box.x, box.y, box.width, box.height].every(Number.isSafeInteger) ||

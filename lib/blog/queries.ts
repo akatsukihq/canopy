@@ -1,4 +1,3 @@
-import config from "../config/config.ts";
 import { loadRuntimeSettings } from "../config/runtimeSettings.ts";
 import { and, desc, eq, exists, inArray, isNotNull, isNull, sql, type SQL } from "drizzle-orm";
 import {
@@ -112,7 +111,6 @@ const dateAfter = (
   cursor: BlogCursor | null,
 ) => (cursor ? sql`(${column}, ${posts.id}) < (${cursor.value}::timestamptz, ${cursor.id})` : undefined);
 const likeSearch = (value: string) => `%${value.replace(/[\\%_]/g, "\\$&")}%`;
-const cloudOptions = () => ({ cloudName: config.cloudinary.cloudName?.trim() });
 
 const summaryFields = {
   id: posts.id,
@@ -173,7 +171,7 @@ export async function listPublishedBlogPosts(input: unknown = {}) {
       title: titleText.parse(row.title),
       excerpt: excerptText.parse(row.excerpt),
       authorName: authorText.parse(row.authorName),
-      coverImage: row.coverImage === null ? null : validateBlogImage(row.coverImage, cloudOptions()),
+      coverImage: row.coverImage === null ? null : validateBlogImage(row.coverImage),
     })),
   };
 }
@@ -214,7 +212,7 @@ export async function getPublishedBlogPost(postSlug: string) {
     .where(and(live, eq(posts.slug, requestedSlug)))
     .limit(1);
   if (!row) return null;
-  const document = validateBlogDocument(row.document, cloudOptions());
+  const document = validateBlogDocument(row.document);
   const selectedTags = publicTerms.parse(row.tags);
   const relatedTools = document.relatedToolIds.length
     ? await db
@@ -331,7 +329,7 @@ export async function getBlogPost(actorUserId: string, postId: string) {
       const [schedule] = await transaction.select().from(schedules).where(eq(schedules.postId, requestedId)).limit(1);
       return {
         ...post,
-        draftDocument: validateBlogDocument(post.draftDocument, cloudOptions()),
+        draftDocument: validateBlogDocument(post.draftDocument),
         schedule: schedule ?? null,
       };
     },
@@ -349,7 +347,7 @@ export async function getBlogRevision(actorUserId: string, postId: string, revis
       .from(revisions)
       .where(and(eq(revisions.postId, requestedId), eq(revisions.id, requestedRevision)))
       .limit(1);
-    return revision ? { ...revision, document: validateBlogDocument(revision.document, cloudOptions()) } : null;
+    return revision ? { ...revision, document: validateBlogDocument(revision.document) } : null;
   });
 }
 

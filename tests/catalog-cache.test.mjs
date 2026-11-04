@@ -111,7 +111,7 @@ function row(app, key, changes = {}) {
     order: 0,
     enabled: true,
     archived: false,
-    iconUrl: null,
+    icon: null,
     createdAt: new Date(),
     updatedAt: new Date(),
     ...changes,
@@ -250,7 +250,7 @@ test("discovery uses published DB copy, excludes unavailable tools, and retries 
   state.reads = 0;
   const tool = row("devtools", "markdown-previewer", {
     name: "Preview Markdown",
-    iconUrl: "https://example.test/icon.png",
+    icon: { v: 1, provider: "cloudinary", format: "png", width: 256, height: 256, uploadedAt: "2026-01-01T00:00:00Z", entry: { cloudName: "c", publicId: "a/b/x", version: 1 } },
   });
   const source = {
     ...markdownDefinition,
@@ -289,7 +289,7 @@ test("discovery uses published DB copy, excludes unavailable tools, and retries 
     expect(tools).toHaveLength(1);
     expect(tools[0].keywords).toEqual(["published-keyword"]);
     expect(tools[0].seoTitle).toBe("Published title");
-    expect(tools[0].icon).toEqual({ kind: "url", url: tool.iconUrl });
+    expect(tools[0].icon).toEqual({ kind: "url", url: "https://res.cloudinary.com/c/image/upload/f_png,c_fill,w_256,h_256,q_auto/v1/a/b/x.png", media: tool.icon });
     const paperwork = await getPaperworkTools();
     expect(paperwork.map((item) => item.componentKey)).toEqual(["invoice-generator", "receipt-generator"]);
     expect((await getPublicTools()).map((item) => item.href)).toContain("/paperwork/custom-invoice");
