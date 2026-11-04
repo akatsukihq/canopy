@@ -6,7 +6,8 @@
   "packageManager": "pnpm@11.14.0",
   "scripts": {
     "hooks:install": "git config core.hooksPath .githooks",
-    "prepare:vendor": "node scripts/copy-media-vendor.mjs",
+    "prepare:vendor": "node scripts/copy-media-vendor.mjs && node scripts/copy-tool-icons.mjs",
+    "postinstall": "pnpm run prepare:vendor",
     "dev": "pnpm run prepare:vendor && next dev -p 3000",
     "db:migrate": "node db/scripts/migrate.mjs",
     "db:seed": "node scripts/seed.mjs",
