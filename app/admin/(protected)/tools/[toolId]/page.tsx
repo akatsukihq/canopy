@@ -63,7 +63,7 @@ export default async function ToolContentPage({
   params: Promise<{ toolId: string }>;
   searchParams: Promise<{ section?: string | string[] }>;
 }) {
-  await requirePagePermission("tools", "view");
+  const session = await requirePagePermission("tools", "view");
   const toolId = decodeURIComponent((await params).toolId);
   const section = selectedSection((await searchParams).section);
 
@@ -216,6 +216,7 @@ export default async function ToolContentPage({
 
         {section === "translations" && managedRow ? (
           <ToolTranslationsForm
+            assistantOwnerId={session.user.id}
             enabled={managedRow.enabled}
             englishMessages={Object.fromEntries(
               Object.entries(toolTranslationSource(spec, managedRow, contentRow)).map(([key, source]) => [

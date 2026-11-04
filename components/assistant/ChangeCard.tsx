@@ -14,6 +14,8 @@ type Props = {
   compact: boolean;
   actionable: boolean;
   stale: boolean;
+  /** Replaces the default stale explanation, e.g. a validation error. */
+  blockedReason?: string;
   actionLabel: string;
   onApply: () => void | Promise<void>;
   onDiscard: () => void | Promise<void>;
@@ -29,6 +31,7 @@ export function ChangeCard({
   compact,
   actionable,
   stale,
+  blockedReason,
   actionLabel,
   onApply,
   onDiscard,
@@ -109,7 +112,7 @@ export function ChangeCard({
                   </span>
                 </TooltipTrigger>
                 <TooltipContent>
-                  {stale ? "This section changed. Ask for a fresh suggestion." : actionLabel}
+                  {stale ? (blockedReason ?? "This section changed. Ask for a fresh suggestion.") : actionLabel}
                 </TooltipContent>
               </Tooltip>
             </div>
@@ -153,7 +156,11 @@ export function ChangeCard({
           </div>
         )}
       </div>
-      {actionable && stale && <p className={styles.facts}>This section changed. Ask for a fresh suggestion.</p>}
+      {actionable && stale && (
+        <p className={styles.facts} role="alert">
+          {blockedReason ?? "This section changed. Ask for a fresh suggestion."}
+        </p>
+      )}
       <div className={styles.footer}>
         {!detailed && (
           <>

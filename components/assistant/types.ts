@@ -35,6 +35,7 @@ export type ChangeModel = {
   compact: boolean;
   actionable: boolean;
   stale: boolean;
+  blockedReason?: string;
   actionLabel: string;
   onApply: () => void | Promise<void>;
   onDiscard: () => void | Promise<void>;

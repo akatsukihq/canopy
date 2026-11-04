@@ -2,7 +2,7 @@
 
 import { Fragment, useActionState, useEffect, useRef, useState, type KeyboardEvent, type ReactNode } from "react";
 import { ChevronDown, ChevronRight, FileText, Folder, FolderOpen } from "lucide";
-import { Braces, Filter, Search, X } from "lucide-react";
+import { Braces, Filter, Search, Sparkles, X } from "lucide-react";
 import { MorphIcon } from "morphicons/react";
 import { CodeEditor, type CodeEditorHandle } from "@/components/content/CodeEditor.tsx";
 import {
@@ -43,6 +43,7 @@ import {
   type ToolTranslations,
 } from "@/lib/tool-framework/translations.ts";
 import { PlaceholderMenu } from "./PlaceholderMenu.tsx";
+import { ToolTranslationAssistantPanel } from "./ToolTranslationAssistantPanel.tsx";
 import { saveToolTranslationAction, type ToolTranslationActionState } from "../../actions";
 
 const PLACEHOLDER = /\{([A-Za-z_][\w.]*)\}/g;
@@ -1119,13 +1120,18 @@ export function ToolTranslationsForm({
   translations,
   updatedAt,
   enabled,
+  assistantOwnerId,
 }: {
   toolId: string;
   englishMessages: ToolMessages;
   translations: ToolTranslations;
   updatedAt: string;
   enabled: boolean;
+  /** Signed-in admin; the AI helper is hidden without it. */
+  assistantOwnerId?: string;
 }) {
+  const [assistantOpen, setAssistantOpen] = useState(false);
+  const [activeKey, setActiveKey] = useState<string | null>(null);
   const [locale, setLocale] = useState<Locale>("en");
   const [drafts, setDrafts] = useState<ToolTranslations>({
     ...translations,
@@ -1142,72 +1148,121 @@ export function ToolTranslationsForm({
     return (value?.trim() ? value : "") !== (previous?.trim() ? previous : "");
   });
 
+  const setMessage = (key: string, value: string) =>
+    setDrafts((previous) => ({
+      ...previous,
+      [locale]: {
+        status: previous[locale]?.status ?? "draft",
+        messages: { ...previous[locale]?.messages, [key]: value },
+      },
+    }));
+
   return (
-    <section aria-label="Translations" className="flex min-h-0 flex-1 flex-col">
-      <TranslationFields
-        languageControl={
-          <Field className="min-w-0" htmlFor="translation-language" label="Language to edit">
-            <Select
-              disabled={saving}
-              id="translation-language"
-              onChange={(event) => {
-                if (isLocale(event.target.value)) setLocale(event.target.value);
-              }}
-              value={locale}
-            >
-              {locales.map((language) => (
-                <option key={language} value={language}>
-                  {localeLabels[language]}
-                </option>
-              ))}
-            </Select>
-          </Field>
-        }
-        dirty={dirty}
-        enabled={enabled}
-        englishMessages={source}
-        key={locale}
-        locale={locale}
-        messages={current.messages}
-        translations={drafts}
-        onPendingChange={setSaving}
-        onReplace={(nextLocale, changes) => {
-          setDrafts((previous) => {
-            const next = { ...previous };
-            for (const language of locales) {
-              const messages = changes[language];
-              if (messages) next[language] = { status: previous[language]?.status ?? "draft", messages };
-            }
-            return next;
-          });
-          setLocale(nextLocale);
-        }}
-        onChange={(key, value) =>
-          setDrafts((previous) => ({
-            ...previous,
-            [locale]: {
-              status: previous[locale]?.status ?? "draft",
-              messages: { ...previous[locale]?.messages, [key]: value },
-            },
-          }))
-        }
-        onSaved={(nextVersion, status, sourceChanged) => {
-          setVersion(nextVersion);
-          setSaved((previous) => ({ ...previous, [locale]: { ...current, status } }));
-          setDrafts((previous) =>
-            Object.fromEntries(
-              Object.entries({ ...previous, [locale]: { ...current, status } }).map(([language, entry]) => [
-                language,
-                sourceChanged && language !== "en" ? { ...entry, status: "draft" } : entry,
-              ]),
-            ),
-          );
-          if (locale === "en") setSource(current.messages);
-        }}
-        savedStatus={current.status}
-        toolId={toolId}
-        updatedAt={version}
-      />
+    <section
+      aria-label="Translations"
+      className="flex min-h-0 flex-1 gap-4"
+      onFocusCapture={(event) => {
+        const id = (event.target as HTMLElement).closest<HTMLElement>('[id^="translation-"]')?.id;
+        const key = id && decodeURIComponent(id.slice("translation-".length));
+        if (key && Object.hasOwn(source, key)) setActiveKey(key);
+      }}
+    >
+      <div className="flex min-h-0 min-w-0 flex-1 flex-col">
+        <TranslationFields
+          languageControl={
+            <div className="flex items-end gap-2">
+              <Field className="min-w-0 flex-1" htmlFor="translation-language" label="Language to edit">
+                <Select
+                  disabled={saving}
+                  id="translation-language"
+                  onChange={(event) => {
+                    if (isLocale(event.target.value)) setLocale(event.target.value);
+                  }}
+                  value={locale}
+                >
+                  {locales.map((language) => (
+                    <option key={language} value={language}>
+                      {localeLabels[language]}
+                    </option>
+                  ))}
+                </Select>
+              </Field>
+              {assistantOwnerId ? (
+                <TooltipProvider>
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <Button
+                        aria-expanded={assistantOpen}
+                        aria-label="AI translation helper"
+                        onClick={() => setAssistantOpen((open) => !open)}
+                        size="icon"
+                        type="button"
+                        variant={assistantOpen ? "secondary" : "outline"}
+                      >
+                        <Sparkles />
+                      </Button>
+                    </TooltipTrigger>
+                    <TooltipContent>AI translation helper</TooltipContent>
+                  </Tooltip>
+                </TooltipProvider>
+              ) : null}
+            </div>
+          }
+          dirty={dirty}
+          enabled={enabled}
+          englishMessages={source}
+          key={locale}
+          locale={locale}
+          messages={current.messages}
+          translations={drafts}
+          onPendingChange={setSaving}
+          onReplace={(nextLocale, changes) => {
+            setDrafts((previous) => {
+              const next = { ...previous };
+              for (const language of locales) {
+                const messages = changes[language];
+                if (messages) next[language] = { status: previous[language]?.status ?? "draft", messages };
+              }
+              return next;
+            });
+            setLocale(nextLocale);
+          }}
+          onChange={setMessage}
+          onSaved={(nextVersion, status, sourceChanged) => {
+            setVersion(nextVersion);
+            setSaved((previous) => ({ ...previous, [locale]: { ...current, status } }));
+            setDrafts((previous) =>
+              Object.fromEntries(
+                Object.entries({ ...previous, [locale]: { ...current, status } }).map(([language, entry]) => [
+                  language,
+                  sourceChanged && language !== "en" ? { ...entry, status: "draft" } : entry,
+                ]),
+              ),
+            );
+            if (locale === "en") setSource(current.messages);
+          }}
+          savedStatus={current.status}
+          toolId={toolId}
+          updatedAt={version}
+        />
+      </div>
+      {assistantOwnerId && assistantOpen ? (
+        <aside
+          aria-label="AI translation helper"
+          className="flex min-h-0 w-[340px] shrink-0 flex-col overflow-hidden rounded-md border border-border"
+        >
+          <ToolTranslationAssistantPanel
+            activeKey={activeKey}
+            english={source}
+            locale={locale}
+            messages={current.messages}
+            onApply={setMessage}
+            onClose={() => setAssistantOpen(false)}
+            ownerId={assistantOwnerId}
+            toolId={toolId}
+          />
+        </aside>
+      ) : null}
     </section>
   );
 }
