@@ -104,6 +104,9 @@ Both commands come from the `canopy` CLI in `packages/cli` (`canopy tool new`,
 `canopy tool sql`); the root scripts are shortcuts. The CLI imports no app code
 except the category registry, so it can be published later.
 
+`tool sql` is a stopgap: it exists only until Admin has a draft → publish flow
+for specs. Then a release becomes a publish in prod Admin and the command is removed.
+
 ```sh
 pnpm tool:sql --tool devtools.xml-formatter            # new tool: insert only
 pnpm tool:sql --tool devtools.xml-formatter --update   # existing tool: update spec
