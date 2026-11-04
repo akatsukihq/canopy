@@ -40,7 +40,7 @@ export default defineConfig({
     maxWorkers: 1,
     fileParallelism: false,
     execArgv: ["--max-old-space-size=2048"],
-    include: ["tests/**/*.test.mjs", "tools/**/*.test.mjs"],
+    include: ["tests/**/*.test.mjs", "tools/**/*.test.mjs", "packages/*/src/**/*.test.mjs"],
     forceRerunTriggers: [...configDefaults.forceRerunTriggers, "**/pnpm-lock.yaml", "**/pnpm-workspace.yaml"],
     // Playwright specs run under their own runner; integration tests are opt-in.
     exclude: ["tests/e2e/**", "node_modules/**"],

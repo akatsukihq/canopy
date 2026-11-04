@@ -21,6 +21,7 @@ This is one Next.js application managed with pnpm:
 - `tools/*` — flat, application-owned tool definitions, execution adapters, and optional tool-owned workspaces keyed by stable definition key.
 - `components/ui` — the shared application design system.
 - `tests/*` — repository-level regression and architecture tests.
+- `packages/cli` — the `canopy` developer CLI (`canopy tool new`, `canopy tool sql`). Plain ESM, no app imports except the category registry, so it stays publishable.
 
 Do not create a root-level `src`, a top-level `components` folder for one route scope, or a vague `shared` directory. Do not create empty directories.
 

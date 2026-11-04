@@ -87,7 +87,7 @@ Rules:
 
 | Step | Command / action | Result |
 | --- | --- | --- |
-| 1. Scaffold | `pnpm tool:new <app> <key>` (updated) | `tools/<key>/` with `run.ts`, `workspace.tsx`, `icon.svg`; inserts a row with a starter spec into the local DB (`DATABASE_URL`) |
+| 1. Scaffold | `pnpm tool:new <key> --category <category> [--app media] [--runtime worker\|server]` | `tools/<key>/` with the run file and `icon.svg`; inserts a disabled row with a starter spec into the local DB (`DATABASE_URL`) |
 | 2. Build | Edit code; edit the spec in local Admin → tool → Definition (form or JSON view, shape- and limit-checked) | Tool runs locally from the local DB |
 | 3. Translate (optional locally) | Local Admin → Translations, AI helper if wanted | Local drafts |
 | 4. Generate release SQL | `pnpm tool:sql --tool <app>.<key>` | `tmp/tool-release/<toolId>.sql` from the local DB row |
@@ -99,6 +99,10 @@ Rules:
 `db:seed` keeps invoice templates.
 
 ## Release SQL (`pnpm tool:sql`)
+
+Both commands come from the `canopy` CLI in `packages/cli` (`canopy tool new`,
+`canopy tool sql`); the root scripts are shortcuts. The CLI imports no app code
+except the category registry, so it can be published later.
 
 ```sh
 pnpm tool:sql --tool devtools.xml-formatter            # new tool: insert only

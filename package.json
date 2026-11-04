@@ -12,7 +12,8 @@
     "db:seed": "node scripts/seed.mjs",
     "db:copy": "node db/scripts/copy-database.mjs",
     "db:translations": "node db/scripts/tool-translations.mjs",
-    "tool:new": "node scripts/new-tool.mjs",
+    "tool:new": "canopy tool new",
+    "tool:sql": "canopy tool sql",
     "admin:promote": "node db/scripts/promote-admin.mjs",
     "build": "pnpm run prepare:vendor && tsc --noEmit && next build --webpack",
     "build:cloudflare": "node scripts/cloudflare.mjs build",
@@ -136,6 +137,7 @@
     "zod": "^4.4.3"
   },
   "devDependencies": {
+    "@canopy/cli": "workspace:*",
     "@cloudflare/workers-types": "^5.20261007.1",
     "@playwright/test": "1.61.1",
     "@serwist/next": "^9.5.12",
