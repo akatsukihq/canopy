@@ -39,7 +39,7 @@ interface ManifestRecord {
 
 /** One resolved tool as the admin catalogue sees it: every stored row, always. */
 export interface AdminTool extends ResolvedTool {
-  /** False when no `tools/<componentKey>/definition.ts` ships for this row. */
+  /** False when the row has no valid stored spec. */
   readonly hasDefinition: boolean;
   readonly hasDraftContent: boolean;
 }
@@ -97,9 +97,9 @@ export const getToolManifest = cache(async (): Promise<readonly ToolManifestEntr
  * The admin catalogue's enumerator.
  *
  * Admin manages database rows, so it must see every row — including one whose
- * folder has not been deployed yet. Those surface as `hasDefinition: false`
- * rather than vanishing; the public catalogue still hides them, because
- * `catalog.ts` drops any row whose `definition.ts` does not import.
+ * spec is missing or invalid. Those surface as `hasDefinition: false` rather
+ * than vanishing; the public catalogue still hides them, because `catalog.ts`
+ * drops any row without a valid stored spec.
  */
 export const getAdminTools = cache(async (): Promise<readonly AdminTool[]> => {
   const [rows, records, contentRows] = await Promise.all([

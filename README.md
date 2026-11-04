@@ -66,7 +66,7 @@ version. Formatting is separate from `pnpm lint`, which checks TypeScript.
 
 1. Copy `.env.example` to `.env.local`, then configure `APP_URL`, one strong `BETTER_AUTH_SECRET`, the database, and any optional integrations you use.
 2. Run the fresh-database migration sequence through `0007-generic-assistant` documented under [Generic Assistant migration](#generic-assistant-migration), using `pnpm db:migrate <folder>` for each folder. The baseline preserves anonymous Paperwork tables and adds Auth/control-plane tables and system roles.
-3. Run `NODE_ENV=production pnpm db:seed` to seed current tool slugs, tool content, invoice templates for an empty catalog, and missing tool icons.
+3. Run `NODE_ENV=production pnpm db:seed` to seed invoice templates for an empty catalog and missing tool icons. Tools are not seeded: their specs and translations live in the database (see `docs/tools-in-database.md`); a fresh local database comes from `pnpm db:copy`.
 4. Deploy the repository root application using its `Dockerfile`.
 5. Create and verify the first account, then run `pnpm admin:promote <verified-email>` once.
 
@@ -182,7 +182,7 @@ to control execution order.
 
 The `0001-baseline` folder contains the existing `0001`–`0008` migrations.
 Put each new migration batch in its own folder and pass that name to the command.
-Migrations run only their SQL; run `pnpm db:seed` separately for catalog seeding.
+Migrations run only their SQL; run `pnpm db:seed` separately for templates and icons.
 Applied migrations are not tracked; explicitly rerunning a folder runs its SQL again.
 
 On Node deployments, public tool listings, ecosystem navigation, and global search share a
@@ -244,7 +244,7 @@ icons' cloud; it is required only when legacy icons need backfilling. A failure
 rolls back the schema and data changes. The folder is safe to rerun. Fresh setups
 continue through the Assistant migration sequence above before running `db:seed`.
 
-`db:seed` seeds tools and templates, uploads SVG icons to Cloudinary, then assigns
+`db:seed` seeds invoice templates, uploads SVG icons to Cloudinary, then assigns
 missing icons by tool slug. Existing database icon assignments and Cloudinary assets
 are preserved. Configure `CLOUDINARY_CLOUD_NAME`, `CLOUDINARY_API_KEY`, and
 `CLOUDINARY_API_SECRET`. If `NEXT_PUBLIC_CLOUDINARY_CLOUD_NAME` is set, use the

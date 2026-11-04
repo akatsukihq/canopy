@@ -64,3 +64,12 @@ export async function allToolSpecs() {
   const { rows } = await connection().query("SELECT spec FROM managed_tools WHERE spec IS NOT NULL ORDER BY tool_id");
   return rows.map((row) => row.spec);
 }
+
+/** Enabled rows of one app with their public slug, as the catalogue lists them. */
+export async function enabledTools(app) {
+  const { rows } = await connection().query(
+    "SELECT slug, spec FROM managed_tools WHERE app = $1 AND enabled AND spec IS NOT NULL ORDER BY tool_id",
+    [app],
+  );
+  return rows;
+}

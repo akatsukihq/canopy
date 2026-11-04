@@ -4,7 +4,7 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 
 import * as catalog from "../lib/tool-catalog/index.ts";
-import { TOOL_CATEGORIES } from "../lib/tool-framework/categories.ts";
+import { allToolSpecs } from "./helpers/toolSpec.mjs";
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const TOOLS_DIR = path.join(ROOT, "tools");
@@ -91,59 +91,19 @@ async function readIfPresent(file) {
   }
 }
 
-/**
- * A folder counts as migrated once its `definition.ts` default-exports a spec.
- * Folders still on the old named-export shape are skipped by every
- * new-contract assertion so the suite is meaningful mid-migration.
- */
 const folders = await Promise.all(
   toolFolders.map(async (name) => {
     const dir = path.join(TOOLS_DIR, name);
-    const definitionPath = path.join(dir, "definition.ts");
-    const definitionSource = await readIfPresent(definitionPath);
     const runFiles = [];
     for (const runFile of RUN_FILENAMES) {
       if ((await readIfPresent(path.join(dir, runFile))) !== null) runFiles.push(runFile);
     }
-    return {
-      name,
-      dir,
-      definitionPath,
-      definitionSource,
-      runFiles,
-      migrated: definitionSource !== null && /^\s*export\s+default\b/m.test(definitionSource),
-    };
+    return { name, dir, runFiles };
   }),
 );
 
-const migrated = folders.filter((folder) => folder.migrated);
-const unmigrated = folders.filter((folder) => !folder.migrated);
-
-// A definition that cannot be loaded by a plain Node import is reported as a
-// test failure, never as a suite-level crash.
-const loaded = await Promise.all(
-  migrated.map(async (folder) => {
-    try {
-      return { folder, spec: (await import(folder.definitionPath)).default };
-    } catch (error) {
-      return { folder, spec: null, error };
-    }
-  }),
-);
-const specs = loaded.filter((entry) => entry.spec !== null);
-
-test("every migrated definition.ts loads standalone", () => {
-  expect(
-    loaded.filter((entry) => entry.error).map((entry) => `${entry.folder.name}: ${entry.error.message}`),
-    "definition.ts must load without a bundler (type-only imports, no aliased values)",
-  ).toEqual([]);
-  expect(
-    loaded
-      .filter((entry) => !entry.error && (entry.spec === null || typeof entry.spec !== "object"))
-      .map((entry) => entry.folder.name),
-    "definition.ts must default-export a spec object",
-  ).toEqual([]);
-});
+// Specs live in the database; a folder holds only the code that runs one.
+const specs = (await allToolSpecs()).map((spec) => ({ name: spec.toolId.split(".")[1], spec }));
 
 // ---------------------------------------------------------------------------
 // The central invariant.
@@ -215,29 +175,17 @@ test("the legacy identity-dispatch allowlist only shrinks", () => {
 });
 
 // ---------------------------------------------------------------------------
-// The folder contract, applied to migrated folders only.
+// The folder contract.
 // ---------------------------------------------------------------------------
 
 // Prefer the exported pattern; fall back to the catalogue's own literal while
 // `TOOL_SLUG_PATTERN` is still module-private (see report).
 const TOOL_SLUG_PATTERN = catalog.TOOL_SLUG_PATTERN ?? /^[a-z0-9]+(?:-[a-z0-9]+)*$/;
 
-test("migration progress", () => {
-  console.log(
-    `[folder contract] ${folders.length} folders: ${migrated.length} migrated, ${unmigrated.length} unmigrated\n  unmigrated: ${unmigrated
-      .map((folder) => folder.name)
-      .join(", ")}`,
-  );
-});
-
-test("folder name, spec and toolId are one bijection", () => {
-  for (const { folder, spec } of specs) {
-    expect(spec && typeof spec === "object", `${folder.name}: default export must be a spec`).toBeTruthy();
-    expect(spec.toolId, `${folder.name}: toolId must be "<app>.<folderName>"`).toBe(`${spec.app}.${folder.name}`);
-  }
-  const toolIds = specs.map(({ spec }) => spec.toolId);
-  expect(new Set(toolIds).size, "toolIds must be unique").toBe(toolIds.length);
-  expect(new Set(toolFolders).size, "folder names must be unique").toBe(toolFolders.length);
+test("every tool folder has exactly one stored spec and every spec has a folder", () => {
+  const specFolders = specs.map(({ name }) => name).sort();
+  expect(new Set(specFolders).size, "two stored specs share a folder").toBe(specFolders.length);
+  expect(specFolders, "stored specs and tools/ folders must match one to one").toEqual(toolFolders);
 });
 
 test("folder names are valid tool slugs", () => {
@@ -246,24 +194,8 @@ test("folder names are valid tool slugs", () => {
   }
 });
 
-test("no definition re-declares a derived field", () => {
-  // definitionKey is the folder name, runtime is the run filename, iconKey is
-  // uploaded data. Declaring any of them creates a second source of truth.
-  for (const { folder, spec } of specs) {
-    for (const derived of ["definitionKey", "runtime", "iconKey"]) {
-      expect(Object.hasOwn(spec, derived), `${folder.name}: "${derived}" is derived and must not be declared`).toBe(
-        false,
-      );
-      expect(
-        folder.definitionSource,
-        `${folder.name}: definition.ts mentions the derived field "${derived}"`,
-      ).not.toMatch(new RegExp(`\\b${derived}\\b`));
-    }
-  }
-});
-
-test("every migrated folder declares exactly one execution host", () => {
-  for (const folder of migrated) {
+test("every tool folder declares exactly one execution host", () => {
+  for (const folder of folders) {
     expect(
       folder.runFiles.length,
       `${folder.name}: expected exactly one of ${RUN_FILENAMES.join(" / ")}, found [${folder.runFiles.join(", ")}]`,
@@ -271,57 +203,19 @@ test("every migrated folder declares exactly one execution host", () => {
   }
 });
 
-test("every spec declares a known category", () => {
-  for (const { folder, spec } of specs) {
-    expect(
-      Object.hasOwn(TOOL_CATEGORIES, spec.category),
-      `${folder.name}: unknown category "${spec.category}"`,
-    ).toBeTruthy();
-    expect(
-      TOOL_CATEGORIES[spec.category].app,
-      `${folder.name}: category "${spec.category}" belongs to another app`,
-    ).toBe(spec.app);
-  }
-});
-
 test("a declared slug is valid and unreserved", () => {
-  for (const { folder, spec } of specs) {
+  for (const { name, spec } of specs) {
     if (spec.slug === undefined) continue;
-    expect(spec.slug, `${folder.name}: invalid slug`).toMatch(TOOL_SLUG_PATTERN);
+    expect(spec.slug, `${name}: invalid slug`).toMatch(TOOL_SLUG_PATTERN);
     expect(
       catalog.isValidToolSlug(spec.app, spec.slug),
-      `${folder.name}: slug "${spec.slug}" is reserved for app "${spec.app}"`,
+      `${name}: slug "${spec.slug}" is reserved for app "${spec.app}"`,
     ).toBeTruthy();
-  }
-});
-
-test("definition.ts has no value imports", () => {
-  // The migrate-time filesystem walk loads these without a bundler, so `@/`
-  // aliases do not resolve. A type-only import is erased; a value import is not.
-  for (const folder of folders) {
-    if (folder.definitionSource === null) continue;
-    const source = folder.definitionSource;
-    const valueImports = source
-      .split("\n")
-      .map((line, index) => [index + 1, line])
-      .filter(
-        ([, line]) =>
-          /^\s*import\s+(?!type\b)/.test(line) ||
-          /^\s*export\s+(?!type\b)[^;]*\bfrom\b/.test(line) ||
-          /\bimport\s*\(/.test(line) ||
-          /\brequire\s*\(/.test(line),
-      );
-    if (!folder.migrated && valueImports.length > 0) continue; // pre-migration shape
-    expect(
-      valueImports.map(([line, text]) => `${folder.name}/definition.ts:${line}: ${text.trim()}`),
-      `${folder.name}: definition.ts must use type-only imports`,
-    ).toEqual([]);
   }
 });
 
 test("hooks live in hooks.ts and never reach the media graph", async () => {
-  // `hooks.ts` is called from the main thread, so it is held to the same
-  // discipline as `definition.ts`. `media/pdfRender.ts` is the sole owner of
+  // `hooks.ts` is called from the main thread. `media/pdfRender.ts` is the sole owner of
   // `pdfjs-dist` and is worker-only, so a hook that imports anything under
   // `media/` — or that stays in a run file which does — puts the vendor chunk
   // back on the main thread. Module specifiers only; a mention in a comment is

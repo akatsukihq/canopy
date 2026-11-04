@@ -195,7 +195,7 @@ test.each([
   "csv-viewer",
   "tsv-to-csv",
 ])("%s exposes valid seedable native-ICU execution messages", async (key) => {
-  const { default: definition } = await import(`../tools/${key}/definition.ts`);
+  const definition = await toolSpec(key);
   const messages = extractToolMessages(definition);
   expect(messages["runtime.csv.processing"]).toBe("Processing delimited data");
   expect(messages["runtime.csv.errors.streamWidth"]).toContain("plural");

@@ -10,7 +10,13 @@ const { describe, test } = await import(process.env.VITEST ? "vitest" : "node:te
 const root = path.join(path.dirname(fileURLToPath(import.meta.url)), "..");
 const { CODE_LANGUAGES } = await import("../lib/code-execution/languages.ts");
 const { clearDraft, loadDraft, saveDraft } = await import("../lib/code-execution/draft.ts");
-const { shortVersion } = await import("../lib/code-execution/definition.ts");
+/** "3.12.0" -> "3.12", "15.0.2" -> "15": the version as the SEO title says it. */
+const shortVersion = (version) =>
+  version
+    .split(".")
+    .slice(0, 2)
+    .join(".")
+    .replace(/(\.0)+$/, "");
 const { TOOL_CATEGORIES } = await import("../lib/tool-framework/categories.ts");
 
 const sqlDefinition = await toolSpec("sql-compiler");
@@ -32,10 +38,10 @@ describe("compiler tool folders", () => {
   });
 
   for (const key of keys) {
-    test(`${key}: definition aligns with the registry and loads under plain Node`, async () => {
+    test(`${key}: stored spec aligns with the registry`, async () => {
       const language = CODE_LANGUAGES[key];
       assert.equal(language.definitionKey, key);
-      const { default: definition } = await import(`../tools/${key}/definition.ts`);
+      const definition = await toolSpec(key);
       assert.equal(definition.toolId, `devtools.${key}`);
       assert.equal(definition.slug, key);
       assert.equal(definition.app, "devtools");
@@ -80,15 +86,6 @@ describe("compiler tool folders", () => {
       vi.doUnmock("@/lib/code-execution/run");
     });
   }
-});
-
-describe("shortVersion", () => {
-  test("drops patch and trailing zero segments", () => {
-    assert.equal(shortVersion("3.12.0"), "3.12");
-    assert.equal(shortVersion("15.0.2"), "15");
-    assert.equal(shortVersion("5.0.201"), "5");
-    assert.equal(shortVersion("20.11.1"), "20.11");
-  });
 });
 
 describe("source draft persistence", () => {
@@ -139,15 +136,5 @@ describe("source draft persistence", () => {
     assert.equal(loadDraft(blocked, "k"), null);
     assert.doesNotThrow(() => saveDraft(blocked, "k", "x", "s"));
     assert.doesNotThrow(() => clearDraft(blocked, "k"));
-  });
-});
-
-describe("translation snapshots", () => {
-  test("each compiler tool ships a valid English snapshot (ICU, placeholders)", async () => {
-    const { readSnapshots } = await import("../db/scripts/tool-translations.mjs");
-    for (const key of keys) {
-      const [snapshot] = await readSnapshots({ toolId: `devtools.${key}` });
-      assert.equal(snapshot.translations.en.status, "published");
-    }
   });
 });

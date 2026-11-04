@@ -738,7 +738,7 @@ Documented so nobody rediscovers them. Fix opportunistically; none is a blocker.
 | No tier-1 primitives                        | Semantic tokens hold raw hex directly, so there is no palette layer to retheme from. A 3-tier split (primitive → semantic → component) is the standard upgrade path if a second brand or dark mode is ever needed.                        |
 | No dark mode                                | `color-scheme: only light` by design. Revisit only alongside the tier-1 split above.                                                                                                                                                      |
 | Manifest count is hand-maintained           | The 60-id list is duplicated between the manifest and the test; they drift independently.                                                                                                                                                 |
-| Open design gaps                            | `plans/tool-page-design-spec.md` lists 13 confirmed parity gaps (`UniversalWorkbench`, `ToolPage`, `SettingsPanel`, `Surfaces.tsx`, `ResultView`, `SourceResultWorkspace`, `FileProcessorWorkspace.tsx`, 21 media `definition.ts` files). |
+| Open design gaps                            | `plans/tool-page-design-spec.md` lists 13 confirmed parity gaps (`UniversalWorkbench`, `ToolPage`, `SettingsPanel`, `Surfaces.tsx`, `ResultView`, `SourceResultWorkspace`, `FileProcessorWorkspace.tsx`, 21 media tool specs). |
 
 ---
 

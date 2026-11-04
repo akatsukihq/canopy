@@ -1,3 +1,4 @@
+import { toolSpec } from "./helpers/toolSpec.mjs";
 import { afterEach, expect, test, vi } from "vitest";
 import { createTranslator } from "use-intl/core";
 import { requireUtilityInput } from "../lib/devtools/shared/options.ts";
@@ -24,7 +25,7 @@ afterEach(() => vi.unstubAllGlobals());
 
 const definitions = new Map();
 async function format(tool, message, overrides = {}, locale = "en") {
-  if (!definitions.has(tool)) definitions.set(tool, (await import(`../tools/${tool}/definition.ts`)).default);
+  if (!definitions.has(tool)) definitions.set(tool, await toolSpec(tool));
   const messages = extractToolMessages(definitions.get(tool));
   expect(Object.hasOwn(messages, `runtime.${message.key}`)).toBe(true);
   return createTranslator({

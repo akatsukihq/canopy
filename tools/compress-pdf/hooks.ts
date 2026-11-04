@@ -1,6 +1,5 @@
 /**
- * Pre-run hooks, held to the same discipline as `definition.ts`: pure, React-
- * free, no heavy dependencies.
+ * Pre-run hooks: pure, React-free, no heavy dependencies.
  *
  * They live here rather than beside `run` because `run.worker.ts` statically
  * imports `lib/tool-framework/media/pdfRender.ts`, the sole owner of

@@ -1,3 +1,4 @@
+import { toolSpec } from "./helpers/toolSpec.mjs";
 import { afterEach, expect, test, vi } from "vitest";
 import { createTranslator } from "use-intl/core";
 import { parseSettings } from "../lib/tool-framework/settings.ts";
@@ -11,7 +12,7 @@ afterEach(() => {
 });
 
 async function tool(key) {
-  const { default: definition } = await import(`../tools/${key}/definition.ts`);
+  const definition = await toolSpec(key);
   const { run } = await import(
     `../tools/${key}/${["json-validator", "json-viewer"].includes(key) ? "run.worker" : "run"}.ts`
   );
@@ -364,7 +365,7 @@ test.each([
   "json-viewer",
   "jwt-expiration-checker",
 ])("%s execution messages pass the publication ICU contract", async (key) => {
-  const { default: definition } = await import(`../tools/${key}/definition.ts`);
+  const definition = await toolSpec(key);
   const messages = extractToolMessages(definition);
   expect(validateToolTranslation("en", messages, messages, { publish: true })).toEqual([]);
 });

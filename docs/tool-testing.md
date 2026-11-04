@@ -4,7 +4,6 @@ Tool tests live beside the implementation:
 
 ```text
 tools/json-formatter/
-  definition.ts
   run.ts
   run.test.mjs
   workspace.tsx

@@ -43,7 +43,7 @@ const invalidCases = [
 
 for (const [tool, text, settings, secondary] of invalidCases) {
   test(`${tool} exposes localizable error and recovery metadata without changing diagnostics`, async () => {
-    const { default: definition } = await import(`../tools/${tool}/definition.ts`);
+    const definition = await toolSpec(tool);
     const { run } = await import(`../tools/${tool}/run.ts`);
     await assert.rejects(
       async () => run(context(definition, text, settings, secondary)),

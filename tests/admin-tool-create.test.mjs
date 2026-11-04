@@ -274,9 +274,8 @@ test("a created tool is disabled, unarchived, and paired with a tool_content row
     expect(created.toolId).toBe(`${APP}.${KEY}`);
 
     // The content row carries the chosen category and nothing else. Every
-    // other column stays null so it still inherits from `definition.ts` once
-    // the folder ships; the category is persisted because the form asked for
-    // it and there is no code yet to fall back to.
+    // other column stays null so it inherits from the stored spec; the
+    // category is persisted because the form asked for it.
     expect(contentWrite(state).values).toEqual({
       toolId: `${APP}.${KEY}`,
       category: CATEGORY,

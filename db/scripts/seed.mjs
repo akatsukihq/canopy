@@ -4,7 +4,6 @@ import { config as loadEnv } from "dotenv";
 import { sql } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/node-postgres";
 import pg from "pg";
-import { seedManagedTools } from "../seedManagedTools.ts";
 import * as schema from "../schema.ts";
 
 // Shell variables win over local files, matching the migration command.
@@ -18,8 +17,6 @@ const db = drizzle(client, { schema });
 
 try {
   await client.connect();
-  await seedManagedTools(db);
-
   const {
     rows: [{ template_count }],
   } = await client.query("SELECT COUNT(*)::integer AS template_count FROM invoice_templates");

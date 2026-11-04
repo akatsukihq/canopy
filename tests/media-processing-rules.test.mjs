@@ -1,3 +1,4 @@
+import { allToolSpecs } from "./helpers/toolSpec.mjs";
 import { readdir, readFile } from "node:fs/promises";
 import { createRequire } from "node:module";
 import { expect, test } from "vitest";
@@ -123,25 +124,13 @@ const requireFromMedia = createRequire(new URL("../package.json", import.meta.ur
 const TOOLS_URL = new URL("../tools/", import.meta.url);
 
 /**
- * The source of truth for what Media ships is the set of `tools/*\/definition.ts`
- * files, loaded exactly the way `tests/tool-registry.test.mjs` loads them: read
- * the folder names off disk, import each definition, keep the ones whose spec
- * declares `app: "media"`. There is deliberately no second catalogue to compare
- * against — the duplicate that used to live in `app/media/_lib/tools.ts` was
- * deleted rather than ported.
+ * The source of truth for what Media ships is the stored specs whose app is
+ * `media`, keyed by their `tools/<folder>`. There is deliberately no second
+ * catalogue to compare against.
  */
-const mediaTools = (
-  await Promise.all(
-    (await readdir(TOOLS_URL, { withFileTypes: true }))
-      .filter((entry) => entry.isDirectory())
-      .map((entry) => entry.name)
-      .sort()
-      .map(async (folder) => {
-        const spec = (await import(new URL(`${folder}/definition.ts`, TOOLS_URL))).default;
-        return { folder, spec };
-      }),
-  )
-).filter(({ spec }) => spec.app === "media");
+const mediaTools = (await allToolSpecs())
+  .filter((spec) => spec.app === "media")
+  .map((spec) => ({ folder: spec.toolId.split(".")[1], spec }));
 
 const mediaToolByFolder = new Map(mediaTools.map((tool) => [tool.folder, tool.spec]));
 

@@ -470,20 +470,13 @@ export async function saveToolTranslation(
 /**
  * The database half of a tool, created before its folder exists.
  *
- * A tool is two halves: `tools/<key>/definition.ts` plus a run file (shipped by
- * a deploy — a deployed app cannot write files), and a `managed_tools` row.
- * This creates the row only, and that is safe in both directions:
- *
- *  - `seedManagedTools` inserts with `onConflictDoNothing` on `tool_id`, so
- *    every later deploy leaves the name, description, slug and order typed here
- *    exactly as they are.
- *  - `catalog.ts` resolves the folder from `toolId.split(".")[1]` and drops any
- *    row whose `definition.ts` does not import, so a row with no code is
- *    invisible to visitors rather than a 404.
+ * A tool is two halves: a `managed_tools` row holding its spec, and a run file
+ * in `tools/<key>/` (shipped by a deploy — a deployed app cannot write files).
+ * This creates the row only. `catalog.ts` drops any row without a valid stored
+ * spec, so a row with no spec yet is invisible to visitors rather than a 404.
  *
  * The one irreversible field is the slug: `prevent_saved_tool_slug_change`,
- * `assertToolSlugImmutable` and `unique(app, slug)` freeze it, and the seed
- * *fails the deploy* if the shipped definition later declares a different one.
+ * `assertToolSlugImmutable` and `unique(app, slug)` freeze it.
  */
 export interface ManagedToolDraft {
   readonly app: string;
@@ -585,11 +578,9 @@ export async function createManagedTool(actorUserId: string, input: ManagedToolD
         })
         .returning();
 
-      // The seed writes an all-null row here; this one carries the category the
-      // admin chose. Discarding it would mean asking for a value and then
-      // throwing it away — and unlike the seed, there is no `definition.ts` yet
-      // for the resolver to fall back to. Every other column stays NULL, so it
-      // still inherits from code the moment the folder ships.
+      // This row carries the category the admin chose; discarding it would mean
+      // asking for a value and then throwing it away. Every other column stays
+      // NULL, so it inherits from the stored spec once one is saved.
       //
       // Left unpublished (`publishedAt` NULL): until the code exists there is
       // nothing to publish, and `resolveContent` treats an unpublished row as
@@ -787,9 +778,8 @@ export async function setManagedToolArchived(actorUserId: string, toolId: string
 // ---------------------------------------------------------------------------
 // Database-owned tool content.
 //
-// Every `tool_content` column is nullable and NULL means "fall back to
-// `tools/<key>/definition.ts`" — that is what keeps a freshly shipped folder
-// working with no row at all. So a blank string or an empty list CLEARS the
+// Every `tool_content` column is nullable and NULL means "fall back to the
+// stored spec" — that is what keeps a tool working with no content row at all. So a blank string or an empty list CLEARS the
 // override rather than storing an empty one, matching `resolveContent`, which
 // treats blank text and empty arrays as "not set" on read.
 //

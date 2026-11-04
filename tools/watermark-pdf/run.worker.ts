@@ -11,7 +11,7 @@
  * position is not stable across a re-pick, and a declared MIME is caller-
  * supplied. The cost is that `input.accept` must also list `image/jpeg` and
  * `image/png`, because the shared `assertRunnableFiles` checks every file
- * against it — see the note on `definition.ts`.
+ * against it.
  */
 
 import { clamp } from "../../lib/tool-framework/media/imageCodec.ts";

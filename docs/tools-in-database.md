@@ -1,6 +1,14 @@
 # Tools in the Database: Definitions, Translations, AI Helper
 
-Status: proposal · 2026-11-04
+Status: in progress · 2026-11-04
+
+Done on `feat/tools-in-database`: `managed_tools.spec` + `system_limits`
+(migration `0009-tool-spec`); loaders read `spec`; strict validator
+`parseToolSpec` (`lib/tool-framework/specSchema.ts`) on every load; `canopy` CLI
+(`tool new`, stopgap `tool sql`); every `definition.ts`, tool `translations.json`,
+the tool seed and the snapshot scripts deleted (they remain in git history).
+Next: `spec_draft` with save / publish / discard, the Admin Definition editor,
+then removing `tool sql`.
 
 ## Summary
 
@@ -171,9 +179,8 @@ The helper assists the admin; it does not translate on its own.
 1. **Tests.** 39 test files read definitions today.
    - Unit tests of `run.ts` / workspace logic pass the spec values they need
      inline. They test code, so they must not depend on whatever text a database holds.
-   - Tests that need real stored specs read a dedicated test database from
-     `TEST_DATABASE_URL`, filled with `pnpm db:copy`, and skip when it is unset.
-     They never use the dev `DATABASE_URL`, because dev edits would make them flaky.
+   - Tests that need real stored specs read them read-only from the local dev
+     database (`tests/helpers/toolSpec.mjs`: `toolSpec(key)`, `allToolSpecs()`).
 2. **Icons are served from the tool folders, no Cloudinary.** A prepare step
    (like `prepare:vendor`) copies `tools/<key>/icon.svg` to `public/tool-icons/<key>.svg`
    (gitignored) before `dev` and `build`. Next and the Cloudflare build serve them as

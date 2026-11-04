@@ -1,34 +1,13 @@
-import { readdir } from "node:fs/promises";
-
 import { expect, test } from "@playwright/test";
 
-import { slugFromName } from "../../lib/tool-catalog/index";
-import type { ToolSpec } from "../../lib/tool-framework/spec";
+import { enabledTools } from "../helpers/toolSpec.mjs";
 
 const DEVTOOLS_URL = "http://localhost:3000/devtools";
 
-// The shipped tools are the folders under `tools/`, walked the same way the
-// seed walks them. There is no bundled list to read instead.
-const TOOLS_URL = new URL("../../tools/", import.meta.url);
-const DEVTOOL_SPECS = (
-  await Promise.all(
-    (await readdir(TOOLS_URL, { withFileTypes: true }))
-      .filter((entry) => entry.isDirectory())
-      .map(
-        async (entry) =>
-          (
-            (await import(new URL(`${entry.name}/definition.ts`, TOOLS_URL).href)) as {
-              default: ToolSpec;
-            }
-          ).default,
-      ),
-  )
-).filter((spec) => spec.app === "devtools");
-
-// Seeding gives every folder a slug and enables it, so every shipped devtool is
-// a public route.
-const AVAILABLE_DEVTOOL_HREFS = DEVTOOL_SPECS.map((spec) => `/${spec.slug ?? slugFromName(spec.name)}`).sort();
-const DEVTOOLS_CATEGORY_COUNT = new Set(DEVTOOL_SPECS.map((spec) => spec.category)).size;
+// The public catalogue is the enabled rows of the dev database the server reads.
+const DEVTOOLS = (await enabledTools("devtools")) as { slug: string; spec: { category: string } }[];
+const AVAILABLE_DEVTOOL_HREFS = DEVTOOLS.map((tool) => `/${tool.slug}`).sort();
+const DEVTOOLS_CATEGORY_COUNT = new Set(DEVTOOLS.map((tool) => tool.spec.category)).size;
 
 test.describe("Devtools catalog navigation", () => {
   test("homepage uses public availability language", async ({ page }) => {
