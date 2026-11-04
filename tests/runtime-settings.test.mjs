@@ -1,6 +1,6 @@
 import { afterEach, expect, test } from "vitest";
 import { db } from "../db/index.ts";
-import { RuntimeSettingValueError, updateRuntimeSetting } from "../lib/admin/runtimeSettings.ts";
+import { RuntimeSettingValueError, saveSettings, updateRuntimeSetting } from "../lib/admin/runtimeSettings.ts";
 import { resolveRuntimeSettings } from "../lib/config/runtimeSettings.ts";
 
 const saved = { ...process.env };
@@ -149,4 +149,29 @@ test("rate limits and support email: form strings are coerced and bounded", asyn
   });
   const resolved = resolveRuntimeSettings(new Map([["traffic.codeRunsPerMinute", 500]]));
   expect(resolved["traffic.codeRunsPerMinute"]).toMatchObject({ value: 10, source: "env" });
+});
+
+test("saving a page applies every change and names the field a bad value came from", async () => {
+  await withDatabase(async (writes) => {
+    await saveSettings("u1", { limits: [], runtime: [{ key: "ai.enabled", value: true }] });
+    expect(writes.find((w) => w.kind === "insert").values).toMatchObject({ key: "ai.enabled", value: true });
+  });
+  await withDatabase(async (writes) => {
+    const error = await saveSettings("u1", {
+      limits: [],
+      runtime: [{ key: "traffic.codeRunsPerMinute", value: "999" }],
+    }).catch((caught) => caught);
+    expect(error).toBeInstanceOf(RuntimeSettingValueError);
+    expect(error.key).toBe("traffic.codeRunsPerMinute");
+    expect(writes).toEqual([]);
+  });
+  await withDatabase(
+    async (writes) => {
+      await expect(saveSettings("u1", { limits: [], runtime: [{ key: "ai.enabled", value: true }] })).rejects.toThrow(
+        /settings\.edit/,
+      );
+      expect(writes).toEqual([]);
+    },
+    { edit: false },
+  );
 });

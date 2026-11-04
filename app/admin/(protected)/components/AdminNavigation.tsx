@@ -1,8 +1,10 @@
 "use client";
 
 import { SidebarNavItem } from "@/components/ui/index.tsx";
+import { cn } from "@/components/ui/lib/utils.ts";
 import { appHref, subdomainHref } from "@/lib/routing/subdomains.ts";
 import {
+  ChevronDown,
   FileText,
   Newspaper,
   Flag,
@@ -49,22 +51,32 @@ export function AdminNavigation() {
           <div className="contents" key={href}>
             <SidebarNavItem
               active={active && !sections.length}
-              className="shrink-0"
+              aria-expanded={sections.length ? true : undefined}
+              className={cn("shrink-0", sections.length && "text-primary [&_svg]:text-primary")}
               href={appHref(sections.length ? `${href}/${SETTINGS_SECTIONS[0].slug}` : href)}
               icon={<Icon aria-hidden="true" />}
             >
               {label}
+              {sections.length ? <ChevronDown aria-hidden="true" className="ml-auto hidden lg:block" /> : null}
             </SidebarNavItem>
-            {sections.map((section) => (
-              <SidebarNavItem
-                active={child === section.slug}
-                className="min-h-8 shrink-0 py-1.5 lg:ml-[30px]"
-                href={appHref(`${href}/${section.slug}`)}
-                key={section.slug}
+            {sections.length ? (
+              <ul
+                aria-label={`${label} sections`}
+                className="ml-[21px] hidden flex-col gap-0.5 border-l border-border pl-2 lg:flex"
               >
-                {section.label}
-              </SidebarNavItem>
-            ))}
+                {sections.map((section) => (
+                  <li key={section.slug}>
+                    <SidebarNavItem
+                      active={child === section.slug}
+                      className="min-h-8 py-1.5 font-normal"
+                      href={appHref(`${href}/${section.slug}`)}
+                    >
+                      {section.label}
+                    </SidebarNavItem>
+                  </li>
+                ))}
+              </ul>
+            ) : null}
           </div>
         );
       })}

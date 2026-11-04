@@ -28,13 +28,15 @@ owner folder yet; no LFS archive was made (git history holds the deleted files).
   `lib/tool-framework/limits.ts`, rejected if stale, audited
   (`system-limit.edit`), and clears the catalog cache.
 - **Runtime settings** — each Settings section is its own route
-  (`/admin/settings/<limits|ai|traffic|site|environment>`), listed as nested
-  items under Settings in the sidebar. Overridable: AI on/off, assistant and
+  (`/admin/settings/<limits|ai|traffic|site>`), listed as nested items under
+  Settings in the sidebar. Each page has one Save for all its changes, written
+  in a single transaction (a rejected value saves nothing). Overridable: AI on/off, assistant and
   title models, tool API requests and code runs per visitor per minute
   (bounded 1–120 / 1–60), and the Contact page support email. The env or code
   value is the default; "Reset to default" deletes the override. Models must be in `OPENAI_MODELS`; add an ID only after confirming
   the provider serves it. Audited as `platform-setting.edit`.
-- **Environment** — read only; secrets show only whether they are set.
+- Env-only configuration (database, Redis, keys, providers) is not shown in
+  Admin; it cannot be changed there.
 
 ## Summary
 

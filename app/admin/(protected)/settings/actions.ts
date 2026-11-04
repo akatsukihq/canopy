@@ -2,72 +2,55 @@
 
 import { captureException } from "@sentry/core";
 import { revalidatePath } from "next/cache";
+import { z } from "zod";
 import { getActorUserId } from "@/lib/admin/access";
 import { AuthorizationError } from "@/lib/admin/index.ts";
-import { RuntimeSettingValueError, updateRuntimeSetting } from "@/lib/admin/runtimeSettings.ts";
-import { SystemLimitValueError, updateSystemLimit } from "@/lib/admin/systemLimits.ts";
+import { RuntimeSettingValueError, saveSettings } from "@/lib/admin/runtimeSettings.ts";
+import { SystemLimitValueError } from "@/lib/admin/systemLimits.ts";
 import { measureServerAction } from "@/lib/observability/sentry.ts";
 import { errorMessage } from "@/utils/errorMessage.ts";
 
-export type SystemLimitActionState = {
+export type SettingsActionState = {
   status: "idle" | "success" | "error";
   message: string;
-  /** Set when the value itself was rejected, so the form shows it beside the field. */
-  fieldError?: string;
-  updatedAt?: string;
+  /** Set when a value was rejected, so the form shows it beside that field. */
+  fieldErrors?: Record<string, string>;
 };
 
-export async function updateSystemLimitAction(
-  _previous: SystemLimitActionState,
+const changesSchema = z.object({
+  limits: z.array(z.object({ key: z.string().max(100), value: z.number(), updatedAt: z.string().max(40) })).max(50),
+  runtime: z
+    .array(z.object({ key: z.string().max(100), value: z.union([z.string().max(320), z.boolean(), z.null()]) }))
+    .max(50),
+});
+
+/** Saves every change on one Settings page in a single transaction; a rejected value saves nothing. */
+export async function saveSettingsAction(
+  _previous: SettingsActionState,
   formData: FormData,
-): Promise<SystemLimitActionState> {
-  return measureServerAction<SystemLimitActionState>("admin.settings.updateSystemLimitAction", async () => {
-    const raw = String(formData.get("value") ?? "").trim();
-    const scale = Number(formData.get("scale") ?? 1);
-    const value = raw === "" ? Number.NaN : Math.round(Number(raw) * (Number.isFinite(scale) ? scale : 1));
+): Promise<SettingsActionState> {
+  return measureServerAction<SettingsActionState>("admin.settings.saveSettingsAction", async () => {
+    let changes: z.infer<typeof changesSchema>;
     try {
-      const saved = await updateSystemLimit(await getActorUserId(), String(formData.get("key") ?? ""), {
-        value,
-        updatedAt: String(formData.get("updatedAt") ?? ""),
-      });
-      revalidatePath("/admin/settings", "layout");
-      return { status: "success", message: "Limit saved.", updatedAt: saved.updatedAt };
-    } catch (error) {
-      if (error instanceof SystemLimitValueError) {
-        return { status: "error", message: error.message, fieldError: error.message };
-      }
-      if (!(error instanceof AuthorizationError)) captureException(error);
-      return { status: "error", message: errorMessage(error, "The limit could not be saved.") };
+      changes = changesSchema.parse(JSON.parse(String(formData.get("changes") ?? "")));
+    } catch {
+      return { status: "error", message: "The changes could not be read. Reload and try again." };
     }
-  });
-}
-
-export type RuntimeSettingActionState = {
-  status: "idle" | "success" | "error";
-  message: string;
-  /** Set when the value itself was rejected, so the card shows it beside the field. */
-  fieldError?: string;
-};
-
-/** Saves an override, or clears it when `reset` is set so the environment value applies again. */
-export async function updateRuntimeSettingAction(
-  _previous: RuntimeSettingActionState,
-  formData: FormData,
-): Promise<RuntimeSettingActionState> {
-  return measureServerAction<RuntimeSettingActionState>("admin.settings.updateRuntimeSettingAction", async () => {
-    const reset = formData.get("reset") === "true";
-    const raw = String(formData.get("value") ?? "");
-    const value = reset ? null : raw === "true" ? true : raw === "false" ? false : raw;
+    if (!changes.limits.length && !changes.runtime.length) return { status: "idle", message: "" };
     try {
-      await updateRuntimeSetting(await getActorUserId(), String(formData.get("key") ?? ""), value);
+      await saveSettings(await getActorUserId(), changes);
       revalidatePath("/admin/settings", "layout");
-      return { status: "success", message: reset ? "Reverted to the environment value." : "Setting saved." };
+      return { status: "success", message: "Settings saved." };
     } catch (error) {
-      if (error instanceof RuntimeSettingValueError) {
-        return { status: "error", message: error.message, fieldError: error.message };
+      if (error instanceof SystemLimitValueError || error instanceof RuntimeSettingValueError) {
+        return {
+          status: "error",
+          message: "Nothing was saved. Fix the highlighted field.",
+          fieldErrors: { [error.key]: error.message },
+        };
       }
       if (!(error instanceof AuthorizationError)) captureException(error);
-      return { status: "error", message: errorMessage(error, "The setting could not be saved.") };
+      return { status: "error", message: errorMessage(error, "The settings could not be saved.") };
     }
   });
 }

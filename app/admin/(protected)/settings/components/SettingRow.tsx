@@ -1,5 +1,5 @@
 import type { ReactNode } from "react";
-import { Caption, Card, Label, P } from "@/components/ui/index.tsx";
+import { Caption, Card, H2, Label, P } from "@/components/ui/index.tsx";
 
 /** One setting: what it is on the left, its value or control on the right. Stacks on narrow screens. */
 export function SettingRow({
@@ -39,10 +39,22 @@ export function SettingRow({
   );
 }
 
-/** The card holding a settings page's rows; the page header carries the title. */
-export function SettingsSection({ children }: { children: ReactNode }) {
+/** A titled group of setting rows. */
+export function SettingsSection({
+  children,
+  description,
+  title,
+}: {
+  children: ReactNode;
+  description: ReactNode;
+  title: string;
+}) {
   return (
-    <Card className="overflow-hidden p-0">
+    <Card aria-label={title} className="overflow-hidden p-0" role="region">
+      <div className="border-b border-border bg-muted/40 px-5 py-3">
+        <H2 className="text-sm font-semibold">{title}</H2>
+        <Caption className="block text-muted-foreground">{description}</Caption>
+      </div>
       <ul className="divide-y divide-border">{children}</ul>
     </Card>
   );

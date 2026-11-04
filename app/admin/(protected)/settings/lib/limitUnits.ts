@@ -12,9 +12,3 @@ export function formatLimit(value: number, unit: LimitUnit): string {
   const label = { chars: "characters", count: "", px: "px" }[unit];
   return `${value.toLocaleString("en")}${label ? ` ${label}` : ""}`;
 }
-
-/** `platform_max_bytes` → "Platform max bytes". */
-export function limitLabel(key: string): string {
-  const words = key.split("_").join(" ");
-  return words.charAt(0).toUpperCase() + words.slice(1);
-}
