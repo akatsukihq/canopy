@@ -8,7 +8,30 @@ Done on `feat/tools-in-database`: `managed_tools.spec` + `system_limits`
 (`tool new`); every `definition.ts`, tool `translations.json`,
 the tool seed and the snapshot scripts deleted (they remain in git history);
 `managed_tools.spec_draft` (migration `0010-tool-spec-draft`) with save draft /
-publish / discard; Admin Definition editor and draft preview; `tool sql` removed.
+publish / discard; Admin Definition editor and draft preview; `tool sql` removed;
+`{name}` placeholder chips in the Definition and Translations editors; icons
+served from `tools/<key>/icon.svg` (`scripts/copy-tool-icons.mjs`, run by
+`prepare:vendor` and `postinstall`); Admin → Settings: all 12 `system_limits`
+editable below their code ceilings, tools over a lowered limit listed, and
+AI runtime overrides in `platform_settings` (migration `0011-platform-settings`,
+`lib/config/runtimeSettings.ts`).
+
+Open: the tool AI assistant is being widened from Translations to every tool
+section (content/SEO, Definition, Translations); `invoice-generator.svg` has no
+owner folder yet; no LFS archive was made (git history holds the deleted files).
+
+## Admin settings
+
+`/admin/settings` needs the `settings` permission (`view`, `edit`).
+
+- **System limits** — every edit is checked against the code ceiling in
+  `lib/tool-framework/limits.ts`, rejected if stale, audited
+  (`system-limit.edit`), and clears the catalog cache.
+- **Runtime settings** — overrides for AI on/off, the assistant chat model and
+  the blog title model. The env value is the default; "Reset to env" deletes the
+  override. Models must be in `OPENAI_MODELS`; add an ID only after confirming
+  the provider serves it. Audited as `platform-setting.edit`.
+- **Environment** — read only; secrets show only whether they are set.
 
 ## Summary
 
