@@ -50,10 +50,11 @@ import {
 import { getEnabledTools, isToolAvailable, isValidToolSlug, mergeToolManifest } from "../tool-catalog/index.ts";
 import type { ToolApp as PublicToolApp } from "../tool-catalog/index.ts";
 
-import { isCategoryKey, type CategoryKey, type ToolApp } from "./categories";
+import type { CategoryKey, ToolApp } from "./categories";
 import { resolveContent } from "./content";
 import { resolveIcon, type ResolvedIcon } from "./icons";
 import type { ToolContent, ToolSpec } from "./spec";
+import { parseToolSpec } from "./specSchema";
 import { clampSpecLimits, loadSystemLimits } from "./systemLimits.ts";
 
 /** How many tools `relatedTools` returns, matching the tool page's shelf. */
@@ -120,30 +121,20 @@ export function definitionKeyOf(toolId: string): string | null {
   return DEFINITION_KEY_PATTERN.test(key) ? key : null;
 }
 
-function isToolSpec(value: unknown): value is ToolSpec {
-  if (typeof value !== "object" || value === null) return false;
-  const spec = value as Partial<ToolSpec>;
-  return (
-    typeof spec.toolId === "string" &&
-    typeof spec.name === "string" &&
-    typeof spec.description === "string" &&
-    isCategoryKey(spec.category) &&
-    Array.isArray(spec.keywords) &&
-    typeof spec.content === "object" &&
-    spec.content !== null
-  );
-}
-
 /**
- * A row's stored definition, shape-checked and clamped to the system limits.
+ * A row's stored definition, validated by `parseToolSpec` and clamped to the system limits.
  *
  * Returns `null` rather than throwing: a row with a missing or malformed spec
  * must drop out of the catalogue, not break every page that lists it.
  */
 export async function specFromRow(row: Pick<ManagedToolRow, "toolId" | "app" | "spec">): Promise<ToolSpec | null> {
-  const spec = row.spec;
-  if (!isToolSpec(spec) || spec.toolId !== row.toolId || spec.app !== row.app) return null;
-  return clampSpecLimits(spec, await loadSystemLimits());
+  const parsed = parseToolSpec(row.spec);
+  if (!parsed.ok) {
+    if (row.spec != null) console.error(`Invalid stored spec for ${row.toolId}: ${parsed.issues.join("; ")}`);
+    return null;
+  }
+  if (parsed.spec.toolId !== row.toolId || parsed.spec.app !== row.app) return null;
+  return clampSpecLimits(parsed.spec, await loadSystemLimits());
 }
 
 /** Loads one tool's stored definition by stable tool ID. */
