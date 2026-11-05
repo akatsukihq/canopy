@@ -2,6 +2,8 @@
 
 rename 's/$/\.ts/' "$@" # Add .ts extension
 
+# TypeScript 7's Go compiler parses on many OS threads; --singleThreaded keeps it under the sandbox's
+# PISTON_MAX_PROCESS_COUNT (64), which counts threads. Without it tsc dies with "failed to create new OS thread".
 # Explicit options: TypeScript 6+ changed the defaults (module, types, strict) and 7 dropped node10 resolution, so every version compiles the same way.
-tsc --target es2022 --module nodenext --types node \
+tsc --singleThreaded --target es2022 --module nodenext --types node \
     --typeRoots "$TS_ROOT/lib/node_modules/@types" --strict --skipLibCheck --outDir . *.ts
