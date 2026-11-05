@@ -21,6 +21,7 @@ import {
   parseMessageParts,
   AssistantError,
   assistantId,
+  assistantResourceId,
   threadPatchSchema,
   validateAssistantImage,
   publicReference,
@@ -356,7 +357,7 @@ export function createAssistantThreads(integration: AssistantIntegration) {
     edit = false,
     operation?: string,
   ) {
-    if (resourceId !== null) assistantId.parse(resourceId);
+    if (resourceId !== null) assistantResourceId.parse(resourceId);
     await integration.authorize(tx, actor, resourceId, edit, operation);
   }
   async function requireThread(
