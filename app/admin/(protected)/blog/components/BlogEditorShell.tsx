@@ -107,7 +107,7 @@ export function BlogEditorShell({
         }}
       >
         <header className={styles.header}>
-          <BackButton href={backHref} label="Back to posts" />
+          <BackButton href={backHref} label="Back to posts" className="self-center" />
           <h1 className={styles.title}>{title || "Untitled post"}</h1>
           <div className={styles.actions}>
             <div className={styles.panelActions} role="group" aria-label="Editor panels">

@@ -210,26 +210,32 @@ function ToastList({ top, closeButton, dismissible }: { top: boolean; closeButto
         top && "top-0 bottom-auto origin-top [--direction:1] after:top-auto after:bottom-full",
       )}
     >
-      <ToastContent>
-        <ToastIcon type={toastItem.type} />
-        <div className="flex min-w-0 flex-1 flex-col gap-1">
+      <ToastContent className="items-start">
+        <span className="flex h-5 items-center">
+          <ToastIcon type={toastItem.type} />
+        </span>
+        <div className="flex min-w-0 flex-1 flex-col gap-0.5">
           <ToastTitle />
           <ToastDescription />
+          {toastItem.actionProps || toastItem.data?.cancel ? (
+            <div className="mt-1.5 flex items-center gap-1">
+              <ToastAction render={<Button variant="outline" size="xs" />} />
+              {toastItem.data?.cancel ? (
+                <Button
+                  size="xs"
+                  variant="ghost"
+                  onClick={(event) => {
+                    toastItem.data?.cancel?.onClick(event);
+                    if (!event.defaultPrevented) close(toastItem.id);
+                  }}
+                >
+                  {toastItem.data.cancel.label}
+                </Button>
+              ) : null}
+            </div>
+          ) : null}
         </div>
-        <ToastAction />
-        {toastItem.data?.cancel ? (
-          <Button
-            size="sm"
-            variant="ghost"
-            onClick={(event) => {
-              toastItem.data?.cancel?.onClick(event);
-              if (!event.defaultPrevented) close(toastItem.id);
-            }}
-          >
-            {toastItem.data.cancel.label}
-          </Button>
-        ) : null}
-        {dismissible && (toastItem.data?.closeButton ?? closeButton) ? <ToastClose /> : null}
+        {dismissible && (toastItem.data?.closeButton ?? closeButton) ? <ToastClose className="-mt-1 -mr-1.5" /> : null}
       </ToastContent>
     </Toast>
   ));
