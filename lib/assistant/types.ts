@@ -126,6 +126,7 @@ export type AssistantEvent =
   | { type: "run"; run: AssistantRun; attachments?: AssistantAttachment[] }
   | { type: "text-delta"; text: string }
   | { type: "reasoning-delta"; text: string }
+  | { type: "step"; index: number; label: string }
   | { type: "text"; text: string }
   | { type: "proposal"; proposal: AssistantProposal }
   | { type: "completed"; run: AssistantRun }

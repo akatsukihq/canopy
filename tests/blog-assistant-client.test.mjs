@@ -83,6 +83,8 @@ vi.mock("@/lib/assistant/client.ts", () => {
       "assistant:" + JSON.stringify([owner, integration, resource ?? null]),
     streamAssistantRun,
     assistantRequest,
+    cancelAssistantRun: (integration, runId) =>
+      assistantRequest(`/api/assistant/${integration}/runs/${runId}`, undefined, "DELETE"),
   };
 });
 
@@ -1689,7 +1691,13 @@ test("streamed reasoning shows beside the answer and the picked model and effort
 test("an unlisted or default model is not sent, so the server uses the admin model", async () => {
   onRequest = (url) =>
     url.endsWith("/config")
-      ? { ...config, defaultModel: "claude-sonnet-5-5", models: [{ id: "claude-sonnet-5-5", name: "Claude Sonnet 5.5", efforts: ["low", "medium", "high", "xhigh", "max"] }] }
+      ? {
+          ...config,
+          defaultModel: "claude-sonnet-5-5",
+          models: [
+            { id: "claude-sonnet-5-5", name: "Claude Sonnet 5.5", efforts: ["low", "medium", "high", "xhigh", "max"] },
+          ],
+        }
       : undefined;
   await mounted(["thread-1"]);
   render().setModelChoice({ model: "claude-retired-1" });

@@ -40,6 +40,10 @@ export async function assistantRequest<T>(
   return result as T;
 }
 
+/** Leaving the page keeps a run going; this is the only way to stop one. */
+export const cancelAssistantRun = (integrationKey: string, runId: string) =>
+  assistantRequest(`${assistantApiBase(integrationKey)}/runs/${encodeURIComponent(runId)}`, undefined, "DELETE");
+
 export const activeRun = (status: string) => ["queued", "running", "unknown"].includes(status);
 
 /** One request owns one stream; callers own UI state and cancellation triggers. */
@@ -73,7 +77,12 @@ export async function streamAssistantRun(
     if (!line.trim()) return;
     signal.throwIfAborted();
     const event = JSON.parse(line) as import("@/lib/assistant/types").AssistantEvent;
-    if (!event || !["run", "text", "text-delta", "reasoning-delta", "proposal", "completed", "title", "error"].includes(event.type))
+    if (
+      !event ||
+      !["run", "text", "text-delta", "reasoning-delta", "step", "proposal", "completed", "title", "error"].includes(
+        event.type,
+      )
+    )
       throw new Error("The server sent an unreadable update. Refresh history before retrying.");
     if (
       (event.type === "text-delta" || event.type === "reasoning-delta" || event.type === "text") &&

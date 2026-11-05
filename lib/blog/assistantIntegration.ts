@@ -28,6 +28,7 @@ import {
 } from "./assistantValidation.ts";
 import { agentInstructions, agentOutputSchema, validateAgentOutput } from "./agentRegistry.ts";
 import { getBlogAgent } from "./agentCatalog.ts";
+import { generationStages } from "./generationAgents.ts";
 import { supportedArtifact, type BlogArtifact } from "./agentArtifacts.ts";
 import {
   blogDocumentHash,
@@ -262,6 +263,8 @@ export const blogAssistantIntegration: AssistantIntegration = {
         proposals.push(...separateSeoProposals(proposal));
         return { status: "pending_review", proposal };
       };
+    if (request.operation === "generate")
+      return { ...generationStages(modelMessages(request, history, attachments)), signal };
     return {
       messages: modelMessages(request, history, attachments),
       schema: request.operation === "agent" ? agentOutputSchema : outputSchema(request.operation),

@@ -12,6 +12,14 @@ export async function register() {
     });
     // Monitor only observes: a plain "uncaughtException" listener would stop Node from exiting.
     process.on("uncaughtExceptionMonitor", (error, origin) => logError("process.crash", error, { origin }));
+    // Runs orphaned by a restart would otherwise show "running" forever. Idempotent DB update, safe per replica.
+    const sweep = () =>
+      import("./lib/assistant/maintenance.ts")
+        .then(({ failInterruptedRuns }) => failInterruptedRuns())
+        .then((count) => count && log("info", "assistant.interrupted_runs_failed", { count }))
+        .catch((error: unknown) => logError("assistant.interrupted_runs_sweep", error));
+    void sweep();
+    setInterval(sweep, 10 * 60_000).unref();
   }
   if (!publicConfig.sentryDsn) return;
   const { initializeSentry } = await import("./lib/observability/sentry");

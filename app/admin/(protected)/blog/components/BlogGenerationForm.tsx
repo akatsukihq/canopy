@@ -6,7 +6,13 @@ import { useRouter } from "next/navigation";
 import { ChevronDown, Sparkles } from "lucide-react";
 import { Button, H1, Input, Label, Select, Textarea, toast } from "@/components/ui/index.tsx";
 import type { AssistantAvailability, AssistantRun, AssistantRunRequest } from "@/lib/assistant/types";
-import { activeRun, AssistantRequestError, assistantRequest, streamAssistantRun } from "@/lib/assistant/client";
+import {
+  activeRun,
+  AssistantRequestError,
+  assistantRequest,
+  cancelAssistantRun,
+  streamAssistantRun,
+} from "@/lib/assistant/client";
 
 import { BlogGenerationProgress } from "./BlogGenerationProgress";
 
@@ -116,6 +122,8 @@ export function BlogGenerationForm({
   const [fieldError, setFieldError] = useState("");
   const [referenceError, setReferenceError] = useState("");
   const [connectionError, setConnectionError] = useState("");
+  /** Live agent steps and their streamed reasoning for this tab's generation. */
+  const [steps, setSteps] = useState<{ label: string; reasoning: string }[]>([]);
   const [loaded, setLoaded] = useState(false);
   const submission = useRef<AssistantRunRequest | null>(null);
   const alive = useRef(true);
@@ -303,9 +311,11 @@ export function BlogGenerationForm({
     controller.current = abort;
     setSubmitting(true);
     setConnectionError("");
+    setSteps([]);
     const request = submission.current ?? {
       schemaVersion: 1,
       operation: "generate",
+      effort: "high",
       clientRequestId: crypto.randomUUID(),
       message: brief.idea.trim(),
       settings: {
@@ -334,6 +344,13 @@ export function BlogGenerationForm({
     try {
       await streamAssistantRun("blog", request, abort.signal, (event) => {
         if (!alive.current || abort.signal.aborted) return;
+        if (event.type === "step") setSteps((value) => [...value, { label: event.label, reasoning: "" }]);
+        else if (event.type === "reasoning-delta")
+          setSteps((value) =>
+            value.length
+              ? [...value.slice(0, -1), { ...value.at(-1)!, reasoning: value.at(-1)!.reasoning + event.text }]
+              : [{ label: "Thinking", reasoning: event.text }],
+          );
         if (event.type === "run" || event.type === "completed" || (event.type === "error" && event.run)) {
           const next = event.run!;
           receiveRun(next);
@@ -374,16 +391,25 @@ export function BlogGenerationForm({
       if (alive.current) setSubmitting(false);
     }
   }
-  function cancel() {
+  async function cancel() {
     dismissed.current = true;
+    const runId = run?.id;
+    try {
+      if (runId) await cancelAssistantRun("blog", runId);
+      setConnectionError("Generation stopped. Your idea is saved; try again when ready.");
+    } catch (cause) {
+      setConnectionError(
+        cause instanceof Error ? cause.message : "Could not stop generation. Refresh status to check its outcome.",
+      );
+    }
     controller.current?.abort();
-    setConnectionError("Request stopped in this tab. Refresh status to check its saved outcome.");
   }
   if (!hidden && (run || submitting))
     return (
       <BlogGenerationProgress
         run={run}
         brief={brief.idea}
+        steps={steps}
         streaming={submitting && !controller.current?.signal.aborted}
         refreshing={restoring}
         error={connectionError || run?.errorMessage || undefined}

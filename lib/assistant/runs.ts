@@ -18,6 +18,7 @@ import { assistantModels, createAIClient } from "../config/integrations.ts";
 import { effortLevels } from "../ai/models.ts";
 import { AIError } from "../ai/errors.ts";
 import type { AIResult, AIToolCall } from "../ai/types.ts";
+import type { AssistantStageRequest } from "./integration.ts";
 import { ACTIVE_RUN_STATUSES, privateExpiry, type AssistantThreads } from "./threads.ts";
 import {
   AssistantError,
@@ -506,13 +507,10 @@ export function createAssistantRuns(integration: AssistantIntegration, storage: 
     const started = await startRun(actor, input);
     const { run, fresh, attachments: inputAttachments } = started;
     const needsTitle = "needsTitle" in started && started.needsTitle;
+    // A closed tab or back navigation only stops the stream; the run keeps going and saves its result.
+    // Only an explicit cancelRun aborts the provider call.
     const abort = new AbortController();
     let providerComplete = false;
-    const onAbort = () => {
-      if (!providerComplete) abort.abort();
-    };
-    requestSignal.addEventListener("abort", onAbort, { once: true });
-    if (requestSignal.aborted) onAbort();
     const encoder = new TextEncoder();
     const body = new ReadableStream<Uint8Array>({
       async start(controller) {
@@ -532,6 +530,8 @@ export function createAssistantRuns(integration: AssistantIntegration, storage: 
         abort.signal.addEventListener("abort", cancelAuxiliary, { once: true });
         let completedRun: StoredRun | undefined;
         let receivedResult: AIResult | undefined;
+        /** Usage of earlier completed stages of a multi-stage run. */
+        let stageUsage: AIResult["usage"];
         try {
           emit({
             type: "run",
@@ -567,55 +567,85 @@ export function createAssistantRuns(integration: AssistantIntegration, storage: 
               ? threadTitle(run, run.threadId, AbortSignal.any([abort.signal, AbortSignal.timeout(10_000)]))
               : undefined;
           const proposals: AssistantProposal[] = [];
-          const providerRequest = await integration.buildRequest({ run, ...context, proposals, signal: abort.signal });
-          providerRequest.metadata = { ...providerRequest.metadata, feature: integration.key, runId: run.id };
-          providerRequest.model ??= run.model;
-          const levels = effortLevels(run.provider, providerRequest.model);
-          const wanted = run.request.effort ?? integration.agentEffort?.(run.request.agentId) ?? "medium";
-          // A level the model lacks (Max on Haiku) falls back to its highest one.
-          if (levels.length) providerRequest.effort ??= levels.includes(wanted) ? wanted : levels.at(-1);
-          for await (const event of (await createAIClient(run.provider)).stream(providerRequest)) {
-            if (event.type === "text-delta") {
-              if (!providerRequest.schema) emit(event);
-            } else if (event.type === "reasoning-delta") {
-              emit(event);
-            } else if (event.type === "output") {
-              const text = integration.partialText?.(event.output, run.request);
-              if (text !== undefined) emit({ type: "text", text });
-            } else if (event.type === "response") {
-              await db
-                .update(runs)
-                .set({
-                  providerResponseId: event.response.id || null,
-                  model: event.response.model,
-                  continuation: sql`${runs.continuation} || ${JSON.stringify({ handles: [event.response.id].filter(Boolean) })}::jsonb`,
-                })
-                .where(eq(runs.id, run.id));
-            } else if (event.type === "completed") {
+          let providerRequest: AssistantStageRequest | undefined = await integration.buildRequest({
+            run,
+            ...context,
+            proposals,
+            signal: abort.signal,
+          });
+          const client = await createAIClient(run.provider);
+          // Multi-stage integrations chain agents; each stage's result builds the next, the last one finishes the run.
+          for (let index = 0; providerRequest; index++) {
+            const stage: AssistantStageRequest = providerRequest;
+            providerRequest = undefined;
+            if (index > 0) {
+              const [current] = await db.select({ status: runs.status }).from(runs).where(eq(runs.id, run.id));
+              if (!current || !ACTIVE_RUN_STATUSES.some((status) => status === current.status)) abort.abort();
               abort.signal.throwIfAborted();
-              receivedResult = event.result;
-              if (event.result.status !== "completed") {
-                const error = new AIError(
-                  event.result.status === "cancelled" ? "CANCELLED" : "INVALID_OUTPUT",
-                  event.result.error?.message ?? "The assistant did not finish its response. Try again.",
+            }
+            stage.metadata = { ...stage.metadata, feature: integration.key, runId: run.id };
+            stage.model ??= run.model;
+            stage.signal ??= abort.signal;
+            const levels = effortLevels(run.provider, stage.model);
+            const wanted = run.request.effort ?? integration.agentEffort?.(run.request.agentId) ?? "medium";
+            // A level the model lacks (Max on Haiku) falls back to its highest one.
+            if (levels.length) stage.effort ??= levels.includes(wanted) ? wanted : levels.at(-1);
+            if (stage.stage) emit({ type: "step", index, label: stage.stage });
+            for await (const event of client.stream(stage)) {
+              if (event.type === "text-delta") {
+                if (!stage.schema && !stage.next) emit(event);
+              } else if (event.type === "reasoning-delta") {
+                emit(event);
+              } else if (event.type === "output") {
+                const text = stage.next ? undefined : integration.partialText?.(event.output, run.request);
+                if (text !== undefined) emit({ type: "text", text });
+              } else if (event.type === "response") {
+                await db
+                  .update(runs)
+                  .set({
+                    providerResponseId: event.response.id || null,
+                    model: event.response.model,
+                    updatedAt: new Date(),
+                    continuation: sql`${runs.continuation} || ${JSON.stringify({ handles: [event.response.id].filter(Boolean) })}::jsonb`,
+                  })
+                  .where(eq(runs.id, run.id));
+              } else if (event.type === "completed") {
+                abort.signal.throwIfAborted();
+                receivedResult = event.result;
+                if (event.result.status !== "completed") {
+                  const error = new AIError(
+                    event.result.status === "cancelled" ? "CANCELLED" : "INVALID_OUTPUT",
+                    event.result.error?.message ?? "The assistant did not finish its response. Try again.",
+                  );
+                  error.usage = event.result.usage;
+                  throw error;
+                }
+                providerRequest = stage.next?.(event.result);
+                if (providerRequest) {
+                  stageUsage = combinedUsage(stageUsage, event.result.usage);
+                  receivedResult = undefined;
+                  continue;
+                }
+                providerComplete = true;
+                await db
+                  .update(runs)
+                  .set({ continuation: sql`${runs.continuation} || '{"resultReceived":true}'::jsonb` })
+                  .where(eq(runs.id, run.id));
+                auxiliaryAbort.abort();
+                const [auxiliaryResult, titled] = await Promise.all([auxiliaryWork, titleWork]);
+                if (titled?.title) emit({ type: "title", title: titled.title });
+                completedRun = await finishRun(
+                  run.id,
+                  { ...event.result, usage: combinedUsage(stageUsage, event.result.usage) },
+                  proposals,
+                  {
+                    ...auxiliaryResult,
+                    usage: combinedUsage(auxiliaryResult?.usage, titled?.usage),
+                  },
                 );
-                error.usage = event.result.usage;
-                throw error;
+                for (const proposal of completedRun.response?.proposals ?? []) emit({ type: "proposal", proposal });
+                emit({ type: "completed", run: runView(completedRun) });
               }
-              providerComplete = true;
-              await db
-                .update(runs)
-                .set({ continuation: sql`${runs.continuation} || '{"resultReceived":true}'::jsonb` })
-                .where(eq(runs.id, run.id));
-              auxiliaryAbort.abort();
-              const [auxiliaryResult, titled] = await Promise.all([auxiliaryWork, titleWork]);
-              if (titled?.title) emit({ type: "title", title: titled.title });
-              completedRun = await finishRun(run.id, event.result, proposals, {
-                ...auxiliaryResult,
-                usage: combinedUsage(auxiliaryResult?.usage, titled?.usage),
-              });
-              for (const proposal of completedRun.response?.proposals ?? []) emit({ type: "proposal", proposal });
-              emit({ type: "completed", run: runView(completedRun) });
             }
           }
           if (!providerComplete) throw new Error("The provider stream ended without a final result.");
@@ -630,6 +660,7 @@ export function createAssistantRuns(integration: AssistantIntegration, storage: 
                 ? error.message
                 : "Generation was interrupted. Your input is saved; try again when ready.";
           const usage = combinedUsage(
+            stageUsage,
             receivedResult?.usage ?? (error instanceof AIError ? error.usage : undefined),
             auxiliaryResult?.usage,
             titled?.usage,
@@ -680,7 +711,6 @@ export function createAssistantRuns(integration: AssistantIntegration, storage: 
               .where(eq(messages.runId, run.id));
           emit({ type: "error", message, ...(failed ? { run: runView(failed) } : {}) });
         } finally {
-          requestSignal.removeEventListener("abort", onAbort);
           abort.signal.removeEventListener("abort", cancelAuxiliary);
           try {
             controller.close();
@@ -689,9 +719,6 @@ export function createAssistantRuns(integration: AssistantIntegration, storage: 
           }
           if (completedRun) await cleanupCompletedResponses(completedRun);
         }
-      },
-      cancel() {
-        onAbort();
       },
     });
     return new Response(body, {
@@ -721,7 +748,11 @@ export function createAssistantRuns(integration: AssistantIntegration, storage: 
         ],
         metadata: { feature: `${integration.key}-thread-title`, runId: run.id },
       });
-      const title = result.text.trim().replace(/^["'“]+|["'”.]+$/g, "").replace(/\s+/g, " ").slice(0, 80);
+      const title = result.text
+        .trim()
+        .replace(/^["'“]+|["'”.]+$/g, "")
+        .replace(/\s+/g, " ")
+        .slice(0, 80);
       if (!title || signal.aborted || result.status !== "completed") return { usage: result.usage };
       const [saved] = await db
         .update(threads)
@@ -748,6 +779,20 @@ export function createAssistantRuns(integration: AssistantIntegration, storage: 
   }
   async function getRun(actor: string, id: string) {
     return runView(await db.transaction((tx) => authorizeRun(tx, actor, id)));
+  }
+  /** Explicit stop from the owner. The running stream sees the status and stops before its next agent or save. */
+  async function cancelRun(actor: string, id: string) {
+    return db.transaction(async (tx) => {
+      const run = await authorizeRun(tx, actor, id, true);
+      if (!active(run)) return runView(run);
+      const now = new Date();
+      const [cancelled] = await tx
+        .update(runs)
+        .set({ status: "cancelled", errorMessage: "Request cancelled.", completedAt: now, updatedAt: now })
+        .where(and(eq(runs.id, id), sql`${runs.status} IN ('queued','running','unknown')`))
+        .returning();
+      return runView(cancelled ?? run);
+    });
   }
   async function updateProposal(actor: string, id: string, proposalId: string, input: unknown) {
     const { status } = z
@@ -786,5 +831,5 @@ export function createAssistantRuns(integration: AssistantIntegration, storage: 
     });
   }
 
-  return { startRun, streamRun, getRun, updateProposal, authorizeRun };
+  return { startRun, streamRun, getRun, cancelRun, updateProposal, authorizeRun };
 }

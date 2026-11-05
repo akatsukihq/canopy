@@ -22,6 +22,7 @@ import {
   activeRun,
   assistantRequest,
   AssistantRequestError,
+  cancelAssistantRun,
   streamAssistantRun,
 } from "./client";
 import { NEW_THREAD_TITLE } from "@/lib/assistant/types";
@@ -103,9 +104,7 @@ export function useAssistant(integrationKey: string, resourceId: string | undefi
   const [submitting, setSubmitting] = useState<Record<string, boolean>>({});
   const alive = useRef(true);
   const controllers = useRef(new Map<string, AbortController>());
-  const [streams, setStreams] = useState<Record<string, { run: AssistantRun; text: string; reasoning?: string }>>(
-    {},
-  );
+  const [streams, setStreams] = useState<Record<string, { run: AssistantRun; text: string; reasoning?: string }>>({});
   const [freshRunIds, setFreshRunIds] = useState<string[]>([]);
   const detailsRef = useRef(details);
   detailsRef.current = details;
@@ -251,7 +250,11 @@ export function useAssistant(integrationKey: string, resourceId: string | undefi
         setAvailability(value);
         setModels(
           defaultModel !== undefined && list
-            ? { provider: value.provider, defaultModel, models: list.map((model) => ({ ...model, name: model.name || model.id })) }
+            ? {
+                provider: value.provider,
+                defaultModel,
+                models: list.map((model) => ({ ...model, name: model.name || model.id })),
+              }
             : null,
         );
       }
@@ -465,9 +468,7 @@ export function useAssistant(integrationKey: string, resourceId: string | undefi
     setThreads((value) =>
       value
         .map((thread) =>
-          thread.id === id && thread.updatedAt <= run.updatedAt
-            ? { ...thread, updatedAt: run.updatedAt }
-            : thread,
+          thread.id === id && thread.updatedAt <= run.updatedAt ? { ...thread, updatedAt: run.updatedAt } : thread,
         )
         .sort((a, b) => b.updatedAt.localeCompare(a.updatedAt)),
     );
@@ -1015,8 +1016,14 @@ export function useAssistant(integrationKey: string, resourceId: string | undefi
   }
   async function stop(run?: AssistantRun) {
     const id = run?.threadId ?? resolvedScope(currentScope());
-    if (id) controllers.current.get(id)?.abort();
+    const runId = (id ? streams[id]?.run.id : undefined) ?? run?.id;
     setError("");
+    // Closing the stream alone no longer stops the server run; cancel it explicitly first.
+    if (runId)
+      await cancelAssistantRun(integrationKey, runId).catch((cause: unknown) =>
+        toast.error(cause instanceof Error ? cause.message : "Could not stop the request."),
+      );
+    if (id) controllers.current.get(id)?.abort();
   }
   async function remove(historyOnly: boolean) {
     const scope = scopeVersion.current;

@@ -20,6 +20,13 @@ export type AssistantCompletion = {
 };
 export type AuxiliaryResult = Partial<Pick<AIResult, "id" | "model" | "usage">>;
 /** Features describe execution and domain policy; core owns lifecycle and persistence. */
+/** One agent call. `next` chains another agent from this one's result; the last result completes the run. */
+export type AssistantStageRequest = AIRequest & {
+  /** Plain-language step label shown while this agent works. */
+  stage?: string;
+  next?: (result: AIResult) => AssistantStageRequest | undefined;
+};
+
 export interface AssistantIntegration {
   key: string;
   defaultSettings: Record<string, unknown>;
@@ -52,7 +59,7 @@ export interface AssistantIntegration {
     attachments: StoredAttachment[];
     proposals: AssistantProposal[];
     signal: AbortSignal;
-  }): AIRequest | Promise<AIRequest>;
+  }): AssistantStageRequest | Promise<AssistantStageRequest>;
   partialText?(output: unknown, request: AssistantRunRequest): string | undefined;
   validateResult(
     result: AIResult,

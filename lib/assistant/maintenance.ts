@@ -11,10 +11,32 @@ import {
 import { createAIClient } from "../config/integrations.ts";
 import { attachmentProvider, deleteRunResponses } from "./resources.ts";
 
+/** A run untouched this long lost its process (restart or deploy); each agent step refreshes updatedAt. */
+const STALE_RUN_MINUTES = 30;
+
+/** Marks runs orphaned by a restart as failed so the UI offers Retry instead of waiting forever. */
+export async function failInterruptedRuns(): Promise<number> {
+  const now = new Date();
+  const failed = await db
+    .update(runs)
+    .set({
+      status: "failed",
+      errorMessage: "Generation was interrupted by a server restart. Your input is saved; try again.",
+      completedAt: now,
+      updatedAt: now,
+    })
+    .where(
+      sql`${runs.status} IN ('queued','running','unknown') AND ${runs.updatedAt} < now() - make_interval(mins => ${STALE_RUN_MINUTES})`,
+    )
+    .returning({ id: runs.id });
+  return failed.length;
+}
+
 /** Expire private content/resources, retaining execution and usage records for reporting. */
 export async function cleanupAssistant() {
   const deadline = Date.now() + 8_000;
   const counts = { files: 0, runs: 0, failed: 0 };
+  await failInterruptedRuns();
   const files = await db
     .select()
     .from(attachments)

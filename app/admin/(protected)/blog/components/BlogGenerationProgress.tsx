@@ -5,9 +5,13 @@ import { Button, H1 } from "@/components/ui/index.tsx";
 import type { AssistantRun } from "@/lib/assistant/types";
 import { activeRun } from "@/lib/assistant/client";
 
+/** Matches the server agent chain in lib/blog/generationAgents.ts. */
+const AGENT_STEPS = ["Planning the article", "Writing the complete article", "Removing AI writing patterns"];
+
 export function BlogGenerationProgress({
   run,
   brief,
+  steps = [],
   streaming,
   refreshing = false,
   error,
@@ -18,6 +22,7 @@ export function BlogGenerationProgress({
 }: {
   run: AssistantRun | null;
   brief: string;
+  steps?: { label: string; reasoning: string }[];
   streaming: boolean;
   refreshing?: boolean;
   error?: string;
@@ -69,33 +74,50 @@ export function BlogGenerationProgress({
       </div>
       <ol className="mt-6 divide-y divide-border">
         {[
-          { label: "Draft and private conversation", ready: !!run?.resourceId, working: streaming && !run?.resourceId },
-          { label: "Writing the complete article", ready: completed, working: streaming && !!run?.resourceId },
-          { label: "SEO title & description", ready: completed, working: false },
+          { label: "Draft created", ready: !!run?.resourceId, working: streaming && !run?.resourceId, reasoning: "" },
+          ...AGENT_STEPS.map((label) => {
+            const started = steps.findIndex((step) => step.label === label);
+            const later = steps.some((step, position) => position > started && started >= 0);
+            return {
+              label,
+              ready: completed || (started >= 0 && later),
+              working: streaming && started >= 0 && !later,
+              reasoning: steps[started]?.reasoning ?? "",
+            };
+          }),
         ].map((stage) => (
-          <li
-            key={stage.label}
-            className={`flex items-center gap-3 py-4 text-sm ${stage.ready ? "text-foreground" : stage.working ? "text-primary" : "text-muted-foreground"}`}
-          >
-            {stage.ready ? (
-              <Check className="size-4 text-success" aria-hidden="true" />
-            ) : stage.working ? (
-              <LoaderCircle className="size-4 animate-spin motion-reduce:animate-none" aria-hidden="true" />
-            ) : (
-              <Circle className="size-4" aria-hidden="true" />
+          <li key={stage.label} className="py-4">
+            <div
+              className={`flex items-center gap-3 text-sm ${stage.ready ? "text-foreground" : stage.working ? "text-primary" : "text-muted-foreground"}`}
+            >
+              {stage.ready ? (
+                <Check className="size-4 text-success" aria-hidden="true" />
+              ) : stage.working ? (
+                <LoaderCircle className="size-4 animate-spin motion-reduce:animate-none" aria-hidden="true" />
+              ) : (
+                <Circle className="size-4" aria-hidden="true" />
+              )}
+              <span className="flex-1">{stage.label}</span>
+              <span className="text-caption">
+                {stage.ready
+                  ? "Ready"
+                  : stage.working
+                    ? "In progress"
+                    : active
+                      ? streaming
+                        ? "Next"
+                        : "Check status"
+                      : "Not completed"}
+              </span>
+            </div>
+            {stage.reasoning && (
+              <details className="mt-2 ml-7" open={stage.working}>
+                <summary className="cursor-pointer text-caption text-muted-foreground">Agent thinking</summary>
+                <p className="mt-2 max-h-48 overflow-y-auto whitespace-pre-wrap break-words text-caption text-muted-foreground">
+                  {stage.reasoning}
+                </p>
+              </details>
             )}
-            <span className="flex-1">{stage.label}</span>
-            <span className="text-caption">
-              {stage.ready
-                ? "Ready"
-                : stage.working
-                  ? "In progress"
-                  : active
-                    ? streaming
-                      ? "Next"
-                      : "Check status"
-                    : "Not completed"}
-            </span>
           </li>
         ))}
       </ol>
