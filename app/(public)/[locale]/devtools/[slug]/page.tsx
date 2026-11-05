@@ -9,6 +9,7 @@ import { notFound } from "next/navigation";
 import ToolPage from "@/components/ToolPage";
 import { relatedTools, resolveToolPage } from "@/lib/tool-framework/catalog";
 import { toolMetadata } from "@/lib/tool-framework/metadata";
+import { loadRuntimeLimits } from "@/lib/tool-framework/systemLimits";
 
 // Deliberately no `generateStaticParams`: slugs and enablement live in
 // `managed_tools` and an admin toggles them at runtime, so prerendering would
@@ -21,9 +22,10 @@ export default async function DevtoolsToolPage({ params }: { params: Promise<{ s
   const tool = await resolveToolPage("devtools", slug, locale);
   if (!tool) notFound();
 
-  const [related, session] = await Promise.all([
+  const [related, session, limits] = await Promise.all([
     relatedTools(tool.toolId, locale),
     getOptionalSession(await headers()),
+    loadRuntimeLimits(),
   ]);
 
   return (
@@ -41,6 +43,7 @@ export default async function DevtoolsToolPage({ params }: { params: Promise<{ s
         definitionKey={tool.definitionKey}
         description={tool.description}
         icon={tool.icon}
+        limits={limits}
         relatedTools={related.map((candidate) => ({
           href: candidate.href,
           label: candidate.name,

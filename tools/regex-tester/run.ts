@@ -12,16 +12,17 @@
  * The source had NO timeout or backtracking guard, and none is added here —
  * adding one would change behaviour. A catastrophically backtracking pattern
  * still blocks the thread inside a single `exec` call, which the match cap
- * cannot prevent. That limitation is documented in `definition.ts` rather than
- * silently papered over.
+ * cannot prevent. That limitation is documented in the tool's stored spec
+ * (`content.limitations`) rather than silently papered over.
  */
 
 import { ToolError, type ToolRun } from "../../lib/tool-framework/run.ts";
 import type { ToolResult } from "../../lib/tool-framework/result.ts";
-import type { SettingsOf } from "../../lib/tool-framework/settings.ts";
 import { requireUtilityInput } from "../../lib/devtools/shared/options.ts";
 
-type Settings = SettingsOf<typeof import("./definition.ts").default.settings>;
+type Settings = {
+  readonly flags: string;
+};
 
 type RegexMatch = {
   index: number;

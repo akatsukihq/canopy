@@ -92,6 +92,8 @@ export interface WorkspaceProps {
   running?: boolean;
   settings: Readonly<Record<string, unknown>>;
   spec: ToolSpec;
+  /** Sibling image-conversion specs; absent for every other tool. */
+  conversions?: readonly ToolSpec[];
 }
 
 function getInputSplitSizes(inputSpec: ToolInputSpec, defaultSize: number, minSize: number) {

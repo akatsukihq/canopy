@@ -100,6 +100,15 @@ function matchesVisibility(tool: AdminTool, filter: VisibilityFilter) {
 }
 
 function ToolStatus({ tool }: { tool: AdminTool }) {
+  return (
+    <span className="inline-flex flex-wrap items-center gap-1">
+      <ToolVisibility tool={tool} />
+      {tool.hasSpecDraft ? <StatusBadge variant="warning">Draft</StatusBadge> : null}
+    </span>
+  );
+}
+
+function ToolVisibility({ tool }: { tool: AdminTool }) {
   if (tool.archived) return <StatusBadge variant="archived">Archived</StatusBadge>;
   if (!tool.slug) return <StatusBadge variant="warning">Setup required</StatusBadge>;
   // The row exists but its code has not shipped, so visitors cannot reach it
@@ -282,7 +291,7 @@ function ToolRow({
             {isSetupRequired ? (
               <TriangleAlert strokeWidth={1.8} />
             ) : (
-              <ToolIcon name={tool.name} iconUrl={tool.iconUrl} size={20} toolId={tool.id} />
+              <ToolIcon name={tool.name} media={tool.icon} size={20} toolId={tool.id} />
             )}
           </IconTile>
           <span className="min-w-0 flex-1">

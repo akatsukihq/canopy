@@ -62,7 +62,10 @@ import {
   type ToolContentRow,
 } from "../tool-framework/content.ts";
 import { uploadToolIcon } from "../tool-framework/cloudinary.ts";
-import { definitionKeyOf, loadSpec } from "../tool-framework/catalog.ts";
+import { cloudinaryCredentials } from "../config/integrations.ts";
+import { definitionKeyOf, specFromRow } from "../tool-framework/catalog.ts";
+import { parseToolSpec } from "../tool-framework/specSchema.ts";
+import { limitViolations, loadSystemLimits } from "../tool-framework/systemLimits.ts";
 import {
   applyToolMessages,
   escapeToolText,
@@ -73,14 +76,15 @@ import {
 } from "../tool-framework/translations.ts";
 import { isLocale } from "../i18n/config.ts";
 import type { ToolSpec } from "../tool-framework/spec.ts";
+import { toolIconUrl } from "../tool-framework/icons.ts";
 
-async function invalidateAfterCommit<T>(namespace: string, result: T): Promise<T> {
+export async function invalidateAfterCommit<T>(namespace: string, result: T): Promise<T> {
   if (namespace === CACHE_NAMESPACES.CATALOG) catalogCache.clear();
   else await new Cache(namespace).delete("all");
   return result;
 }
 
-type Transaction = Parameters<Parameters<typeof db.transaction>[0]>[0];
+export type Transaction = Parameters<Parameters<typeof db.transaction>[0]>[0];
 type ToolRow = typeof managedToolsTable.$inferSelect;
 type RoleRow = typeof rolesTable.$inferSelect;
 type TemplateRow = typeof invoiceTemplatesTable.$inferSelect;
@@ -248,7 +252,7 @@ export async function writeAudit(
  * with no `managed_tools` row does not exist — which is also what makes a row
  * created before its folder ships fully manageable here.
  */
-async function getToolForUpdate(transaction: Transaction, toolId: string): Promise<ToolRow> {
+export async function getToolForUpdate(transaction: Transaction, toolId: string): Promise<ToolRow> {
   const [stored] = await transaction
     .select()
     .from(managedToolsTable)
@@ -318,7 +322,7 @@ function replaceEnglishMessages(translations: ToolTranslations, messages: Record
   ]);
 }
 
-function synchronizeEnglishSource(
+export function synchronizeEnglishSource(
   translations: ToolTranslations,
   before: Record<string, string>,
   after: Record<string, string>,
@@ -339,8 +343,7 @@ async function syncContentEnglish(
   next: ToolContentRow | null,
 ): Promise<void> {
   if (!tool.translations?.en) return;
-  const key = definitionKeyOf(tool.toolId);
-  const spec = key ? await loadSpec(key) : null;
+  const spec = await specFromRow(tool);
   const before = toolTranslationSource(spec, tool, previous);
   const after = toolTranslationSource(spec, tool, next);
   await transaction
@@ -350,6 +353,25 @@ async function syncContentEnglish(
       updatedAt: new Date(),
     })
     .where(eq(managedToolsTable.toolId, tool.toolId));
+}
+
+export class ToolSpecValidationError extends Error {
+  constructor(readonly issues: readonly string[]) {
+    super(`Tool spec needs attention: ${issues[0] ?? "invalid spec"}`);
+  }
+}
+
+/** A spec an admin may store for `tool`: schema-valid, its own id/app, and within system limits. */
+export async function validatedToolSpec(value: unknown, tool: Pick<ToolRow, "toolId" | "app">): Promise<ToolSpec> {
+  const parsed = parseToolSpec(value);
+  if (!parsed.ok) throw new ToolSpecValidationError(parsed.issues);
+  const issues = [
+    ...(parsed.spec.toolId === tool.toolId ? [] : [`toolId: must be "${tool.toolId}"`]),
+    ...(parsed.spec.app === tool.app ? [] : [`app: must be "${tool.app}"`]),
+    ...limitViolations(parsed.spec, await loadSystemLimits()),
+  ];
+  if (issues.length) throw new ToolSpecValidationError(issues);
+  return parsed.spec;
 }
 
 export class ToolTranslationValidationError extends Error {
@@ -380,8 +402,7 @@ export async function saveToolTranslation(
         throw new Error("English must remain published while the tool is enabled.");
       }
       let englishMessages = current.translations?.en?.messages;
-      const key = definitionKeyOf(toolId);
-      const spec = key ? await loadSpec(key) : null;
+      const spec = await specFromRow(current);
       let contentRow: ToolContentRow | null = null;
       if (spec || !englishMessages) {
         const [content] = await transaction
@@ -472,20 +493,13 @@ export async function saveToolTranslation(
 /**
  * The database half of a tool, created before its folder exists.
  *
- * A tool is two halves: `tools/<key>/definition.ts` plus a run file (shipped by
- * a deploy — a deployed app cannot write files), and a `managed_tools` row.
- * This creates the row only, and that is safe in both directions:
- *
- *  - `seedManagedTools` inserts with `onConflictDoNothing` on `tool_id`, so
- *    every later deploy leaves the name, description, slug and order typed here
- *    exactly as they are.
- *  - `catalog.ts` resolves the folder from `toolId.split(".")[1]` and drops any
- *    row whose `definition.ts` does not import, so a row with no code is
- *    invisible to visitors rather than a 404.
+ * A tool is two halves: a `managed_tools` row holding its spec, and a run file
+ * in `tools/<key>/` (shipped by a deploy — a deployed app cannot write files).
+ * This creates the row only. `catalog.ts` drops any row without a valid stored
+ * spec, so a row with no spec yet is invisible to visitors rather than a 404.
  *
  * The one irreversible field is the slug: `prevent_saved_tool_slug_change`,
- * `assertToolSlugImmutable` and `unique(app, slug)` freeze it, and the seed
- * *fails the deploy* if the shipped definition later declares a different one.
+ * `assertToolSlugImmutable` and `unique(app, slug)` freeze it.
  */
 export interface ManagedToolDraft {
   readonly app: string;
@@ -496,6 +510,8 @@ export interface ManagedToolDraft {
   /** Blank falls back to `slugFromName(name)`. */
   readonly slug?: string;
   readonly category: string;
+  /** Optional initial spec (untrusted JSON), stored as the unpublished draft. */
+  readonly spec?: unknown;
 }
 
 /** Paperwork is a separate product surface and is not scaffolded this way. */
@@ -538,6 +554,9 @@ export async function createManagedTool(actorUserId: string, input: ManagedToolD
       // The folder is derived from the tool id, which is why the id is derived
       // from the key rather than typed.
       const toolId = `${app}.${key}`;
+      // The raw JSON is stored, not the parse result, so key order is the author's.
+      if (input.spec !== undefined) await validatedToolSpec(input.spec, { toolId, app });
+      const specDraft = input.spec ?? null;
 
       // One locked read answers all three uniqueness questions. `for("update")`
       // also serializes two admins creating at once: the second read blocks on
@@ -575,6 +594,7 @@ export async function createManagedTool(actorUserId: string, input: ManagedToolD
           order,
           enabled: false,
           archived: false,
+          specDraft,
           translations: {
             en: {
               status: "published",
@@ -587,11 +607,9 @@ export async function createManagedTool(actorUserId: string, input: ManagedToolD
         })
         .returning();
 
-      // The seed writes an all-null row here; this one carries the category the
-      // admin chose. Discarding it would mean asking for a value and then
-      // throwing it away — and unlike the seed, there is no `definition.ts` yet
-      // for the resolver to fall back to. Every other column stays NULL, so it
-      // still inherits from code the moment the folder ships.
+      // This row carries the category the admin chose; discarding it would mean
+      // asking for a value and then throwing it away. Every other column stays
+      // NULL, so it inherits from the stored spec once one is saved.
       //
       // Left unpublished (`publishedAt` NULL): until the code exists there is
       // nothing to publish, and `resolveContent` treats an unpublished row as
@@ -604,6 +622,7 @@ export async function createManagedTool(actorUserId: string, input: ManagedToolD
         slug,
         category,
         order,
+        hasSpecDraft: specDraft !== null,
       });
       return created;
     })
@@ -630,8 +649,7 @@ export async function updateManagedTool(actorUserId: string, toolId: string, inp
 
       let translations = current.translations;
       if (translations?.en && (name !== current.name || description !== current.description)) {
-        const key = definitionKeyOf(toolId);
-        const spec = key ? await loadSpec(key) : null;
+        const spec = await specFromRow(current);
         const [content] = await transaction
           .select()
           .from(toolContentTable)
@@ -741,8 +759,7 @@ export async function setManagedToolEnabled(actorUserId: string, toolId: string,
         if (english?.status !== "published") {
           throw new Error("Publish English translations before enabling the tool.");
         }
-        const key = definitionKeyOf(toolId);
-        const spec = key ? await loadSpec(key) : null;
+        const spec = await specFromRow(current);
         const [content] = spec
           ? await transaction
               .select()
@@ -791,9 +808,8 @@ export async function setManagedToolArchived(actorUserId: string, toolId: string
 // ---------------------------------------------------------------------------
 // Database-owned tool content.
 //
-// Every `tool_content` column is nullable and NULL means "fall back to
-// `tools/<key>/definition.ts`" — that is what keeps a freshly shipped folder
-// working with no row at all. So a blank string or an empty list CLEARS the
+// Every `tool_content` column is nullable and NULL means "fall back to the
+// stored spec" — that is what keeps a tool working with no content row at all. So a blank string or an empty list CLEARS the
 // override rather than storing an empty one, matching `resolveContent`, which
 // treats blank text and empty arrays as "not set" on read.
 //
@@ -809,10 +825,8 @@ export const MAX_TOOL_ICON_BYTES = 1_048_576;
  * so the admin UI can disable uploads with a message instead of failing at the
  * end of a form submission. Local development and CI have no Cloudinary account.
  */
-export function iconUploadsConfigured(): boolean {
-  return Boolean(
-    config.cloudinary.cloudName?.trim() && config.cloudinary.apiKey?.trim() && config.cloudinary.apiSecret?.trim(),
-  );
+export async function iconUploadsConfigured(): Promise<boolean> {
+  return (await cloudinaryCredentials()) !== null;
 }
 
 /** The shape `contentDoc` is validated against before it is stored. */
@@ -912,6 +926,47 @@ function toolContentCategory(value: unknown): CategoryKey | null {
   return category;
 }
 
+function assertRelatedToolIds(ids: readonly string[], toolId: string, knownToolIds: ReadonlySet<string>): void {
+  for (const relatedToolId of ids) {
+    if (relatedToolId === toolId) {
+      throw new Error("A tool cannot be related to itself.");
+    }
+    if (!knownToolIds.has(relatedToolId)) {
+      throw new Error(`Related tools must be tool ids, not slugs: ${relatedToolId} is not registered.`);
+    }
+  }
+}
+
+/**
+ * Why `value` could not be saved as this one content field, using the same
+ * rules as {@link updateToolContent}; undefined when it can.
+ */
+export function toolContentFieldError(
+  toolId: string,
+  field: (typeof CONTENT_FIELDS)[number] | (typeof CONTENT_DOC_KEYS)[number],
+  value: unknown,
+  knownToolIds: ReadonlySet<string>,
+): string | undefined {
+  try {
+    if (field === "contentDoc") return "Suggest the document fields one at a time.";
+    if (field === "category") {
+      if (toolContentCategory(value) === null) throw new Error("Choose a category.");
+    } else if (field === "seoTitle" || field === "seoDescription") {
+      const label = field === "seoTitle" ? "SEO title" : "SEO description";
+      if (optionalText(value, label, field === "seoTitle" ? 160 : 320) === null) throw new Error(`${label} is empty.`);
+    } else if (field === "keywords") {
+      if (optionalTextList(value, "Tool keywords", 24, 60) === null) throw new Error("Suggest at least one keyword.");
+    } else {
+      const parsed = contentDocEditSchema.shape[field].safeParse(value);
+      if (!parsed.success) throw new Error(parsed.error.issues[0]?.message ?? "Invalid value.");
+      if (field === "relatedToolIds") assertRelatedToolIds((parsed.data ?? []) as string[], toolId, knownToolIds);
+    }
+    return undefined;
+  } catch (error) {
+    return error instanceof Error ? error.message : "Invalid value.";
+  }
+}
+
 function toolContentDoc(
   value: unknown,
   toolId: string,
@@ -933,14 +988,7 @@ function toolContentDoc(
     throw new Error(`Tool content document is invalid: ${parsed.error.issues[0]?.message ?? "unknown shape"}.`);
   }
 
-  for (const relatedToolId of parsed.data.relatedToolIds ?? []) {
-    if (relatedToolId === toolId) {
-      throw new Error("A tool cannot be related to itself.");
-    }
-    if (!knownToolIds.has(relatedToolId)) {
-      throw new Error(`Related tools must be tool ids, not slugs: ${relatedToolId} is not registered.`);
-    }
-  }
+  assertRelatedToolIds(parsed.data.relatedToolIds ?? [], toolId, knownToolIds);
 
   // Stamped with the version the resolver understands; an unversioned or stale
   // document falls back to the code content instead of going live.
@@ -1077,7 +1125,7 @@ export async function saveToolIcon(actorUserId: string, toolId: string, upload: 
   // purpose: a network round trip must not hold row locks open.
   const uploaded = await uploadToolIcon(toolId, upload.bytes, mimeType);
   if (!uploaded.ok) throw new Error(uploaded.reason);
-  const { iconUrl, publicId, format } = uploaded;
+  const { icon } = uploaded;
 
   return db
     .transaction(async (transaction) => {
@@ -1085,14 +1133,11 @@ export async function saveToolIcon(actorUserId: string, toolId: string, upload: 
       await getToolForUpdate(transaction, toolId);
       await transaction
         .update(managedToolsTable)
-        .set({ iconUrl, updatedAt: new Date() })
+        .set({ icon, updatedAt: new Date() })
         .where(eq(managedToolsTable.toolId, toolId));
 
-      await writeAudit(transaction, actorUserId, "tool.icon-upload", "tool", toolId, {
-        publicId,
-        format,
-      });
-      return iconUrl;
+      await writeAudit(transaction, actorUserId, "tool.icon-upload", "tool", toolId, { icon });
+      return toolIconUrl(icon);
     })
     .then((result) => invalidateAfterCommit(CACHE_NAMESPACES.CATALOG, result));
 }
@@ -1105,7 +1150,7 @@ export async function removeToolIcon(actorUserId: string, toolId: string): Promi
       await getToolForUpdate(transaction, toolId);
       await transaction
         .update(managedToolsTable)
-        .set({ iconUrl: null, updatedAt: new Date() })
+        .set({ icon: null, updatedAt: new Date() })
         .where(eq(managedToolsTable.toolId, toolId));
       await writeAudit(transaction, actorUserId, "tool.icon-remove", "tool", toolId, {});
     })

@@ -36,6 +36,9 @@ test("sensitive values are hidden while the rest of the message is preserved", (
   ]) {
     expect(errorMessage(new Error(original), "Try again")).toBe(expected);
   }
+  expect(
+    errorMessage(new Error("Failed query: select 1 from postgres://u:p@db\nparams: 7"), "x", { showSql: true }),
+  ).toBe("Failed query: select 1 from [hidden]\nparams: 7");
   for (const name of ["api_secret", "access_token", "refreshToken", "clientSecret"]) {
     expect(errorMessage(new Error(`Rejected ${name}=private-value; retry`), "Try again")).toBe(
       `Rejected ${name}=[hidden]; retry`,

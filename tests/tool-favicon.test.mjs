@@ -1,9 +1,20 @@
-import { afterAll, afterEach, beforeEach, expect, test, vi } from "vitest";
+import { afterEach, beforeEach, expect, test, vi } from "vitest";
 import nextTesting from "next/experimental/testing/server.js";
 
+const stored = vi.hoisted(() => ({ rows: [], configured: true }));
 vi.mock("@/lib/auth/index.ts", () => ({ auth: {} }));
+vi.mock("@/db/index.ts", () => {
+  const chain = { from: () => chain, where: () => chain, limit: async () => stored.rows };
+  return {
+    db: { select: () => chain },
+    isDatabaseConfigured: () => stored.configured,
+    managedToolsTable: { icon: "icon" },
+    and: () => null,
+    sql: () => null,
+  };
+});
 
-const { resolveIcon, toolFaviconHref, toolIconUrl } = await import("@/lib/tool-framework/icons.ts");
+const { resolveIcon, toolFaviconHref } = await import("@/lib/tool-framework/icons.ts");
 const { GET } = await import("@/app/tool-icons/[...path]/route.ts");
 const { config } = await import("@/proxy.ts");
 
@@ -13,17 +24,17 @@ const png = Buffer.from(
   "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+aKo8AAAAASUVORK5CYII=",
   "base64",
 );
-const cloudEnv = process.env.NEXT_PUBLIC_CLOUDINARY_CLOUD_NAME;
-const row = {
-  toolId: "media.resize-image",
-  publicId: "smarttools/tool-icons/media.resize-image",
-  version: "123",
-  format: "svg",
+const toolId = "media.resize-image";
+const media = (entry = {}) => ({
+  v: 1,
+  provider: "cloudinary",
+  format: "png",
   width: 104,
   height: 88,
-  updatedAt: new Date("2026-09-17T00:00:00Z"),
-};
-const validPath = ["v123", "smarttools", "tool-icons", "media.resize-image.png"];
+  uploadedAt: "2026-09-17T00:00:00Z",
+  entry: { cloudName: "favicon-test", publicId: "smarttools/tool-icons/media.resize-image", version: 123, ...entry },
+});
+const validPath = ["favicon-test", "v123", "smarttools", "tool-icons", "media.resize-image.png"];
 const request = (pathname = "/tool-icons/" + validPath.join("/")) =>
   new Request("https://app.example" + pathname, {
     headers: { Cookie: "session=private-session", Authorization: "Bearer private-token" },
@@ -31,11 +42,8 @@ const request = (pathname = "/tool-icons/" + validPath.join("/")) =>
 const call = (path = validPath) => GET(request(), { params: Promise.resolve({ path }) });
 
 beforeEach(() => {
-  process.env.NEXT_PUBLIC_CLOUDINARY_CLOUD_NAME = "favicon-test";
-});
-afterAll(() => {
-  if (cloudEnv === undefined) delete process.env.NEXT_PUBLIC_CLOUDINARY_CLOUD_NAME;
-  else process.env.NEXT_PUBLIC_CLOUDINARY_CLOUD_NAME = cloudEnv;
+  stored.rows = [{ icon: media() }];
+  stored.configured = true;
 });
 
 test("uploaded tool favicons round-trip through a versioned same-origin PNG URL", async () => {
@@ -44,12 +52,12 @@ test("uploaded tool favicons round-trip through a versioned same-origin PNG URL"
     requests.push({ input, options });
     return new Response(png, { headers: { "Content-Type": "image/png" } });
   });
-  const href = toolFaviconHref(resolveIcon(row.toolId, "Resize image", toolIconUrl("favicon-test", row)));
-  expect(href).toBe("/tool-icons/v123/smarttools/tool-icons/media.resize-image.png");
+  const href = toolFaviconHref(resolveIcon(toolId, "Resize image", media()));
+  expect(href).toBe("/tool-icons/favicon-test/v123/smarttools/tool-icons/media.resize-image.png");
   expect(
-    toolFaviconHref(resolveIcon(row.toolId, "Resize image", toolIconUrl("favicon-test", { ...row, version: "124" }))),
+    toolFaviconHref(resolveIcon(toolId, "Resize image", media({ version: 124 }))),
     "replaced icons receive a different browser cache key",
-  ).toBe("/tool-icons/v124/smarttools/tool-icons/media.resize-image.png");
+  ).toBe("/tool-icons/favicon-test/v124/smarttools/tool-icons/media.resize-image.png");
   const url = new URL(href, "https://app.example");
   const path = url.pathname.slice("/tool-icons/".length).split("/").map(decodeURIComponent);
   const response = await GET(request(href), { params: Promise.resolve({ path }) });
@@ -71,14 +79,10 @@ test("uploaded tool favicons round-trip through a versioned same-origin PNG URL"
   expect(headers.get("Cookie")).toBe(null);
   expect(headers.get("Authorization")).toBe(null);
 
-  const escaped = toolFaviconHref(
-    resolveIcon(
-      row.toolId,
-      "Resize image",
-      toolIconUrl("favicon-test", { ...row, publicId: "smarttools/tool-icons/resize image + café" }),
-    ),
-  );
-  expect(escaped).toBe("/tool-icons/v123/smarttools/tool-icons/resize%20image%20%2B%20caf%C3%A9.png");
+  const escapedMedia = media({ publicId: "smarttools/tool-icons/resize image + café" });
+  stored.rows = [{ icon: escapedMedia }];
+  const escaped = toolFaviconHref(resolveIcon(toolId, "Resize image", escapedMedia));
+  expect(escaped).toBe("/tool-icons/favicon-test/v123/smarttools/tool-icons/resize%20image%20%2B%20caf%C3%A9.png");
   const escapedPath = escaped.slice("/tool-icons/".length).split("/").map(decodeURIComponent);
   const escapedResponse = await GET(request(escaped), { params: Promise.resolve({ path: escapedPath }) });
   expect(escapedResponse.status).toBe(200);
@@ -88,15 +92,15 @@ test("uploaded tool favicons round-trip through a versioned same-origin PNG URL"
   );
 });
 
-test("stored icon URLs resolve unchanged without Cloudinary configuration", () => {
-  delete process.env.NEXT_PUBLIC_CLOUDINARY_CLOUD_NAME;
-  const iconUrl = toolIconUrl("favicon-test", row);
-  expect(resolveIcon(row.toolId, "Resize image", iconUrl)).toEqual({ kind: "url", url: iconUrl });
+test("stored icons resolve from their own account, not the configured cloud", () => {
+  const icon = media({ cloudName: "older-account" });
+  expect(resolveIcon(toolId, "Resize image", icon).url).toBe(
+    "https://res.cloudinary.com/older-account/image/upload/f_png,c_fill,w_256,h_256,q_auto/v123/smarttools/tool-icons/media.resize-image.png",
+  );
 });
 
 test("generated fallback SVG remains a correctly escaped data URI", () => {
-  for (const configured of [true, false]) {
-    if (!configured) delete process.env.NEXT_PUBLIC_CLOUDINARY_CLOUD_NAME;
+  {
     const icon = resolveIcon("tool-fallback", "<script &test", null);
     expect(icon.kind).toBe("svg");
     const href = toolFaviconHref(icon);
@@ -114,27 +118,29 @@ test("invalid favicon paths never issue an upstream request", async () => {
   for (const path of [
     undefined,
     "v123/icon.png",
+    ["bad cloud!", "v123", "icon.png"],
+    ["v123", "folder", "icon.png"],
     [],
-    ["v123"],
-    ["123", "icon.png"],
-    ["v0", "icon.png"],
-    ["v-1", "icon.png"],
-    ["v1.5", "icon.png"],
-    ["v123", "..", "icon.png"],
-    ["v123", ".", "icon.png"],
-    ["v123", "", "icon.png"],
-    ["v123", "%2e%2e", "icon.png"],
-    ["v123", "https://example.com", "icon.png"],
-    ["v123", "safe/../private.png"],
-    ["v123", "safe\\private.png"],
-    ["v123", "icon.png?url=https://example.com"],
-    ["v123", "icon.png#fragment"],
-    ["v123", "icon.svg"],
-    ["v123", "icon.jpg"],
-    ["v123", ".png"],
-    ["v123", "\u0000icon.png"],
-    ["v123", "a".repeat(1025) + ".png"],
-    ["v123", ...Array(16).fill("folder"), "icon.png"],
+    ["favicon-test", "v123"],
+    ["favicon-test", "123", "icon.png"],
+    ["favicon-test", "v0", "icon.png"],
+    ["favicon-test", "v-1", "icon.png"],
+    ["favicon-test", "v1.5", "icon.png"],
+    ["favicon-test", "v123", "..", "icon.png"],
+    ["favicon-test", "v123", ".", "icon.png"],
+    ["favicon-test", "v123", "", "icon.png"],
+    ["favicon-test", "v123", "%2e%2e", "icon.png"],
+    ["favicon-test", "v123", "https://example.com", "icon.png"],
+    ["favicon-test", "v123", "safe/../private.png"],
+    ["favicon-test", "v123", "safe\\private.png"],
+    ["favicon-test", "v123", "icon.png?url=https://example.com"],
+    ["favicon-test", "v123", "icon.png#fragment"],
+    ["favicon-test", "v123", "icon.svg"],
+    ["favicon-test", "v123", "icon.jpg"],
+    ["favicon-test", "v123", ".png"],
+    ["favicon-test", "v123", "\u0000icon.png"],
+    ["favicon-test", "v123", "a".repeat(1025) + ".png"],
+    ["favicon-test", "v123", ...Array(16).fill("folder"), "icon.png"],
   ]) {
     const response = await GET(request(), { params: Promise.resolve({ path }) });
     expect(response.status, String(JSON.stringify(path))).toBe(404);
@@ -146,8 +152,8 @@ test("invalid favicon paths never issue an upstream request", async () => {
 test("public favicon files bypass session lookups without bypassing page or API protection", () => {
   const { unstable_doesMiddlewareMatch: doesProxyMatch } = nextTesting;
   for (const url of [
-    "/tool-icons/v123/smarttools/tool-icons/media.resize-image.png",
-    "/tool-icons/v124/Canopy/platform/assets/default/icons/extract-pdf-pages.png",
+    "/tool-icons/favicon-test/v123/smarttools/tool-icons/media.resize-image.png",
+    "/tool-icons/demo/v124/Canopy/platform/assets/default/icons/extract-pdf-pages.png",
   ]) {
     expect(doesProxyMatch({ config, url }), url).toBe(false);
   }
@@ -156,14 +162,20 @@ test("public favicon files bypass session lookups without bypassing page or API 
   }
 });
 
-test("missing delivery configuration fails without requesting another Cloudinary account", async () => {
+test("icons no tool stores are never proxied", async () => {
   const fetch = vi.spyOn(globalThis, "fetch").mockImplementation(async () => {
-    throw new Error("Unconfigured route reached the network");
+    throw new Error("Unstored icon reached the network");
   });
-  delete process.env.NEXT_PUBLIC_CLOUDINARY_CLOUD_NAME;
-  const response = await call();
-  expect(response.status).toBe(503);
-  expect(response.headers.get("Cache-Control")).toMatch(/no-store/);
+  for (const setup of [
+    () => (stored.rows = []),
+    () => (stored.rows = [{ icon: "https://example.com/icon.png" }]),
+    () => (stored.configured = false),
+  ]) {
+    setup();
+    const response = await call();
+    expect(response.status).toBe(404);
+    expect(response.headers.get("Cache-Control")).toMatch(/no-store/);
+  }
   expect(fetch.mock.calls.length).toBe(0);
 });
 

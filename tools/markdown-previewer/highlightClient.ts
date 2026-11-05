@@ -1,7 +1,9 @@
+import type { SettingsSpec } from "../../lib/tool-framework/settings.ts";
+
 type PendingRequest = { resolve: (html: string) => void; reject: (error: Error) => void };
 
 /** One lazy worker per displayed document; cancellation discards every queued enhancement. */
-export function createMarkdownHighlightClient() {
+export function createMarkdownHighlightClient(settingsSpec: SettingsSpec) {
   let worker: Worker | undefined;
   let nextId = 0;
   const pending = new Map<number, PendingRequest>();
@@ -16,7 +18,12 @@ export function createMarkdownHighlightClient() {
   function request(
     message:
       | { operation: "highlight"; code: string; language?: string }
-      | { operation: "export"; source: string; settings: Readonly<Record<string, unknown>> },
+      | {
+          operation: "export";
+          source: string;
+          settings: Readonly<Record<string, unknown>>;
+          settingsSpec: SettingsSpec;
+        },
   ): Promise<string> {
     if (!worker) {
       try {
@@ -61,7 +68,7 @@ export function createMarkdownHighlightClient() {
   return {
     highlight: (code: string, language?: string) => request({ operation: "highlight", code, language }),
     exportHtml: (source: string, settings: Readonly<Record<string, unknown>>) =>
-      request({ operation: "export", source, settings }),
+      request({ operation: "export", source, settings, settingsSpec }),
     dispose: () => {
       stop(new DOMException("Preview was replaced.", "AbortError"));
     },

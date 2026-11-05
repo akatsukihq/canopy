@@ -1,10 +1,6 @@
 import { isRecord } from "../../lib/devtools/shared/json.ts";
-import { formatToolMessage } from "../../lib/tool-framework/translations.ts";
-import definition from "./definition.ts";
 
 type SummaryText = (key: string, values?: Record<string, string | number>) => string;
-const englishText: SummaryText = (key, values) =>
-  formatToolMessage("en", (definition.messages as Record<string, string>)[key] ?? key, values);
 
 export type DomainSummary = {
   domain: string;
@@ -151,12 +147,7 @@ function explainStatus(status: string, text: SummaryText): DomainSummary["status
   };
 }
 
-export function createDomainSummary(
-  rawJson: string,
-  now = Date.now(),
-  text: SummaryText = englishText,
-  locale = "en-GB",
-): DomainSummary {
+export function createDomainSummary(rawJson: string, now: number, text: SummaryText, locale = "en-GB"): DomainSummary {
   const dateFormat = new Intl.DateTimeFormat(locale, {
     day: "numeric",
     month: "long",

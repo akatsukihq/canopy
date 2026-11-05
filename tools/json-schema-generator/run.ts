@@ -7,11 +7,12 @@
 
 import type { ToolRun } from "../../lib/tool-framework/run.ts";
 import type { ToolResult } from "../../lib/tool-framework/result.ts";
-import type { SettingsOf } from "../../lib/tool-framework/settings.ts";
 import { parseUtilityJson } from "../../lib/devtools/shared/json-input.ts";
 import { isRecord } from "../../lib/devtools/shared/json.ts";
 
-type Settings = SettingsOf<typeof import("./definition.ts").default.settings>;
+type Settings = {
+  readonly repairMode: string;
+};
 
 function inferJsonSchema(value: unknown): Record<string, unknown> {
   if (value === null) return { type: "null" };

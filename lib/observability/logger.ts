@@ -27,12 +27,25 @@ function frames(error: unknown): string[] | undefined {
   return lines.length ? lines.slice(0, 8).map((line) => line.trim()) : undefined;
 }
 
+/** Drizzle wraps the driver error ("Failed query: [hidden]"); the cause says why (code, relation, timeout). */
+function cause(error: unknown): Fields | undefined {
+  const inner = error instanceof Error ? error.cause : undefined;
+  if (!inner) return undefined;
+  const code = typeof inner === "object" && "code" in inner ? String(inner.code) : undefined;
+  return {
+    name: inner instanceof Error ? inner.name : typeof inner,
+    code,
+    message: errorMessage(inner, "Unknown cause", { showSql: true }),
+  };
+}
+
 export function logError(event: string, error: unknown, fields: Fields = {}): void {
   log("error", event, {
     ...fields,
     error: {
       name: error instanceof Error ? error.name : typeof error,
-      message: errorMessage(error, "Unknown error"),
+      message: errorMessage(error, "Unknown error", { showSql: true }),
+      cause: cause(error),
       stack: frames(error),
     },
   });

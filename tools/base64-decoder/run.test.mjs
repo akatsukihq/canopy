@@ -1,6 +1,7 @@
+import { toolSpec } from "../../tests/helpers/toolSpec.mjs";
 import { expect, test } from "vitest";
 import { decodeToolShare, encodeToolShare } from "../../lib/tool-framework/toolShare.ts";
-import definition from "./definition.ts";
+const definition = await toolSpec("base64-decoder");
 import { run } from "./run.ts";
 
 test("shared binary data URI recreates the same downloadable bytes and filename", async () => {

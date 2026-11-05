@@ -1,8 +1,9 @@
+import { toolSpec } from "../../tests/helpers/toolSpec.mjs";
 // @vitest-environment jsdom
 import React, { act } from "react";
 import { Blob as NodeBlob } from "node:buffer";
 import { beforeEach, expect, test, vi } from "vitest";
-import definition from "./definition.ts";
+const definition = await toolSpec("markdown-previewer");
 import { run, renderMarkdownPreview } from "./run.worker.ts";
 import Workspace from "./workspace.tsx";
 import { setupReactTools, fill, click, button, field, waitFor, mountTool } from "../../tests/helpers/react-tools.mjs";

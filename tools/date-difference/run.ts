@@ -7,10 +7,14 @@
 
 import { ToolError, type ToolRun } from "../../lib/tool-framework/run.ts";
 import type { ToolResult } from "../../lib/tool-framework/result.ts";
-import type { SettingsOf } from "../../lib/tool-framework/settings.ts";
 import { parseDate } from "../../lib/devtools/shared/datetime.ts";
 
-type Settings = SettingsOf<typeof import("./definition.ts").default.settings>;
+type Settings = {
+  readonly startTime: string;
+  readonly endTime: string;
+  readonly timezone: string;
+  readonly exactDuration: boolean;
+};
 
 function dateInput(value: string, time: string, timezone: Settings["timezone"], endpoint: "start" | "end") {
   const label = endpoint === "start" ? "Start date" : "End date";

@@ -111,21 +111,21 @@ test("a message with no recipients is rejected before contacting Cloudflare", as
   expect(fetch).not.toHaveBeenCalled();
 });
 
-test("the Cloudflare implementation reads its own configuration without constructor arguments", async () => {
+test("the Cloudflare sender reads trimmed environment credentials when selected", async () => {
   vi.stubEnv("CLOUDFLARE_EMAIL_ACCOUNT_ID", ` ${accountId} `);
   vi.stubEnv("CLOUDFLARE_EMAIL_API_TOKEN", " direct-sender-token ");
-  await new CloudflareEmailSender().send(message);
+  await getEmailSender(CloudflareEmailSender.type).send(message);
   const [url, options] = fetch.mock.calls[0];
   expect(url).toBe(`https://api.cloudflare.com/client/v4/accounts/${accountId}/email/sending/send`);
   expect(options.headers.Authorization).toBe("Bearer direct-sender-token");
 });
 
 test.each(["CLOUDFLARE_EMAIL_ACCOUNT_ID", "CLOUDFLARE_EMAIL_API_TOKEN"])(
-  "the Cloudflare implementation rejects blank %s configuration",
+  "the Cloudflare sender rejects blank %s configuration",
   (key) => {
     for (const value of [undefined, "", "   "]) {
       vi.stubEnv(key, value);
-      expect(() => new CloudflareEmailSender()).toThrow(key);
+      expect(() => getEmailSender(CloudflareEmailSender.type)).toThrow(key);
     }
     expect(fetch).not.toHaveBeenCalled();
   },

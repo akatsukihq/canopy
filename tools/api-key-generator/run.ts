@@ -8,10 +8,16 @@
 
 import { ToolError, type ToolRun } from "../../lib/tool-framework/run.ts";
 import type { ToolResult } from "../../lib/tool-framework/result.ts";
-import type { SettingsOf } from "../../lib/tool-framework/settings.ts";
 import { randomString } from "../../lib/devtools/shared/crypto.ts";
 
-type Settings = SettingsOf<typeof import("./definition.ts").default.settings>;
+type Settings = {
+  readonly prefix: string;
+  readonly environment: string;
+  readonly length: number;
+  readonly count: number;
+  readonly characterSet: string;
+  readonly avoidAmbiguous: boolean;
+};
 
 const ALPHABETS: Readonly<Record<string, string>> = {
   "url-safe": "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-_",

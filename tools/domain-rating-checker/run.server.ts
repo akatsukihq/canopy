@@ -1,4 +1,4 @@
-import config from "@/lib/config/config.ts";
+import { ahrefsApiKey } from "@/lib/config/integrations.ts";
 /**
  * Moved verbatim from the inlined `"use server"` action in
  * `app/devtools/[slug]/page.tsx`: the same Ahrefs endpoint, the same
@@ -13,10 +13,9 @@ import config from "@/lib/config/config.ts";
 import { isIP } from "node:net";
 
 import { ToolError, type ToolRun } from "../../lib/tool-framework/run.ts";
-import type { SettingsOf } from "../../lib/tool-framework/settings.ts";
 import type { DomainRatingResult } from "./result.ts";
 
-type Settings = SettingsOf<typeof import("./definition.ts").default.settings>;
+type Settings = {};
 
 const AHREFS_DOMAIN_RATING_URL = "https://api.ahrefs.com/v3/public/domain-rating-free";
 const MAX_DOMAIN_RATING_TARGET_LENGTH = 2_048;
@@ -95,7 +94,7 @@ export const run: ToolRun<Settings> = async (ctx): Promise<DomainRatingResult> =
   const endpoint = new URL(AHREFS_DOMAIN_RATING_URL);
   endpoint.search = new URLSearchParams({ target, output: "json" }).toString();
   const headers: Record<string, string> = { Accept: "application/json" };
-  const apiKey = config.integrations.ahrefsApiKey?.trim();
+  const apiKey = await ahrefsApiKey();
   if (apiKey) headers.Authorization = `Bearer ${apiKey}`;
 
   let response: Response;

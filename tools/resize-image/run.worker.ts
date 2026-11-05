@@ -29,9 +29,18 @@ import { writeArtifactBatch } from "../../lib/tool-framework/media/zip.ts";
 import { createOutputFilename, validateImageSelection } from "../../lib/tool-framework/media/validation.ts";
 import type { ToolResult } from "../../lib/tool-framework/result.ts";
 import { ToolError, type ToolRun } from "../../lib/tool-framework/run.ts";
-import type { SettingsOf } from "../../lib/tool-framework/settings.ts";
 
-type Settings = SettingsOf<typeof import("./definition.ts").default.settings>;
+type Settings = {
+  readonly resizeUnit: string;
+  readonly width: number;
+  readonly height: number;
+  readonly percentage: number;
+  readonly lockAspectRatio: boolean;
+  readonly noUpscale: boolean;
+  readonly fit: string;
+  readonly outputFormat: string;
+  readonly quality: number;
+};
 
 const ALLOWED: readonly DecodableImageKind[] = ["jpeg", "png", "webp", "heic"];
 

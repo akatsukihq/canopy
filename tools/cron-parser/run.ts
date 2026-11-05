@@ -2,9 +2,8 @@ import { describeCronSchedule } from "../../lib/devtools/shared/datetime.ts";
 import { ToolError } from "../../lib/tool-framework/run.ts";
 import type { ToolRun } from "../../lib/tool-framework/run.ts";
 import type { ToolResult } from "../../lib/tool-framework/result.ts";
-import type { SettingsOf } from "../../lib/tool-framework/settings.ts";
 
-type Settings = SettingsOf<typeof import("./definition.ts").default.settings>;
+type Settings = {};
 
 export const run: ToolRun<Settings> = (ctx): ToolResult => {
   const expression = ctx.input.text.trim();

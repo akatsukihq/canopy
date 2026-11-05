@@ -1,6 +1,7 @@
+import { toolSpec } from "../../tests/helpers/toolSpec.mjs";
 import { expect, test, vi } from "vitest";
 import { parseSettings } from "../../lib/tool-framework/settings.ts";
-import definition from "./definition.ts";
+const definition = await toolSpec("http-status-codes");
 import { run } from "./run.ts";
 
 test("phrase matching is unchanged in a Turkish browser locale", async () => {

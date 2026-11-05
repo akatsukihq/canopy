@@ -1,4 +1,8 @@
 import type { BlogImage } from "./document.ts";
+import { responsiveMedia } from "../media/index.ts";
+
+/** Public IDs that blog uploads produce (legacy `smarttools/` and `cloudinaryFolder("blog")`). */
+export const BLOG_IMAGE_PUBLIC_ID = /^(?:smarttools|Canopy\/(?:production|development|test))\/blog\/[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/;
 
 export const BLOG_TITLE_WORD_LIMIT = 20;
 
@@ -7,19 +11,6 @@ export function blogTitleWordCount(title: string): number {
 }
 
 /** Responsive delivery for validated images; stored metadata and originals stay unchanged. */
-export function blogImageDelivery(
-  image: Pick<BlogImage, "publicId" | "version" | "format" | "width">,
-  cloudName: string,
-): { src: string; srcSet: string } {
-  if (!/^[a-zA-Z0-9_-]+$/.test(cloudName)) throw new Error("A configured Cloudinary cloud is required.");
-  const maxWidth = Math.min(image.width, 2560);
-  const widths = [320, 640, 960, 1280, 1920, 2560].filter((width) => width < maxWidth);
-  widths.push(maxWidth);
-  const asset = `v${image.version}/${image.publicId.split("/").map(encodeURIComponent).join("/")}.${image.format}`;
-  const url = (width: number) =>
-    `https://res.cloudinary.com/${cloudName}/image/upload/c_limit,w_${width}/q_auto/f_auto/${asset}`;
-  return {
-    src: url(Math.min(image.width, 1280)),
-    srcSet: widths.map((width) => `${url(width)} ${width}w`).join(", "),
-  };
+export function blogImageDelivery(image: Pick<BlogImage, "media">): { src: string; srcSet: string } {
+  return responsiveMedia(image.media);
 }

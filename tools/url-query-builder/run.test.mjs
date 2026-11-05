@@ -1,8 +1,9 @@
+import { toolSpec } from "../../tests/helpers/toolSpec.mjs";
 import assert from "node:assert/strict";
 import { readFile } from "node:fs/promises";
 import { test } from "vitest";
 import { parseSettings } from "../../lib/tool-framework/settings.ts";
-import definition from "./definition.ts";
+const definition = await toolSpec("url-query-builder");
 import { run } from "./run.ts";
 import { parseQueryRows } from "./parameters.ts";
 

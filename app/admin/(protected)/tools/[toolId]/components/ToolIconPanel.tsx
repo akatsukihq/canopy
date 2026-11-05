@@ -29,7 +29,8 @@ import { removeToolIconAction, uploadToolIconAction, type ToolContentActionState
 const IDLE: ToolContentActionState = { status: "idle", message: "" };
 
 export interface ToolIconPanelProps {
-  readonly iconUrl: string | null;
+  /** Raw stored icon; `ToolIcon` validates it. */
+  readonly icon: unknown;
   readonly name: string;
   readonly toolId: string;
   readonly uploadsEnabled: boolean;
@@ -52,7 +53,7 @@ function IconAction({ label, ...props }: ComponentProps<typeof Button> & { label
   );
 }
 
-export function ToolIconPanel({ iconUrl, name, toolId, uploadsEnabled }: ToolIconPanelProps): ReactElement {
+export function ToolIconPanel({ icon, name, toolId, uploadsEnabled }: ToolIconPanelProps): ReactElement {
   const inputId = useId();
   const toastId = `${inputId}-feedback`;
   const inputRef = useRef<HTMLInputElement>(null);
@@ -118,9 +119,9 @@ export function ToolIconPanel({ iconUrl, name, toolId, uploadsEnabled }: ToolIco
             // eslint-disable-next-line @next/next/no-img-element
             <img alt="Selected icon preview" className="size-full object-contain" src={previewUrl} />
           ) : (
-            <ToolIcon name={name} iconUrl={iconUrl} size={128} toolId={toolId} />
+            <ToolIcon media={icon} name={name} size={128} toolId={toolId} />
           )}
-          {uploadsEnabled || iconUrl ? (
+          {uploadsEnabled || icon != null ? (
             <div
               className={`absolute top-2 right-2 flex items-center gap-1 transition-opacity motion-reduce:transition-none ${
                 selectedFile || busy
@@ -166,7 +167,7 @@ export function ToolIconPanel({ iconUrl, name, toolId, uploadsEnabled }: ToolIco
                   ) : null}
                 </form>
               ) : null}
-              {iconUrl && !selectedFile ? (
+              {icon && !selectedFile ? (
                 <form action={removeAction}>
                   <input name="toolId" type="hidden" value={toolId} />
                   <IconAction disabled={busy} label="Remove uploaded icon" loading={isRemoving} type="submit">

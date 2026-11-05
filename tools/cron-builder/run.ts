@@ -7,9 +7,16 @@
 import { describeCron } from "../../lib/devtools/shared/datetime.ts";
 import type { ToolResult } from "../../lib/tool-framework/result.ts";
 import type { ToolRun } from "../../lib/tool-framework/run.ts";
-import type { SettingsOf } from "../../lib/tool-framework/settings.ts";
 
-type Settings = SettingsOf<typeof import("./definition.ts").default.settings>;
+type Settings = {
+  readonly minute: string;
+  readonly hour: string;
+  readonly dayOfMonth: string;
+  readonly month: string;
+  readonly dayOfWeek: string;
+  readonly timezone: string;
+  readonly commandLabel: string;
+};
 
 export const run: ToolRun<Settings> = (ctx): ToolResult => {
   const minute = ctx.settings.minute.trim();

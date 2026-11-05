@@ -24,36 +24,38 @@ test("article metadata uses canonical immutable slug, explicit overrides and pub
   expect(metadata.openGraph.modifiedTime).toBe("2026-09-16T01:00:00.000Z");
   expect(() => blogArticleMetadata({ ...post, firstPublishedAt: null }, "https://example.test")).toThrow(/timestamp/);
   expect(() => blogCanonicalUrl("post", "https://user:pass@example.test")).toThrow();
-  const cloud = process.env.CLOUDINARY_CLOUD_NAME;
-  process.env.CLOUDINARY_CLOUD_NAME = "test-cloud";
-  try {
-    const imagePost = {
-      ...post,
-      document: {
-        ...post.document,
-        coverImage: {
-          publicId: "smarttools/blog/aaaaaaaa-bbbb-4ccc-8ddd-eeeeeeeeeeee",
-          version: 123,
+  const imagePost = {
+    ...post,
+    document: {
+      ...post.document,
+      coverImage: {
+        media: {
+          v: 1,
+          provider: "cloudinary",
           format: "png",
           width: 1200,
           height: 630,
-          alt: "Cover",
-          caption: "",
+          uploadedAt: "2026-01-01T00:00:00.000Z",
+          entry: {
+            cloudName: "test-cloud",
+            publicId: "smarttools/blog/aaaaaaaa-bbbb-4ccc-8ddd-eeeeeeeeeeee",
+            version: 123,
+          },
         },
+        alt: "Cover",
+        caption: "",
       },
-    };
-    const withImage = blogArticleMetadata(imagePost, "https://example.test");
-    expect(withImage.twitter.card).toBe("summary_large_image");
-    expect(withImage.openGraph.images[0].url).toBe(
-      "https://res.cloudinary.com/test-cloud/image/upload/v123/smarttools/blog/aaaaaaaa-bbbb-4ccc-8ddd-eeeeeeeeeeee.png",
-    );
-    expect(JSON.parse(blogStructuredData(imagePost, "https://example.test")).image).toBe(
-      withImage.openGraph.images[0].url,
-    );
-  } finally {
-    if (cloud === undefined) delete process.env.CLOUDINARY_CLOUD_NAME;
-    else process.env.CLOUDINARY_CLOUD_NAME = cloud;
-  }
+    },
+  };
+  const withImage = blogArticleMetadata(imagePost, "https://example.test");
+  expect(withImage.twitter.card).toBe("summary_large_image");
+  expect(withImage.openGraph.images[0]).toMatchObject({ width: 1200, height: 630 });
+  expect(withImage.openGraph.images[0].url).toBe(
+    "https://res.cloudinary.com/test-cloud/image/upload/v123/smarttools/blog/aaaaaaaa-bbbb-4ccc-8ddd-eeeeeeeeeeee.png",
+  );
+  expect(JSON.parse(blogStructuredData(imagePost, "https://example.test")).image).toBe(
+    withImage.openGraph.images[0].url,
+  );
 });
 test("structured data is safe to embed in an application/ld+json script", () => {
   const json = blogStructuredData(

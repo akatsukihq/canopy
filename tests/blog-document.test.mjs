@@ -15,15 +15,22 @@ import {
 } from "../lib/blog/document.ts";
 
 const paragraph = (text) => ({ type: "paragraph", content: [{ type: "text", text }] });
+const publicId = "smarttools/blog/95c40d91-c008-4474-965b-71ec2e4f2b81";
 const image = {
-  publicId: "smarttools/blog/95c40d91-c008-4474-965b-71ec2e4f2b81",
-  version: 1234,
-  format: "webp",
-  width: 800,
-  height: 600,
+  media: {
+    v: 1,
+    provider: "cloudinary",
+    format: "webp",
+    width: 800,
+    height: 600,
+    uploadedAt: "2026-01-01T00:00:00.000Z",
+    entry: { cloudName: "my-cloud", publicId, version: 1234 },
+  },
   alt: "A useful diagram",
   caption: "Diagram caption",
 };
+const withMedia = (fields) => ({ ...image, media: { ...image.media, ...fields } });
+const withEntry = (fields) => withMedia({ entry: { ...image.media.entry, ...fields } });
 function article() {
   return {
     ...createBlogDocument(" My article "),
@@ -277,65 +284,71 @@ test("renderer safely escapes text, creates stable distinct headings, and protec
   expect(blogDocumentText(value)).toMatch(/A & B\s+A & B/);
 });
 
-test("Cloudinary images use immutable configured-cloud URLs and require alt text on publication", () => {
+test("Cloudinary images use immutable stored-cloud URLs and require alt text on publication", () => {
   const value = { ...article(), coverImage: image };
   value.body.content.push({ type: "image", attrs: image });
-  expect(() => validateBlogDocument(value)).toThrow(/cloud/i);
-  const normalized = validateBlogDocument(value, { cloudName: "my-cloud" });
-  const output = renderBlogDocument(normalized, { cloudName: "my-cloud" });
+  const normalized = validateBlogDocument(value);
+  const output = renderBlogDocument(normalized);
   expect(
     output.html.includes(
-      `src="https://res.cloudinary.com/my-cloud/image/upload/c_limit,w_800/q_auto/f_auto/v1234/${image.publicId}.webp"`,
+      `src="https://res.cloudinary.com/my-cloud/image/upload/c_limit,w_800/q_auto/f_auto/v1234/${publicId}.webp"`,
     ),
   ).toBeTruthy();
   expect(
     output.html.includes(
-      `srcset="${[320, 640, 800].map((width) => `https://res.cloudinary.com/my-cloud/image/upload/c_limit,w_${width}/q_auto/f_auto/v1234/${image.publicId}.webp ${width}w`).join(", ")}"`,
+      `srcset="${[320, 640, 800].map((width) => `https://res.cloudinary.com/my-cloud/image/upload/c_limit,w_${width}/q_auto/f_auto/v1234/${publicId}.webp ${width}w`).join(", ")}"`,
     ),
   ).toBeTruthy();
   expect(output.html).toMatch(/loading="lazy" decoding="async"/);
-  expect(blogImageUrl(normalized.coverImage, { cloudName: "my-cloud" })).toBe(
+  expect(blogImageUrl(normalized.coverImage)).toBe(
     "https://res.cloudinary.com/my-cloud/image/upload/v1234/smarttools/blog/95c40d91-c008-4474-965b-71ec2e4f2b81.webp",
   );
   expect(output.html).toMatch(/<figcaption>Diagram caption<\/figcaption>/);
   expect(() => assertBlogPublishable(normalized)).not.toThrow();
   for (const attrs of [
-    { ...image, publicId: "../escape" },
-    { ...image, version: 0 },
-    { ...image, format: "svg" },
-    { ...image, width: -1 },
+    withEntry({ publicId: "../escape" }),
+    withEntry({ version: 0 }),
+    withEntry({ cloudName: "cloud/name" }),
+    withMedia({ format: "svg" }),
+    withMedia({ width: -1 }),
+    withMedia({ uploadedAt: "yesterday" }),
+    withMedia({ provider: "s3" }),
+    withMedia({ extra: true }),
+    { ...image, media: undefined },
+    { ...image.media, alt: "", caption: "" },
     { ...image, src: "https://evil.example/image.webp" },
   ]) {
-    expect(() => validateBlogDocument({ ...article(), coverImage: attrs }, { cloudName: "my-cloud" })).toThrow();
+    expect(() => validateBlogDocument({ ...article(), coverImage: attrs })).toThrow();
   }
-  const noAlt = validateBlogDocument({ ...value, coverImage: { ...image, alt: "" } }, { cloudName: "my-cloud" });
+  expect(() => validateBlogDocument({ ...article(), coverImage: withMedia({ format: "svg" }) })).toThrow(
+    /JPEG, PNG or WebP/,
+  );
+  const noAlt = validateBlogDocument({ ...value, coverImage: { ...image, alt: "" } });
   expect(() => assertBlogPublishable(noAlt)).toThrow(/alt/i);
 });
 
 test("environment-scoped blog assets retain immutable URLs in cover and body revisions", () => {
-  const options = { cloudName: "my-cloud" };
   for (const environment of ["production", "development", "test"]) {
-    const asset = { ...image, publicId: image.publicId.replace("smarttools", `Canopy/${environment}`) };
+    const asset = withEntry({ publicId: publicId.replace("smarttools", `Canopy/${environment}`) });
     const value = {
       ...article(),
       coverImage: asset,
       body: { type: "doc", content: [{ type: "image", attrs: asset }] },
     };
-    const normalized = validateBlogDocument(JSON.parse(JSON.stringify(value)), options);
+    const normalized = validateBlogDocument(JSON.parse(JSON.stringify(value)));
     expect(normalized.coverImage).toEqual(asset);
-    expect(normalized.body.content[0].attrs.publicId).toBe(asset.publicId);
-    const url = `https://res.cloudinary.com/my-cloud/image/upload/v1234/${asset.publicId}.webp`;
-    expect(blogImageUrl(normalized.coverImage, options)).toBe(url);
+    expect(normalized.body.content[0].attrs.media).toEqual(asset.media);
+    const url = `https://res.cloudinary.com/my-cloud/image/upload/v1234/${asset.media.entry.publicId}.webp`;
+    expect(blogImageUrl(normalized.coverImage)).toBe(url);
     expect(
-      renderBlogDocument(normalized, options).html.includes(
-        `src="https://res.cloudinary.com/my-cloud/image/upload/c_limit,w_800/q_auto/f_auto/v1234/${asset.publicId}.webp"`,
+      renderBlogDocument(normalized).html.includes(
+        `src="https://res.cloudinary.com/my-cloud/image/upload/c_limit,w_800/q_auto/f_auto/v1234/${asset.media.entry.publicId}.webp"`,
       ),
     ).toBeTruthy();
   }
 });
 
 test("body image layout survives document roundtrips without changing intrinsic dimensions or the cover", () => {
-  const options = { cloudName: "my-cloud" };
   for (const [alignment, marginLeft, marginRight] of [
     ["left", "0", "auto"],
     ["center", "auto", "auto"],
@@ -354,11 +367,11 @@ test("body image layout survives document roundtrips without changing intrinsic 
           content: [{ type: "image", attrs: { ...image, displayWidth, alignment } }],
         },
       };
-      const normalized = validateBlogDocument(value, options);
+      const normalized = validateBlogDocument(value);
       expect(normalized.body.content[0].attrs).toEqual({ ...image, displayWidth, alignment });
       expect(normalized.coverImage).toEqual(image);
-      expect(validateBlogDocument(JSON.parse(JSON.stringify(normalized)), options)).toEqual(normalized);
-      const { html } = renderBlogDocument(normalized, options);
+      expect(validateBlogDocument(JSON.parse(JSON.stringify(normalized)))).toEqual(normalized);
+      const { html } = renderBlogDocument(normalized);
       expect(
         html.includes(`width:${displayWidth}%;margin-left:${marginLeft};margin-right:${marginRight}`),
       ).toBeTruthy();
@@ -370,12 +383,11 @@ test("body image layout survives document roundtrips without changing intrinsic 
 });
 
 test("legacy body images and empty editor layout defaults keep their full-width centered layout", () => {
-  const options = { cloudName: "my-cloud" };
   const legacy = {
     ...article(),
     body: { type: "doc", content: [{ type: "image", attrs: image }] },
   };
-  const normalized = validateBlogDocument(legacy, options);
+  const normalized = validateBlogDocument(legacy);
   expect(normalized.body.content[0].attrs).toEqual({
     ...image,
     displayWidth: 100,
@@ -388,8 +400,8 @@ test("legacy body images and empty editor layout defaults keep their full-width 
       content: [{ type: "image", attrs: { ...image, displayWidth: null, alignment: null } }],
     },
   };
-  expect(validateBlogDocument(defaults, options)).toEqual(normalized);
-  expect(renderBlogDocument(legacy, options).html).toBe(renderBlogDocument(normalized, options).html);
+  expect(validateBlogDocument(defaults)).toEqual(normalized);
+  expect(renderBlogDocument(legacy).html).toBe(renderBlogDocument(normalized).html);
   expect(() => assertBlogPublishable(normalized)).not.toThrow();
   const resized = structuredClone(normalized);
   resized.body.content[0].attrs.displayWidth = 50;
@@ -397,7 +409,6 @@ test("legacy body images and empty editor layout defaults keep their full-width 
 });
 
 test("image layout rejects unsafe values and remains exclusive to body images", () => {
-  const options = { cloudName: "my-cloud" };
   for (const layout of [
     ...[0, 9, 101, 50.5, "50", "50%;color:red", true].map((displayWidth) => ({ displayWidth })),
     ...["justify", "left;color:red", "CENTER", 0, true].map((alignment) => ({ alignment })),
@@ -408,18 +419,18 @@ test("image layout rejects unsafe values and remains exclusive to body images", 
       ...article(),
       body: { type: "doc", content: [{ type: "image", attrs: { ...image, ...layout } }] },
     };
-    expect(() => validateBlogDocument(value, options)).toThrow();
-    expect(() => renderBlogDocument(value, options)).toThrow();
+    expect(() => validateBlogDocument(value)).toThrow();
+    expect(() => renderBlogDocument(value)).toThrow();
   }
   for (const layout of [{ displayWidth: 50 }, { alignment: "right" }]) {
-    expect(() => validateBlogDocument({ ...article(), coverImage: { ...image, ...layout } }, options)).toThrow(
+    expect(() => validateBlogDocument({ ...article(), coverImage: { ...image, ...layout } })).toThrow(
       /unsupported property/,
     );
   }
 });
 
 test("images cannot reference mutable Cloudinary assets outside the immutable blog namespace", () => {
-  for (const publicId of [
+  for (const badPublicId of [
     "smarttools/tool-icons/media.image-converter",
     "smarttools/blog/cover",
     "smarttools/blog/95c40d91-c008-1474-965b-71ec2e4f2b81",
@@ -434,17 +445,13 @@ test("images cannot reference mutable Cloudinary assets outside the immutable bl
     "Canopy/production/blog/95c40d91-c008-4474-965b-71ec2e4f2b81/suffix",
     "Canopy/production/../development/blog/95c40d91-c008-4474-965b-71ec2e4f2b81",
   ]) {
+    const bad = withEntry({ publicId: badPublicId });
+    expect(() => validateBlogDocument({ ...article(), coverImage: bad })).toThrow(/immutable blog asset/);
     expect(() =>
-      validateBlogDocument({ ...article(), coverImage: { ...image, publicId } }, { cloudName: "my-cloud" }),
-    ).toThrow(/immutable blog asset/);
-    expect(() =>
-      validateBlogDocument(
-        {
-          ...article(),
-          body: { type: "doc", content: [{ type: "image", attrs: { ...image, publicId } }] },
-        },
-        { cloudName: "my-cloud" },
-      ),
+      validateBlogDocument({
+        ...article(),
+        body: { type: "doc", content: [{ type: "image", attrs: bad }] },
+      }),
     ).toThrow(/immutable blog asset/);
   }
 });

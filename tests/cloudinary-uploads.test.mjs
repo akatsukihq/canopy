@@ -1,4 +1,6 @@
 import { afterAll, expect, test, vi } from "vitest";
+
+vi.mock("server-only", () => ({}));
 import { cloudinaryFolder } from "../lib/cloudinary/paths.ts";
 
 const originalEnv = Object.fromEntries(
@@ -19,7 +21,7 @@ vi.mock("cloudinary", () => ({
     uploader: {
       async upload(source, options) {
         uploads.push(options);
-        return { public_id: options.public_id, version: 1, format: "png", ...globalThis.__cloudinaryUploadResponse };
+        return { public_id: options.public_id, version: 1, format: "png", width: 256, height: 256, bytes: 900, ...globalThis.__cloudinaryUploadResponse };
       },
     },
   },
@@ -42,12 +44,16 @@ test("every environment keeps tool icon IDs and asset folders under its Canopy b
     expect(result.ok).toBe(true);
     const expectedFolder = `Canopy/${environment}/tool-icons`;
     expect(uploads.at(-1).asset_folder).toBe(expectedFolder);
-    expect(result.publicId).toBe(`${expectedFolder}/media.extract-pdf-pages`);
     expect(uploads.at(-1).overwrite).toBe(true);
-    expect(result.format).toBe("png");
-    expect(result.iconUrl).toBe(
-      `https://res.cloudinary.com/test-cloud/image/upload/f_png,c_fill,w_256,h_256,q_auto/v1/${expectedFolder}/media.extract-pdf-pages.png`,
-    );
+    expect(result.icon).toMatchObject({
+      v: 1,
+      provider: "cloudinary",
+      format: "png",
+      width: 256,
+      height: 256,
+      bytes: 900,
+      entry: { cloudName: "test-cloud", publicId: `${expectedFolder}/media.extract-pdf-pages`, version: 1 },
+    });
   }
   const count = uploads.length;
   delete process.env.NODE_ENV;
@@ -79,6 +85,7 @@ test("malformed Cloudinary responses never become saved icon URLs", async () => 
       { version: 1.5 },
       { version: Number.MAX_SAFE_INTEGER + 1 },
       { format: "svg" },
+      { width: 0 },
     ]) {
       globalThis.__cloudinaryUploadResponse = response;
       expect(await uploadToolIcon("media.extract-pdf-pages", png, "image/png")).toEqual({

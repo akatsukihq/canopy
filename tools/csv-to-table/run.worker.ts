@@ -1,20 +1,22 @@
 import { ToolError, type ToolRun } from "../../lib/tool-framework/run.ts";
-import { CSV_PREVIEW_BYTES, CSV_PREVIEW_ROWS } from "../../lib/tool-framework/limits.ts";
+import { getRuntimeLimits } from "../../lib/tool-framework/limits.ts";
 import type { ToolResult } from "../../lib/tool-framework/result.ts";
-import type { SettingsOf } from "../../lib/tool-framework/settings.ts";
 import { parseUtilityTable, tableToHtml, utilityDelimiter } from "../../lib/devtools/shared/table.ts";
 import { escapeHtml } from "../../lib/devtools/shared/text.ts";
 import { createTextArtifactSink, isLargeCsvRun, parseCsvRun } from "../../lib/devtools/shared/streaming-csv-tool.ts";
 
-type Settings = SettingsOf<typeof import("./definition.ts").default.settings>;
+type Settings = {
+  readonly delimiter: string;
+};
 
 const MAX_PREVIEW_CELLS = 10_000;
 
 function createTablePreview(columns: readonly string[]) {
   const encoder = new TextEncoder();
-  const rowLimit = Math.min(CSV_PREVIEW_ROWS, Math.max(1, Math.floor(MAX_PREVIEW_CELLS / columns.length)));
+  const { csvPreviewBytes, csvPreviewRows } = getRuntimeLimits();
+  const rowLimit = Math.min(csvPreviewRows, Math.max(1, Math.floor(MAX_PREVIEW_CELLS / columns.length)));
   let remainingBytes =
-    CSV_PREVIEW_BYTES - columns.reduce((size, column) => size + encoder.encode(column).byteLength, 0);
+    csvPreviewBytes - columns.reduce((size, column) => size + encoder.encode(column).byteLength, 0);
   const rows: (readonly string[])[] = [];
   const result =
     remainingBytes < 0

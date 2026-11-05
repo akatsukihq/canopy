@@ -1,3 +1,4 @@
+import { toolSpec } from "./helpers/toolSpec.mjs";
 import { afterEach, expect, test, vi } from "vitest";
 import { createTranslator } from "use-intl/core";
 import { context, execute } from "./helpers/json-tools.mjs";
@@ -7,19 +8,19 @@ import { parseSettings } from "../lib/tool-framework/settings.ts";
 import { translateToolResult } from "../lib/tool-framework/result.ts";
 import { extractToolMessages, toolMessageTree, validateToolTranslation } from "../lib/tool-framework/translations.ts";
 import { run as color } from "../tools/color-converter/run.ts";
-import colorDefinition from "../tools/color-converter/definition.ts";
+const colorDefinition = await toolSpec("color-converter");
 import { run as css } from "../tools/css-unit-converter/run.ts";
-import cssDefinition from "../tools/css-unit-converter/definition.ts";
+const cssDefinition = await toolSpec("css-unit-converter");
 import { run as dns } from "../tools/dns-checker/run.ts";
-import dnsDefinition from "../tools/dns-checker/definition.ts";
+const dnsDefinition = await toolSpec("dns-checker");
 import { run as schema } from "../tools/json-schema-validator/run.ts";
-import schemaDefinition from "../tools/json-schema-validator/definition.ts";
+const schemaDefinition = await toolSpec("json-schema-validator");
 import { run as contrast } from "../tools/contrast-checker/run.ts";
-import contrastDefinition from "../tools/contrast-checker/definition.ts";
+const contrastDefinition = await toolSpec("contrast-checker");
 import { run as axios } from "../tools/curl-to-axios/run.ts";
-import axiosDefinition from "../tools/curl-to-axios/definition.ts";
+const axiosDefinition = await toolSpec("curl-to-axios");
 import { run as formatter } from "../tools/json-formatter/run.worker.ts";
-import formatterDefinition from "../tools/json-formatter/definition.ts";
+const formatterDefinition = await toolSpec("json-formatter");
 
 afterEach(() => {
   vi.restoreAllMocks();

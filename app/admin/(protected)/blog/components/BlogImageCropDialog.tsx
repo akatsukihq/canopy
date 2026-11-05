@@ -19,7 +19,7 @@ import {
   SelectValue,
 } from "@/components/ui/index.tsx";
 import { CropFrame, type CropBox } from "@/components/CropFrame";
-import type { BlogImage } from "@/lib/blog/document";
+import type { MediaFormat } from "@/lib/media";
 import { cropBlogImage, fitCropRatio, resizeCrop, validateCropDimensions } from "../lib/imageCrop";
 
 export function BlogImageCropDialog({
@@ -31,7 +31,7 @@ export function BlogImageCropDialog({
   onClose,
 }: {
   src: string;
-  format: BlogImage["format"];
+  format: MediaFormat;
   title?: string;
   isCover?: boolean;
   onApply: (file: File) => Promise<void>;

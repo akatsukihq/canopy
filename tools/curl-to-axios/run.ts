@@ -10,10 +10,13 @@
 
 import type { ToolRun } from "../../lib/tool-framework/run.ts";
 import type { ToolResult } from "../../lib/tool-framework/result.ts";
-import type { SettingsOf } from "../../lib/tool-framework/settings.ts";
 import { parseCurl, shellTokens } from "../../lib/devtools/shared/curl.ts";
 
-type Settings = SettingsOf<typeof import("./definition.ts").default.settings>;
+type Settings = {
+  readonly moduleFormat: string;
+  readonly requestStyle: string;
+  readonly outputLanguage: string;
+};
 type CurlRequest = ReturnType<typeof parseCurl>;
 
 const FLAGS_WITH_VALUES = new Set([

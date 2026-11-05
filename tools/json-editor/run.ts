@@ -5,10 +5,12 @@
 
 import type { ToolRun } from "../../lib/tool-framework/run.ts";
 import type { ToolResult } from "../../lib/tool-framework/result.ts";
-import type { SettingsOf } from "../../lib/tool-framework/settings.ts";
 import { parseUtilityJson } from "../../lib/devtools/shared/json-input.ts";
 
-type Settings = SettingsOf<typeof import("./definition.ts").default.settings>;
+type Settings = {
+  readonly repairMode: string;
+  readonly indent: string;
+};
 
 export const run: ToolRun<Settings> = (ctx): ToolResult => {
   const indentation = ctx.settings.indent === "4" ? 4 : 2;

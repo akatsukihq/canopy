@@ -1,3 +1,4 @@
+import { toolSpec } from "./helpers/toolSpec.mjs";
 // @vitest-environment jsdom
 import React, { act, useState } from "react";
 import { createRoot } from "react-dom/client";
@@ -6,7 +7,7 @@ import { getCommonMessages } from "../lib/i18n/messages.ts";
 import { extractToolMessages, toolMessageTree } from "../lib/tool-framework/translations.ts";
 import { afterEach, beforeEach, expect, test, vi } from "vitest";
 import GradientWorkspace from "../tools/gradient-generator/workspace.tsx";
-import definition from "../tools/gradient-generator/definition.ts";
+const definition = await toolSpec("gradient-generator");
 import { run } from "../tools/gradient-generator/run.ts";
 
 vi.mock("@/components/ResultSurface", () => ({

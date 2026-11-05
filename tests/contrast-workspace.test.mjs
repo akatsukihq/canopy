@@ -1,3 +1,4 @@
+import { toolSpec } from "./helpers/toolSpec.mjs";
 // @vitest-environment jsdom
 import React, { act, useState } from "react";
 import { createRoot } from "react-dom/client";
@@ -6,7 +7,7 @@ import { getCommonMessages } from "../lib/i18n/messages.ts";
 import { extractToolMessages, toolMessageTree } from "../lib/tool-framework/translations.ts";
 import { afterEach, beforeEach, expect, test, vi } from "vitest";
 import ContrastWorkspace from "../tools/contrast-checker/workspace.tsx";
-import definition from "../tools/contrast-checker/definition.ts";
+const definition = await toolSpec("contrast-checker");
 import { run } from "../tools/contrast-checker/run.ts";
 
 vi.mock("@/components/ResultView", () => ({ ResultActions: () => null }));

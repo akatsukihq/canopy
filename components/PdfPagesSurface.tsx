@@ -32,7 +32,7 @@ import {
 
 import { WorkspaceSurface } from "@/components/Surfaces";
 import type { ToolPagePreview } from "@/lib/tool-framework/run";
-import { PDF_PREVIEW_MAX_WIDTH, PDF_THUMBNAIL_CACHE_SIZE } from "@/lib/tool-framework/limits";
+import { getRuntimeLimits } from "@/lib/tool-framework/limits";
 import { parsePageSelection } from "@/lib/tool-framework/settings";
 
 /** A rendered page: the declared geometry plus a blob URL for its thumbnail. */
@@ -135,7 +135,7 @@ export function usePdfPageImages(previews: readonly ToolPagePreview[]): readonly
       });
       changed = true;
     }
-    while (cacheRef.current.size > PDF_THUMBNAIL_CACHE_SIZE) {
+    while (cacheRef.current.size > getRuntimeLimits().pdfThumbnailCacheSize) {
       const oldest = cacheRef.current.entries().next().value as [number, { readonly url: string }] | undefined;
       if (!oldest) break;
       URL.revokeObjectURL(oldest[1].url);
@@ -439,7 +439,7 @@ export function PdfPreviewPage({
     const render = () => {
       if (!visible) return;
       const width = Math.min(
-        PDF_PREVIEW_MAX_WIDTH,
+        getRuntimeLimits().pdfPreviewMaxWidth,
         Math.ceil((node.getBoundingClientRect().width * window.devicePixelRatio) / 64) * 64,
       );
       if (width > 0 && (!page.url || width > (page.renderWidth ?? 0))) {

@@ -1,11 +1,11 @@
 import { assistantRoute, readAssistantJson } from "@/lib/assistant/http.ts";
-import { assistantId } from "@/lib/assistant/validation.ts";
+import { assistantResourceId } from "@/lib/assistant/validation.ts";
 import { getAssistantService } from "../../integrations.ts";
 
 type Context = { params: Promise<{ integrationKey: string }> };
 function resourceScope(request: Request) {
   const resourceId = new URL(request.url).searchParams.get("resourceId");
-  return resourceId === null ? null : assistantId.parse(resourceId);
+  return resourceId === null ? null : assistantResourceId.parse(resourceId);
 }
 export async function GET(request: Request, { params }: Context) {
   return assistantRoute(request, async (actor) => ({

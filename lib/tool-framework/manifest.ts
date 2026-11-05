@@ -25,7 +25,7 @@ import { cache } from "react";
 import { db, getToolContentRows, isDatabaseConfigured, managedToolsTable } from "../../db/index.ts";
 import { mergeToolManifest, type ResolvedTool, type ToolManifestEntry } from "../tool-catalog/index.ts";
 
-import { definitionKeyOf, loadSpec } from "./catalog";
+import { definitionKeyOf, specFromRow } from "./catalog";
 import { TOOL_CATEGORIES } from "./categories";
 import { hasDraftToolContent } from "./content.ts";
 
@@ -39,9 +39,16 @@ interface ManifestRecord {
 
 /** One resolved tool as the admin catalogue sees it: every stored row, always. */
 export interface AdminTool extends ResolvedTool {
-  /** False when no `tools/<componentKey>/definition.ts` ships for this row. */
+  /** False when the row has no valid stored spec. */
   readonly hasDefinition: boolean;
   readonly hasDraftContent: boolean;
+  /** The raw stored spec, even when it does not validate. */
+  readonly rawSpec: unknown | null;
+  /** The raw unpublished spec edit; see `lib/admin/toolSpecDraft.ts`. */
+  readonly specDraft: unknown | null;
+  readonly hasSpecDraft: boolean;
+  /** ISO timestamp of the row, for stale-edit checks. */
+  readonly updatedAt: string;
 }
 
 const loadRows = cache(async (): Promise<readonly ManagedToolRow[]> => {
@@ -55,10 +62,9 @@ const loadRows = cache(async (): Promise<readonly ManagedToolRow[]> => {
 
 async function toRecord(row: ManagedToolRow): Promise<ManifestRecord> {
   const definitionKey = definitionKeyOf(row.toolId);
-  const spec = definitionKey ? await loadSpec(definitionKey) : null;
-  // A definition that claims another app is as good as absent: it can never
+  // A missing, malformed, or other-app spec is as good as absent: it can never
   // serve this row's route.
-  const shipped = spec && spec.app === row.app ? spec : null;
+  const shipped = definitionKey ? await specFromRow(row) : null;
 
   return {
     // Paperwork predates `tools/` and ships from `app/paperwork`, so it is not
@@ -98,9 +104,9 @@ export const getToolManifest = cache(async (): Promise<readonly ToolManifestEntr
  * The admin catalogue's enumerator.
  *
  * Admin manages database rows, so it must see every row — including one whose
- * folder has not been deployed yet. Those surface as `hasDefinition: false`
- * rather than vanishing; the public catalogue still hides them, because
- * `catalog.ts` drops any row whose `definition.ts` does not import.
+ * spec is missing or invalid. Those surface as `hasDefinition: false` rather
+ * than vanishing; the public catalogue still hides them, because `catalog.ts`
+ * drops any row without a valid stored spec.
  */
 export const getAdminTools = cache(async (): Promise<readonly AdminTool[]> => {
   const [rows, records, contentRows] = await Promise.all([
@@ -110,13 +116,21 @@ export const getAdminTools = cache(async (): Promise<readonly AdminTool[]> => {
   ]);
   const draftIds = new Set(contentRows.filter(hasDraftToolContent).map((row) => row.toolId));
   const shippedById = new Map(records.map((record) => [record.entry.id, record.hasDefinition] as const));
+  const rowsById = new Map(rows.map((row) => [row.toolId, row] as const));
 
   return mergeToolManifest(
     rows,
     records.map((record) => record.entry),
-  ).map((tool) => ({
-    ...tool,
-    hasDefinition: shippedById.get(tool.id) ?? false,
-    hasDraftContent: draftIds.has(tool.id),
-  }));
+  ).map((tool) => {
+    const row = rowsById.get(tool.id);
+    return {
+      ...tool,
+      hasDefinition: shippedById.get(tool.id) ?? false,
+      hasDraftContent: draftIds.has(tool.id),
+      rawSpec: row?.spec ?? null,
+      specDraft: row?.specDraft ?? null,
+      hasSpecDraft: row?.specDraft != null,
+      updatedAt: (row?.updatedAt ?? new Date(0)).toISOString(),
+    };
+  });
 });

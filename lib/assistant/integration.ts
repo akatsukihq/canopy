@@ -1,5 +1,5 @@
 import type { db, assistantRunsTable, assistantMessagesTable, assistantAttachmentsTable } from "../../db/index.ts";
-import type { AIRequest, AIResult } from "../ai/types.ts";
+import type { AIEffort, AIRequest, AIResult } from "../ai/types.ts";
 import type {
   AssistantArtifact,
   AssistantExecutionMode,
@@ -32,6 +32,8 @@ export interface AssistantIntegration {
     structuredOutput: boolean;
   };
   operationLabel(operation: string, agentId?: string): string;
+  /** Reasoning effort used when the user leaves the picker on its default; medium otherwise. */
+  agentEffort?(agentId?: string): AIEffort | undefined;
   authorize(
     tx: AssistantTransaction,
     actor: string,
@@ -50,7 +52,7 @@ export interface AssistantIntegration {
     attachments: StoredAttachment[];
     proposals: AssistantProposal[];
     signal: AbortSignal;
-  }): AIRequest;
+  }): AIRequest | Promise<AIRequest>;
   partialText?(output: unknown, request: AssistantRunRequest): string | undefined;
   validateResult(
     result: AIResult,

@@ -1,4 +1,6 @@
 import { test, expect, vi, onTestFinished } from "vitest";
+
+vi.mock("server-only", () => ({}));
 import { db } from "../db/index.ts";
 import { BlogValidationError } from "../lib/blog/document.ts";
 import {

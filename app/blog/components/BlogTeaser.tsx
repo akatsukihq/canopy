@@ -99,8 +99,8 @@ export function BlogTeaser({
           {...coverDelivery}
           sizes="(min-width: 640px) 400px, calc(100vw - 40px)"
           alt={post.coverImage.alt}
-          width={post.coverImage.width}
-          height={post.coverImage.height}
+          width={post.coverImage.media.width}
+          height={post.coverImage.media.height}
           className="h-[230px] w-full rounded-lg object-cover sm:w-[400px]"
         />
       )}

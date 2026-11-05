@@ -1,7 +1,6 @@
 import { ToolError } from "../../lib/tool-framework/run.ts";
 import type { CronTranslator } from "../../lib/devtools/shared/cron-messages.ts";
 import { describeCron } from "../../lib/devtools/shared/datetime.ts";
-import definition from "./definition.ts";
 
 export const CRON_FIELDS = [
   { key: "minute", range: "0–59" },
@@ -17,7 +16,7 @@ export function getCronFieldError(
   key: CronField,
   value: string,
   text?: CronTranslator,
-  label: string = definition.settings.fields[key].label,
+  label: string = key,
 ): string | undefined {
   if (!value.trim())
     return text
@@ -40,7 +39,7 @@ export function getScheduleSummary(
   text?: CronTranslator,
   locale?: string,
 ): string {
-  const fields = CRON_FIELDS.map(({ key }) => String(settings[key] ?? definition.settings.fields[key].default).trim());
+  const fields = CRON_FIELDS.map(({ key }) => String(settings[key] ?? "*").trim());
   const [minute, hour, day, month, weekday] = fields;
   let description: string;
   try {

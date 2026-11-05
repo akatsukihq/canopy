@@ -4,7 +4,7 @@ import { Fragment, useActionState, useEffect, useRef, useState, type KeyboardEve
 import { ChevronDown, ChevronRight, FileText, Folder, FolderOpen } from "lucide";
 import { Braces, Filter, Search, X } from "lucide-react";
 import { MorphIcon } from "morphicons/react";
-import { CodeEditor } from "@/components/content/CodeEditor.tsx";
+import { CodeEditor, type CodeEditorHandle } from "@/components/content/CodeEditor.tsx";
 import {
   Accordion,
   AccordionContent,
@@ -42,8 +42,11 @@ import {
   type ToolMessages,
   type ToolTranslations,
 } from "@/lib/tool-framework/translations.ts";
+import { PlaceholderMenu } from "./PlaceholderMenu.tsx";
+import { useAssistantTarget } from "./ToolAssistantContext.tsx";
 import { saveToolTranslationAction, type ToolTranslationActionState } from "../../actions";
 
+const PLACEHOLDER = /\{([A-Za-z_][\w.]*)\}/g;
 const IDLE: ToolTranslationActionState = { status: "idle", message: "" };
 const SECTIONS = {
   details: "Tool details",
@@ -429,6 +432,7 @@ function TranslationFields({
   const form = useRef<HTMLFormElement>(null);
   const fieldsPane = useRef<HTMLDivElement>(null);
   const fieldsBody = useRef<HTMLDivElement>(null);
+  const chipEditors = useRef(new Map<string, CodeEditorHandle>());
   const entries = Object.entries(englishMessages);
   const messageGroups = groupMessages(
     entries.filter(([key]) => messageSection(key) === "messages").map(([key]) => key),
@@ -499,6 +503,12 @@ function TranslationFields({
 
   useEffect(() => {
     if (!focusKey) return;
+    const chipEditor = chipEditors.current.get(focusKey);
+    if (chipEditor) {
+      chipEditor.focus();
+      setFocusKey(null);
+      return;
+    }
     const field = form.current?.elements.namedItem(`message:${focusKey}`);
     if (field instanceof HTMLElement) field.focus();
     setFocusKey(null);
@@ -655,6 +665,11 @@ function TranslationFields({
   function renderMessage(key: string, label = fieldLabel(key), hideLabel = false, stacked = false): ReactNode {
     const source = englishMessages[key]!;
     const id = `translation-${encodeURIComponent(key)}`;
+    const placeholders = [...new Set(Array.from(source.matchAll(PLACEHOLDER), (match) => match[1]!))].sort();
+    const describedBy =
+      [locale !== "en" ? `${id}-source` : "", source.includes("{") ? "translation-variables" : ""]
+        .filter(Boolean)
+        .join(" ") || undefined;
     return (
       <div className={locale === "en" ? "min-w-0" : "grid min-w-0 gap-2 md:grid-cols-2 md:gap-x-6"}>
         {locale !== "en" && !hideLabel ? (
@@ -696,23 +711,50 @@ function TranslationFields({
             )
           }
         >
-          <Textarea
-            aria-describedby={
-              [locale !== "en" ? `${id}-source` : "", source.includes("{") ? "translation-variables" : ""]
-                .filter(Boolean)
-                .join(" ") || undefined
-            }
-            className={locale === "en" ? "min-h-9 py-2" : "min-h-9 flex-1 py-2"}
-            disabled={pending}
-            dir={direction(locale)}
-            id={id}
-            lang={locale}
-            name={`message:${key}`}
-            onChange={(event) => onChange(key, event.target.value)}
-            placeholder={locale === "en" ? undefined : "Enter translation"}
-            rows={1}
-            value={messages[key] ?? ""}
-          />
+          {placeholders.length ? (
+            <div className="flex min-w-0 flex-col gap-1.5" dir={direction(locale)} lang={locale}>
+              <PlaceholderMenu
+                allowCustom={false}
+                names={placeholders}
+                onInsert={(name) => chipEditors.current.get(key)?.insertText(`{${name}}`)}
+              />
+              <CodeEditor
+                // Field links its error to its direct child (this wrapper), so link it to the editor here.
+                aria-describedby={
+                  [describedBy, errors.get(key) ? `${id}-error` : ""].filter(Boolean).join(" ") || undefined
+                }
+                aria-invalid={Boolean(errors.get(key))}
+                className="h-auto min-h-16 rounded-md border border-input"
+                disabled={pending}
+                editorRef={(handle) => {
+                  if (handle) chipEditors.current.set(key, handle);
+                  else chipEditors.current.delete(key);
+                }}
+                id={id}
+                language="text"
+                onChange={(value) => onChange(key, value)}
+                placeholder={locale === "en" ? undefined : "Enter translation"}
+                placeholderChips
+                value={messages[key] ?? ""}
+                wrap="soft"
+              />
+              <input name={`message:${key}`} type="hidden" value={messages[key] ?? ""} />
+            </div>
+          ) : (
+            <Textarea
+              aria-describedby={describedBy}
+              className={locale === "en" ? "min-h-9 py-2" : "min-h-9 flex-1 py-2"}
+              disabled={pending}
+              dir={direction(locale)}
+              id={id}
+              lang={locale}
+              name={`message:${key}`}
+              onChange={(event) => onChange(key, event.target.value)}
+              placeholder={locale === "en" ? undefined : "Enter translation"}
+              rows={1}
+              value={messages[key] ?? ""}
+            />
+          )}
         </Field>
       </div>
     );
@@ -1085,6 +1127,7 @@ export function ToolTranslationsForm({
   updatedAt: string;
   enabled: boolean;
 }) {
+  const [activeKey, setActiveKey] = useState<string | null>(null);
   const [locale, setLocale] = useState<Locale>("en");
   const [drafts, setDrafts] = useState<ToolTranslations>({
     ...translations,
@@ -1101,72 +1144,92 @@ export function ToolTranslationsForm({
     return (value?.trim() ? value : "") !== (previous?.trim() ? previous : "");
   });
 
+  const setMessage = (key: string, value: string) =>
+    setDrafts((previous) => ({
+      ...previous,
+      [locale]: {
+        status: previous[locale]?.status ?? "draft",
+        messages: { ...previous[locale]?.messages, [key]: value },
+      },
+    }));
+  useAssistantTarget({
+    section: "translations",
+    values: current.messages,
+    apply: (key, value) => setMessage(key, String(value)),
+    locale,
+    activeKey,
+  });
+
   return (
-    <section aria-label="Translations" className="flex min-h-0 flex-1 flex-col">
-      <TranslationFields
-        languageControl={
-          <Field className="min-w-0" htmlFor="translation-language" label="Language to edit">
-            <Select
-              disabled={saving}
-              id="translation-language"
-              onChange={(event) => {
-                if (isLocale(event.target.value)) setLocale(event.target.value);
-              }}
-              value={locale}
-            >
-              {locales.map((language) => (
-                <option key={language} value={language}>
-                  {localeLabels[language]}
-                </option>
-              ))}
-            </Select>
-          </Field>
-        }
-        dirty={dirty}
-        enabled={enabled}
-        englishMessages={source}
-        key={locale}
-        locale={locale}
-        messages={current.messages}
-        translations={drafts}
-        onPendingChange={setSaving}
-        onReplace={(nextLocale, changes) => {
-          setDrafts((previous) => {
-            const next = { ...previous };
-            for (const language of locales) {
-              const messages = changes[language];
-              if (messages) next[language] = { status: previous[language]?.status ?? "draft", messages };
-            }
-            return next;
-          });
-          setLocale(nextLocale);
-        }}
-        onChange={(key, value) =>
-          setDrafts((previous) => ({
-            ...previous,
-            [locale]: {
-              status: previous[locale]?.status ?? "draft",
-              messages: { ...previous[locale]?.messages, [key]: value },
-            },
-          }))
-        }
-        onSaved={(nextVersion, status, sourceChanged) => {
-          setVersion(nextVersion);
-          setSaved((previous) => ({ ...previous, [locale]: { ...current, status } }));
-          setDrafts((previous) =>
-            Object.fromEntries(
-              Object.entries({ ...previous, [locale]: { ...current, status } }).map(([language, entry]) => [
-                language,
-                sourceChanged && language !== "en" ? { ...entry, status: "draft" } : entry,
-              ]),
-            ),
-          );
-          if (locale === "en") setSource(current.messages);
-        }}
-        savedStatus={current.status}
-        toolId={toolId}
-        updatedAt={version}
-      />
+    <section
+      aria-label="Translations"
+      className="flex min-h-0 flex-1 gap-4"
+      onFocusCapture={(event) => {
+        const id = (event.target as HTMLElement).closest<HTMLElement>('[id^="translation-"]')?.id;
+        const key = id && decodeURIComponent(id.slice("translation-".length));
+        if (key && Object.hasOwn(source, key)) setActiveKey(key);
+      }}
+    >
+      <div className="flex min-h-0 min-w-0 flex-1 flex-col">
+        <TranslationFields
+          languageControl={
+            <div className="flex items-end gap-2">
+              <Field className="min-w-0 flex-1" htmlFor="translation-language" label="Language to edit">
+                <Select
+                  disabled={saving}
+                  id="translation-language"
+                  onChange={(event) => {
+                    if (isLocale(event.target.value)) setLocale(event.target.value);
+                  }}
+                  value={locale}
+                >
+                  {locales.map((language) => (
+                    <option key={language} value={language}>
+                      {localeLabels[language]}
+                    </option>
+                  ))}
+                </Select>
+              </Field>
+            </div>
+          }
+          dirty={dirty}
+          enabled={enabled}
+          englishMessages={source}
+          key={locale}
+          locale={locale}
+          messages={current.messages}
+          translations={drafts}
+          onPendingChange={setSaving}
+          onReplace={(nextLocale, changes) => {
+            setDrafts((previous) => {
+              const next = { ...previous };
+              for (const language of locales) {
+                const messages = changes[language];
+                if (messages) next[language] = { status: previous[language]?.status ?? "draft", messages };
+              }
+              return next;
+            });
+            setLocale(nextLocale);
+          }}
+          onChange={setMessage}
+          onSaved={(nextVersion, status, sourceChanged) => {
+            setVersion(nextVersion);
+            setSaved((previous) => ({ ...previous, [locale]: { ...current, status } }));
+            setDrafts((previous) =>
+              Object.fromEntries(
+                Object.entries({ ...previous, [locale]: { ...current, status } }).map(([language, entry]) => [
+                  language,
+                  sourceChanged && language !== "en" ? { ...entry, status: "draft" } : entry,
+                ]),
+              ),
+            );
+            if (locale === "en") setSource(current.messages);
+          }}
+          savedStatus={current.status}
+          toolId={toolId}
+          updatedAt={version}
+        />
+      </div>
     </section>
   );
 }

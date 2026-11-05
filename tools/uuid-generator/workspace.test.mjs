@@ -1,9 +1,10 @@
+import { toolSpec } from "../../tests/helpers/toolSpec.mjs";
 // @vitest-environment jsdom
 import assert from "node:assert/strict";
 import { webcrypto } from "node:crypto";
 import { beforeEach, test, vi } from "vitest";
 import Workspace from "./workspace.tsx";
-import definition from "./definition.ts";
+const definition = await toolSpec("uuid-generator");
 import { run } from "./run.ts";
 import { setupReactTools, fill, click, button, field, waitFor } from "../../tests/helpers/react-tools.mjs";
 import { mountWorkspace, choose } from "../../tests/helpers/tool-workspace.mjs";

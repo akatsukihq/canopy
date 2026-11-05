@@ -1,6 +1,7 @@
+import { toolSpec } from "../../tests/helpers/toolSpec.mjs";
 import { expect, test } from "vitest";
 import { parseSettings } from "../../lib/tool-framework/settings.ts";
-import definition from "./definition.ts";
+const definition = await toolSpec("css-formatter");
 import { run } from "./run.ts";
 import { JSDOM } from "jsdom";
 import { spawnSync } from "node:child_process";

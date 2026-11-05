@@ -1,5 +1,6 @@
+import { allToolSpecs } from "./helpers/toolSpec.mjs";
 import { expect, test } from "vitest";
-import { readdir, readFile } from "node:fs/promises";
+import { readFile } from "node:fs/promises";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 
@@ -81,23 +82,9 @@ const FIXTURE = {
 // Spec-shape invariants — run against the fixture and every migrated tool spec.
 // ---------------------------------------------------------------------------
 
-const TOOLS_DIR = path.join(ROOT, "tools");
-const migratedSpecs = [];
-for (const entry of await readdir(TOOLS_DIR, { withFileTypes: true })) {
-  if (!entry.isDirectory()) continue;
-  const definitionPath = path.join(TOOLS_DIR, entry.name, "definition.ts");
-  let source;
-  try {
-    source = await readFile(definitionPath, "utf8");
-  } catch {
-    continue;
-  }
-  if (!/^\s*export\s+default\b/m.test(source)) continue; // not migrated yet
-  const spec = (await import(definitionPath)).default;
-  if (spec?.settings) {
-    migratedSpecs.push([entry.name, spec.settings, spec.content?.examples ?? []]);
-  }
-}
+const migratedSpecs = (await allToolSpecs()).flatMap((spec) =>
+  spec.settings ? [[spec.toolId.split(".")[1], spec.settings, spec.content?.examples ?? []]] : [],
+);
 
 const specsUnderTest = [["<fixture>", FIXTURE], ...migratedSpecs];
 

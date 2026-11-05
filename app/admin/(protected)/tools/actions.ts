@@ -20,6 +20,103 @@ import {
   saveToolTranslation,
   ToolTranslationValidationError,
 } from "../../../../lib/admin/adminMutations";
+import {
+  discardToolSpecDraft,
+  publishToolSpecDraft,
+  saveToolSpecDraft,
+  ToolSpecValidationError,
+} from "../../../../lib/admin/toolSpecDraft";
+
+export type ToolSpecActionState = {
+  status: "idle" | "success" | "error";
+  message: string;
+  issues?: readonly string[];
+  updatedAt?: string;
+};
+
+const INVALID_SPEC_JSON = "spec: not valid JSON";
+
+class SpecJsonError extends Error {}
+
+/** Parses the `spec` field; `undefined` when it is absent or blank. */
+function specJson(formData: FormData): unknown {
+  const raw = text(formData, "spec");
+  if (!raw) return undefined;
+  try {
+    return JSON.parse(raw);
+  } catch {
+    throw new SpecJsonError("The spec is not valid JSON.");
+  }
+}
+
+function specFailure(error: unknown): ToolSpecActionState {
+  if (error instanceof SpecJsonError) return { status: "error", message: error.message, issues: [INVALID_SPEC_JSON] };
+  if (error instanceof ToolSpecValidationError)
+    return { status: "error", message: error.message, issues: error.issues };
+  return failure(error);
+}
+
+async function specDraftAction(
+  name: string,
+  formData: FormData,
+  run: (actorUserId: string, toolId: string, updatedAt: string) => Promise<{ updatedAt: string }>,
+  message: string,
+): Promise<ToolSpecActionState> {
+  return measureServerAction<ToolSpecActionState>(`admin.tools.${name}`, async () => {
+    const toolId = text(formData, "toolId");
+    try {
+      const saved = await run(await getActorUserId(), toolId, text(formData, "updatedAt"));
+      revalidate(toolId);
+      return { status: "success", message, updatedAt: saved.updatedAt };
+    } catch (error) {
+      return specFailure(error);
+    }
+  });
+}
+
+export async function saveToolSpecDraftAction(
+  _previous: ToolSpecActionState,
+  formData: FormData,
+): Promise<ToolSpecActionState> {
+  return specDraftAction(
+    "saveToolSpecDraftAction",
+    formData,
+    (actor, toolId, updatedAt) => {
+      const spec = specJson(formData);
+      if (spec === undefined) throw new ToolSpecValidationError(["spec: required"]);
+      return saveToolSpecDraft(actor, toolId, { spec, updatedAt });
+    },
+    "Spec draft saved.",
+  );
+}
+
+export async function publishToolSpecDraftAction(
+  _previous: ToolSpecActionState,
+  formData: FormData,
+): Promise<ToolSpecActionState> {
+  return specDraftAction(
+    "publishToolSpecDraftAction",
+    formData,
+    async (actor, toolId, updatedAt) => {
+      const saved = await publishToolSpecDraft(actor, toolId, { updatedAt });
+      revalidatePath("/", "layout");
+      return saved;
+    },
+    "Spec published.",
+  );
+}
+
+export async function discardToolSpecDraftAction(
+  _previous: ToolSpecActionState,
+  formData: FormData,
+): Promise<ToolSpecActionState> {
+  return specDraftAction(
+    "discardToolSpecDraftAction",
+    formData,
+    (actor, toolId, updatedAt) => discardToolSpecDraft(actor, toolId, { updatedAt }),
+    "Spec draft discarded.",
+  );
+}
 
 export type ToolTranslationActionState = ToolContentActionState & {
   readonly issues?: readonly { key: string; message: string }[];
@@ -125,10 +222,10 @@ function revalidate(toolId: string): void {
  * failures into a form message.
  */
 export async function createToolAction(
-  _previous: ToolContentActionState,
+  _previous: ToolSpecActionState,
   formData: FormData,
-): Promise<ToolContentActionState> {
-  return measureServerAction<ToolContentActionState>("admin.tools.createToolAction", async () => {
+): Promise<ToolSpecActionState> {
+  return measureServerAction<ToolSpecActionState>("admin.tools.createToolAction", async () => {
     let toolId: string;
     try {
       const created = await createManagedTool(await getActorUserId(), {
@@ -138,10 +235,11 @@ export async function createToolAction(
         description: text(formData, "description"),
         slug: text(formData, "slug"),
         category: text(formData, "category"),
+        spec: specJson(formData),
       });
       toolId = created.toolId;
     } catch (error) {
-      return failure(error);
+      return specFailure(error);
     }
     revalidatePath("/admin/tools");
     redirect(appHref(`/admin/tools/${encodeURIComponent(toolId)}`));

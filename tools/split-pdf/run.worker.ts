@@ -20,10 +20,14 @@ import { createOutputFilename, validatePdfSelection } from "../../lib/tool-frame
 import { writeArtifactBatch } from "../../lib/tool-framework/media/zip.ts";
 import type { ToolResult } from "../../lib/tool-framework/result.ts";
 import { ToolError, type ToolRun } from "../../lib/tool-framework/run.ts";
-import type { SettingsOf } from "../../lib/tool-framework/settings.ts";
 import { splitPageGroups } from "./groups.ts";
 
-type Settings = SettingsOf<typeof import("./definition.ts").default.settings>;
+type Settings = {
+  readonly mode: string;
+  readonly interval: number;
+  readonly ranges: string;
+  readonly bundleAsZip: boolean;
+};
 
 export const run: ToolRun<Settings> = async (ctx): Promise<ToolResult> => {
   const input = ctx.input.files?.[0];

@@ -1,5 +1,6 @@
-import config from "../config/config.ts";
-import { getEmailSender } from "../email/sender.ts";
+import { accountsFromAddress, emailConfig } from "../config/integrations.ts";
+import { loadRuntimeSettings } from "../config/runtimeSettings.ts";
+import { createEmailSender } from "../email/sender.ts";
 
 function escapeHtml(value: string): string {
   return value.replace(
@@ -30,12 +31,14 @@ export async function sendAuthEmail({
   actionLabel: string;
   actionUrl: string;
 }): Promise<void> {
-  const accountsEmail = config.email.accountsEmail?.trim();
+  // Admin can switch provider or rotate keys without a redeploy.
+  const settings = await loadRuntimeSettings();
+  const accountsEmail = accountsFromAddress(settings);
   if (!accountsEmail) {
     throw new Error("ACCOUNTS_EMAIL is required");
   }
 
-  const sender = getEmailSender();
+  const sender = createEmailSender(emailConfig(settings));
   try {
     await sender.send({
       from: { address: accountsEmail, name: "SmartTools Accounts" },

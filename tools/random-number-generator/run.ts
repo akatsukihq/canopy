@@ -2,10 +2,18 @@
 
 import { ToolError, type ToolRun } from "../../lib/tool-framework/run.ts";
 import type { ToolResult } from "../../lib/tool-framework/result.ts";
-import type { SettingsOf } from "../../lib/tool-framework/settings.ts";
 import { secureRandomInt } from "../../lib/devtools/shared/crypto.ts";
 
-type Settings = SettingsOf<typeof import("./definition.ts").default.settings>;
+type Settings = {
+  readonly count: number;
+  readonly min: number;
+  readonly max: number;
+  readonly seed: string;
+  readonly decimalPlaces: string;
+  readonly uniqueValues: boolean;
+  readonly wholeNumbers: boolean;
+  readonly sortResult: boolean;
+};
 
 function seededRandomInt(seed: string): (maxExclusive: number) => number {
   let state = 0x811c9dc5;

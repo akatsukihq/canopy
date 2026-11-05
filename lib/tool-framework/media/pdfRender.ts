@@ -6,7 +6,7 @@
  */
 
 import { ToolError, type ToolRunFile, type ToolRunProgress } from "../run.ts";
-import { PDF_PREVIEW_MAX_PIXELS, PDF_PREVIEW_MAX_WIDTH } from "../limits.ts";
+import { getRuntimeLimits } from "../limits.ts";
 import { clamp, context2d } from "./imageCodec.ts";
 import {
   enforcePageLimit,
@@ -323,7 +323,7 @@ export async function openPdfInspectionSession(
     signal.throwIfAborted();
     if (
       renderWidth !== undefined &&
-      (!Number.isInteger(renderWidth) || renderWidth < 1 || renderWidth > PDF_PREVIEW_MAX_WIDTH)
+      (!Number.isInteger(renderWidth) || renderWidth < 1 || renderWidth > getRuntimeLimits().pdfPreviewMaxWidth)
     ) {
       throw new ToolError("invalid-preview-size", "The requested PDF preview size is invalid.", undefined, {
         messageRef: { key: "media.pdf.invalidPreviewSize" },
@@ -347,7 +347,7 @@ export async function openPdfInspectionSession(
       const point = page.getViewport({ scale: 1 });
       const scale = Math.min(
         renderWidth === undefined ? Math.min(1, thumbnailWidth / point.width) : renderWidth / point.width,
-        Math.sqrt(PDF_PREVIEW_MAX_PIXELS / (point.width * point.height)),
+        Math.sqrt(getRuntimeLimits().pdfPreviewMaxPixels / (point.width * point.height)),
       );
       const viewport = page.getViewport({ scale });
       const width = Math.max(1, Math.floor(viewport.width));

@@ -20,9 +20,9 @@ import { slugFromName } from "@/lib/tool-catalog/index.ts";
 import { Plus } from "lucide-react";
 import { useActionState, useState } from "react";
 import { categoriesForApp, TOOL_CATEGORIES, type ToolApp } from "../../../../../lib/tool-framework/categories";
-import { createToolAction, type ToolContentActionState } from "../actions";
+import { createToolAction, type ToolSpecActionState } from "../actions";
 
-const IDLE: ToolContentActionState = { status: "idle", message: "" };
+const IDLE: ToolSpecActionState = { status: "idle", message: "" };
 
 const APPS: readonly { readonly app: ToolApp; readonly label: string }[] = [
   { app: "devtools", label: "Developer tools" },
@@ -43,6 +43,8 @@ export function NewToolDialog() {
   const [app, setApp] = useState<ToolApp>("devtools");
   const [name, setName] = useState("");
   const [category, setCategory] = useState("");
+  const [spec, setSpec] = useState("");
+  const [specIssue, setSpecIssue] = useState("");
   const [state, submit, isSubmitting] = useActionState(createToolAction, IDLE);
 
   const slug = previewSlug(name);
@@ -52,6 +54,20 @@ export function NewToolDialog() {
     // Categories are per app, so the old choice cannot survive the switch.
     setCategory("");
   }
+
+  async function importSpec(file: File | undefined): Promise<void> {
+    if (!file) return;
+    const content = await file.text();
+    try {
+      JSON.parse(content);
+      setSpecIssue("");
+    } catch (error) {
+      setSpecIssue(`spec: not valid JSON (${error instanceof Error ? error.message : "parse error"})`);
+    }
+    setSpec(content);
+  }
+
+  const issues = specIssue ? [specIssue] : state.status === "error" ? (state.issues ?? []) : [];
 
   return (
     <AlertDialog onOpenChange={setOpen} open={open}>
@@ -121,6 +137,25 @@ export function NewToolDialog() {
                 </option>
               ))}
             </Select>
+          </Field>
+
+          <input name="spec" type="hidden" value={spec} />
+          <Field
+            description={
+              spec
+                ? "Spec loaded; it is saved as a draft you can review and publish."
+                : "Optional. Pre-fill the tool definition from a JSON file."
+            }
+            error={issues.length ? issues.join(" ") : undefined}
+            htmlFor="new-tool-spec"
+            label="Import JSON"
+          >
+            <Input
+              accept="application/json,.json"
+              id="new-tool-spec"
+              onChange={(event) => void importSpec(event.target.files?.[0])}
+              type="file"
+            />
           </Field>
 
           <AlertDialogFooter>

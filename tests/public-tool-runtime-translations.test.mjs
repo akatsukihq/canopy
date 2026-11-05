@@ -1,3 +1,4 @@
+import { toolSpec } from "./helpers/toolSpec.mjs";
 import assert from "node:assert/strict";
 import { Readable } from "node:stream";
 import { afterEach, test, vi } from "vitest";
@@ -5,15 +6,15 @@ import { createTranslator } from "use-intl/core";
 import { extractToolMessages, toolMessageTree, validateToolTranslation } from "../lib/tool-framework/translations.ts";
 import { translateToolResult } from "../lib/tool-framework/result.ts";
 import { ToolError } from "../lib/tool-framework/run.ts";
-import hashDefinition from "../tools/hash-compare/definition.ts";
+const hashDefinition = await toolSpec("hash-compare");
 import { run as compareHashes } from "../tools/hash-compare/run.ts";
-import queryDefinition from "../tools/url-query-parser/definition.ts";
+const queryDefinition = await toolSpec("url-query-parser");
 import { run as parseQuery } from "../tools/url-query-parser/run.ts";
-import ratingDefinition from "../tools/domain-rating-checker/definition.ts";
+const ratingDefinition = await toolSpec("domain-rating-checker");
 import { run as rating } from "../tools/domain-rating-checker/run.server.ts";
-import ageDefinition from "../tools/domain-age-checker/definition.ts";
+const ageDefinition = await toolSpec("domain-age-checker");
 import { run as age } from "../tools/domain-age-checker/run.ts";
-import graphDefinition from "../tools/open-graph-preview/definition.ts";
+const graphDefinition = await toolSpec("open-graph-preview");
 import { parseMetadata } from "../tools/open-graph-preview/metadata.ts";
 import { inspectPage } from "../tools/open-graph-preview/run.server.ts";
 

@@ -1,5 +1,5 @@
 import { sanitizeFileName } from "./media/validation.ts";
-import { BLOB_FALLBACK_MAX_BYTES, PLATFORM_MAX_BYTES } from "./limits.ts";
+import { BLOB_FALLBACK_MAX_BYTES, getRuntimeLimits, PLATFORM_MAX_BYTES } from "./limits.ts";
 
 export { BLOB_FALLBACK_MAX_BYTES, PLATFORM_MAX_BYTES } from "./limits.ts";
 export const PLATFORM_MAX_OUTPUT_BYTES = PLATFORM_MAX_BYTES;
@@ -98,7 +98,7 @@ export function createArtifactWriter(jobId: string, options: ArtifactWriterOptio
           createdAt,
           remainingBytes: maxOutputBytes - committedBytes,
           signal: options.signal,
-          remainingBlobFallbackBytes: BLOB_FALLBACK_MAX_BYTES - blobFallbackBytes,
+          remainingBlobFallbackBytes: getRuntimeLimits().blobFallbackMaxBytes - blobFallbackBytes,
         });
         committedBytes += artifact.size;
         if (artifact.storage === "blob") blobFallbackBytes += artifact.size;
@@ -493,11 +493,12 @@ type ReplayBuffer = {
 };
 
 function createReplayBuffer(source: ArtifactSource): ReplayBuffer {
+  const blobFallbackMax = getRuntimeLimits().blobFallbackMaxBytes;
   if (source instanceof Blob) {
     return {
       add() {},
       complete() {},
-      toBlob: (mime) => (source.size <= BLOB_FALLBACK_MAX_BYTES ? source.slice(0, source.size, mime) : null),
+      toBlob: (mime) => (source.size <= blobFallbackMax ? source.slice(0, source.size, mime) : null),
     };
   }
   if (source instanceof Uint8Array) {
@@ -505,7 +506,7 @@ function createReplayBuffer(source: ArtifactSource): ReplayBuffer {
       add() {},
       complete() {},
       toBlob: (mime) =>
-        source.byteLength <= BLOB_FALLBACK_MAX_BYTES ? new Blob([copyBytes(source)], { type: mime }) : null,
+        source.byteLength <= blobFallbackMax ? new Blob([copyBytes(source)], { type: mime }) : null,
     };
   }
   const chunks: Uint8Array<ArrayBuffer>[] = [];
@@ -514,7 +515,7 @@ function createReplayBuffer(source: ArtifactSource): ReplayBuffer {
   let completed = false;
   return {
     add(chunk) {
-      if (overflowed || chunk.byteLength > BLOB_FALLBACK_MAX_BYTES - size) {
+      if (overflowed || chunk.byteLength > blobFallbackMax - size) {
         overflowed = true;
         chunks.length = 0;
         return;
@@ -552,7 +553,7 @@ function normalizeStoredArtifact(artifact: StoredToolArtifact): StoredToolArtifa
   }
   assertSafeId(artifact.id, "Artifact ID");
   assertSafeId(artifact.jobId, "Artifact job ID");
-  if (!Number.isInteger(artifact.size) || artifact.size < 0 || artifact.size > PLATFORM_MAX_OUTPUT_BYTES) {
+  if (!Number.isInteger(artifact.size) || artifact.size < 0 || artifact.size > getRuntimeLimits().platformMaxBytes) {
     throw new ArtifactStorageError("invalid-artifact", "Artifact size is invalid.");
   }
   if (!Number.isFinite(artifact.createdAt) || artifact.createdAt < 0) {
@@ -567,11 +568,11 @@ function normalizeStoredArtifact(artifact: StoredToolArtifact): StoredToolArtifa
   return artifact;
 }
 
-function normalizeLimit(limit = PLATFORM_MAX_OUTPUT_BYTES): number {
+function normalizeLimit(limit = getRuntimeLimits().platformMaxBytes): number {
   if (!Number.isInteger(limit) || limit < 1) {
     throw new RangeError("Maximum artifact output must be a positive integer.");
   }
-  return Math.min(limit, PLATFORM_MAX_OUTPUT_BYTES);
+  return Math.min(limit, getRuntimeLimits().platformMaxBytes);
 }
 
 function assertSafeId(value: string, label: string): string {

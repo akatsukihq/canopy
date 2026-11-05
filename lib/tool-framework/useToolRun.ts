@@ -10,9 +10,10 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 
-import { CANCEL_WATCHDOG_MS, PDF_THUMBNAIL_CACHE_SIZE } from "./limits";
+import { CANCEL_WATCHDOG_MS, getRuntimeLimits } from "./limits";
 import { cleanupArtifactJobWithRetry } from "./artifacts";
 import type { ToolPagePreview } from "./run";
+import type { ToolSpec } from "./spec";
 import {
   beginWorkerJob,
   cancelWorkerJob,
@@ -47,7 +48,8 @@ export type ToolRunHandle = {
   readonly reset: () => void;
 };
 
-export function useToolRun(): ToolRunHandle {
+/** `spec` is attached to every run and inspection; the worker has no other copy. */
+export function useToolRun(spec?: ToolSpec): ToolRunHandle {
   const [state, setState] = useState<ToolJobState>(createToolJobState);
   const stateRef = useRef(state);
   const workerRef = useRef<Worker | null>(null);
@@ -192,17 +194,24 @@ export function useToolRun(): ToolRunHandle {
     (request: ToolRunRequestInput): string => {
       const message = createToolWorkerRequest({
         ...request,
+        spec: request.spec ?? spec,
+        limits: getRuntimeLimits(),
         jobId: crypto.randomUUID(),
       });
       return dispatch(message);
     },
-    [dispatch],
+    [dispatch, spec],
   );
 
   const inspect = useCallback(
     (request: ToolInspectRequestInput): string =>
-      dispatch(createToolInspectRequest({ ...request, jobId: crypto.randomUUID() })),
-    [dispatch],
+      dispatch(createToolInspectRequest({
+          ...request,
+          spec: request.spec ?? spec,
+          limits: getRuntimeLimits(),
+          jobId: crypto.randomUUID(),
+        })),
+    [dispatch, spec],
   );
 
   const requestThumbnails = useCallback((pageNumbers: readonly number[], renderWidth?: number) => {
@@ -222,7 +231,7 @@ export function useToolRun(): ToolRunHandle {
         })
         .map((preview) => preview.pageNumber),
     );
-    const room = PDF_THUMBNAIL_CACHE_SIZE - session.inFlight.size;
+    const room = getRuntimeLimits().pdfThumbnailCacheSize - session.inFlight.size;
     if (room < 1) return;
     const requested = [...new Set(pageNumbers)]
       .filter(

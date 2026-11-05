@@ -52,6 +52,7 @@ import { BlogImageView } from "./BlogImageView";
 import { BlogTaskItemView } from "./BlogTaskItemView";
 import { BlogCodeBlockView } from "./BlogCodeBlockView";
 import { BlogImageCropDialog } from "./BlogImageCropDialog";
+import { mediaRef, mediaUrl } from "@/lib/media";
 import { BlogImageNode as BaseBlogImageNode, blogEditorImageSource as imageSource } from "../lib/imageNode";
 import { blogFormattingExtensions } from "../lib/formattingExtensions";
 import { pasteBlogImages } from "../lib/imagePaste";
@@ -84,11 +85,7 @@ const BlogCodeBlock = CodeBlockLowlight.extend({
 type EditableDocument = Omit<BlogDocument, "body"> & { body: JSONContent };
 const backupImage = z
   .object({
-    publicId: z.string(),
-    version: z.number(),
-    format: z.enum(["jpg", "jpeg", "png", "webp"]),
-    width: z.number(),
-    height: z.number(),
+    media: mediaRef,
     alt: z.string(),
     caption: z.string(),
   })
@@ -130,7 +127,6 @@ interface Props {
   canEdit: boolean;
   canPublish: boolean;
   canCreate: boolean;
-  cloudName: string;
 }
 
 export function BlogEditor({
@@ -144,7 +140,6 @@ export function BlogEditor({
   canEdit,
   canPublish,
   canCreate,
-  cloudName,
 }: Props) {
   const router = useRouter();
   const categoryOptions = useBlogTaxonomyOptions(
@@ -320,7 +315,7 @@ export function BlogEditor({
       TableKit.configure({ table: { resizable: true }, tableCell: false, tableHeader: false }),
       BlogTableCell,
       BlogTableHeader,
-      BlogImageNode.configure({ cloudName, onUploadImage: uploadInlineImage }),
+      BlogImageNode.configure({ onUploadImage: uploadInlineImage }),
     ],
     content: document.body,
     enablePasteRules: false,
@@ -493,8 +488,8 @@ export function BlogEditor({
         !coverCrop ||
         !uploadActive.current ||
         !editor?.isEditable ||
-        cover?.publicId !== coverCrop.publicId ||
-        cover?.version !== coverCrop.version
+        !cover ||
+        mediaUrl(cover.media) !== mediaUrl(coverCrop.media)
       ) {
         throw new Error("The cover changed or editing is unavailable. Cancel and reopen Crop cover.");
       }
@@ -712,11 +707,11 @@ export function BlogEditor({
             <p className={styles.recapExcerpt}>{document.excerpt}</p>
             {document.coverImage && (
               <img
-                {...blogImageDelivery(document.coverImage, cloudName)}
+                {...blogImageDelivery(document.coverImage)}
                 sizes="(max-width: 767px) calc(100vw - 32px), (max-width: 1100px) calc(100vw - 480px), calc(100vw - 600px)"
                 alt={document.coverImage.alt}
-                width={document.coverImage.width}
-                height={document.coverImage.height}
+                width={document.coverImage.media.width}
+                height={document.coverImage.media.height}
                 className={styles.recapCover}
               />
             )}
@@ -804,11 +799,11 @@ export function BlogEditor({
     </span>
   ) : document.coverImage ? (
     <img
-      {...blogImageDelivery(document.coverImage, cloudName)}
+      {...blogImageDelivery(document.coverImage)}
       sizes="(max-width: 767px) calc(100vw - 32px), (max-width: 1056px) calc(100vw - 80px), 976px"
       alt={document.coverImage.alt}
-      width={document.coverImage.width}
-      height={document.coverImage.height}
+      width={document.coverImage.media.width}
+      height={document.coverImage.media.height}
       className={styles.cover}
     />
   ) : null;
@@ -1256,8 +1251,8 @@ export function BlogEditor({
       </div>
       {coverCrop && editable && !publishing && !recovery && (
         <BlogImageCropDialog
-          src={imageSource(coverCrop, cloudName)}
-          format={coverCrop.format}
+          src={imageSource(coverCrop.media)}
+          format={coverCrop.media.format}
           title="Crop cover"
           isCover
           onApply={applyCoverCrop}

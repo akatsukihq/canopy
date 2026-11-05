@@ -1,5 +1,11 @@
 # Embedded tool translations
 
+> **Superseded.** Tool definitions and translations now live only in the
+> database (`docs/tools-in-database.md`). `definition.ts`, the `translations.json`
+> snapshots for tools, `db/scripts/seed-tool-translations.mjs`,
+> `db/scripts/tool-translations.mjs` and `pnpm db:translations` were removed.
+> The commands below are kept as the history of this migration.
+
 Run against the intended application database before deploying the localized catalog:
 
 ```sh

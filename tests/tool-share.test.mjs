@@ -1,3 +1,4 @@
+import { toolSpec } from "./helpers/toolSpec.mjs";
 import { existsSync } from "node:fs";
 import { describe, expect, test } from "vitest";
 import { decodeToolShare, encodeToolShare, MAX_SHARE_URL_LENGTH } from "../lib/tool-framework/toolShare.ts";
@@ -295,7 +296,7 @@ describe("supported tools recreate the exact output", () => {
     ["slug-generator", "Café Menu 2026\nHello & goodbye", {}],
     ["text-case-converter", "hello Smart tools", { target: "snake" }],
   ])("%s preserves settings and calculated output", async (key, text, overrides) => {
-    const definition = (await import(`../tools/${key}/definition.ts`)).default;
+    const definition = await toolSpec(key);
     const run = (await import(`../tools/${key}/run.ts`)).default;
     const settings = Object.fromEntries(
       Object.entries(definition.settings.fields).map(([name, field]) => [name, field.default]),
@@ -336,7 +337,7 @@ meta-tag-generator robots-txt-generator sitemap-generator qr-code-generator
   .split(/\s+/);
 
 async function expectOutputRoundTrip(key, exampleOverride) {
-  const definition = (await import(`../tools/${key}/definition.ts`)).default;
+  const definition = await toolSpec(key);
   const file = existsSync(new URL(`../tools/${key}/run.ts`, import.meta.url)) ? "run.ts" : "run.worker.ts";
   const run = (await import(/* @vite-ignore */ `../tools/${key}/${file}`)).default;
   const example = exampleOverride ?? definition.content?.examples?.[0] ?? { text: "" };

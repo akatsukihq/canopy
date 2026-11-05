@@ -1,4 +1,3 @@
-import config from "../config/config.ts";
 import { randomBytes, randomUUID } from "node:crypto";
 import { z } from "zod";
 import { getTableColumns } from "drizzle-orm";
@@ -42,7 +41,6 @@ const identity = z
   .max(100)
   .regex(/^[a-zA-Z0-9_-]+$/);
 const postInput = z.object({ postId: identity, version: z.number().int().positive().max(2147483646) }).strict();
-const options = () => ({ cloudName: config.cloudinary.cloudName?.trim() });
 
 export class BlogError extends Error {
   readonly code: "NOT_FOUND" | "CONFLICT" | "VALIDATION";
@@ -71,7 +69,7 @@ async function lockPost(tx: Transaction, input: z.infer<typeof postInput>, allow
 
 /** References are catalog IDs; labels supplied by clients never become authoritative. */
 async function resolveDocument(tx: Transaction, input: unknown, publishing = false): Promise<BlogDocument> {
-  const document = validateBlogDocument(input, options());
+  const document = validateBlogDocument(input);
   assertBlogTitleWordLimit(document.title);
   if (document.category) {
     const [category] = await tx.select().from(categories).where(eq(categories.id, document.category.id));
@@ -102,7 +100,7 @@ async function resolveDocument(tx: Transaction, input: unknown, publishing = fal
     if (tools.length !== document.relatedToolIds.length)
       throw new BlogError("VALIDATION", "Choose existing related tools.");
   }
-  const normalized = validateBlogDocument(document, options());
+  const normalized = validateBlogDocument(document);
   if (publishing) assertBlogPublishable(normalized);
   return normalized;
 }
@@ -446,7 +444,7 @@ export async function restoreBlogRevision(actor: string, input: unknown): Promis
     if (!source) throw new BlogError("NOT_FOUND", "Revision not found.");
     // Keep historical labels intact; resolving checks that the referenced catalog entries still exist.
     await resolveDocument(tx, source.document);
-    const document = validateBlogDocument(source.document, options());
+    const document = validateBlogDocument(source.document);
     const now = await databaseNow(tx);
     await checkpoint(tx, post, actor, "restore_backup", now);
     Object.assign(post, {

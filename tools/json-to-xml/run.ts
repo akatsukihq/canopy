@@ -11,12 +11,13 @@
 
 import type { ToolRun } from "../../lib/tool-framework/run.ts";
 import type { ToolResult } from "../../lib/tool-framework/result.ts";
-import type { SettingsOf } from "../../lib/tool-framework/settings.ts";
 import { parseUtilityJson } from "../../lib/devtools/shared/json-input.ts";
 import { isRecord } from "../../lib/devtools/shared/json.ts";
 import { escapeHtml } from "../../lib/devtools/shared/text.ts";
 
-type Settings = SettingsOf<typeof import("./definition.ts").default.settings>;
+type Settings = {
+  readonly repairMode: string;
+};
 
 function jsonToXml(value: unknown, name = "root", depth = 0): string {
   const tag = /^[A-Za-z_][\w.-]*$/.test(name) ? name : "item";

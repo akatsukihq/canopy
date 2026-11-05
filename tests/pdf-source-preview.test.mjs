@@ -1,3 +1,4 @@
+import { toolSpec } from "./helpers/toolSpec.mjs";
 // @vitest-environment jsdom
 import { Blob as NodeBlob, File as NodeFile } from "node:buffer";
 import React, { act } from "react";
@@ -5,8 +6,8 @@ import { createTranslator } from "next-intl";
 import { getCommonMessages } from "../lib/i18n/messages.ts";
 import { beforeEach, expect, test, vi } from "vitest";
 import { FileProcessorWorkspace } from "../components/FileProcessorWorkspace.tsx";
-import jpgSpec from "../tools/pdf-to-jpg/definition.ts";
-import pngSpec from "../tools/pdf-to-png/definition.ts";
+const jpgSpec = await toolSpec("pdf-to-jpg");
+const pngSpec = await toolSpec("pdf-to-png");
 import { button, click, fill, mountTool, setupReactTools, waitFor } from "./helpers/react-tools.mjs";
 
 vi.mock("../lib/tool-framework/hooks.ts", () => ({ loadToolHooks: async () => ({}) }));

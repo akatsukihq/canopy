@@ -14,6 +14,4 @@ export function assertDatabaseConfigured(): void {
 }
 
 export * from "./schema.ts";
-// Keep filesystem-based tool discovery out of the application module graph.
-// The seed script imports seedManagedTools.ts directly.
 export * from "./toolContent.ts";

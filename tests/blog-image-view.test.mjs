@@ -88,23 +88,24 @@ test("image resizing follows its anchored edge and stays within the document wid
   expect(resizedImageWidth(50, 100, 0, "center")).toBe(50);
 });
 
-const source = {
-  publicId: "smarttools/blog/original",
-  version: 1,
+const media = (publicId, version, width, height) => ({
+  v: 1,
+  provider: "cloudinary",
   format: "png",
-  width: 800,
-  height: 600,
+  width,
+  height,
+  uploadedAt: "2026-01-01T00:00:00.000Z",
+  entry: { cloudName: "demo", publicId, version },
+});
+const source = {
+  media: media("smarttools/blog/original", 1, 800, 600),
   alt: "Original description",
   caption: "Original caption",
   displayWidth: 45,
   alignment: "right",
 };
 const cropped = {
-  publicId: "smarttools/blog/cropped",
-  version: 2,
-  format: "png",
-  width: 400,
-  height: 300,
+  media: media("smarttools/blog/cropped", 2, 400, 300),
   alt: "",
   caption: "",
 };
@@ -149,7 +150,7 @@ function imageViewHarness(selected = false) {
     ...base,
     node: base.editor.state.doc.nodeAt(0),
     selected,
-    extension: { options: { cloudName: "demo", onUploadImage: async () => cropped } },
+    extension: { options: { onUploadImage: async () => cropped } },
     updateAttributes(attrs) {
       calls.changes++;
       base.updateAttributes(attrs);
@@ -317,7 +318,7 @@ test("cropping uploads a new image, preserves current descriptions and layout, a
   let uploaded;
   await uploadBlogImageReplacement(
     file,
-    source,
+    source.media,
     props,
     async (input) => {
       uploaded = input;
@@ -349,7 +350,7 @@ test("failed uploads leave the current inline image unchanged and reject for ret
     const props = imageEditor();
     const original = props.editor.state.doc.toJSON();
     await expect(
-      uploadBlogImageReplacement(new File(["crop"], "crop.png"), source, props, upload, () => true),
+      uploadBlogImageReplacement(new File(["crop"], "crop.png"), source.media, props, upload, () => true),
     ).rejects.toThrow();
     expect(props.editor.state.doc.toJSON()).toEqual(original);
   }
@@ -358,8 +359,10 @@ test("failed uploads leave the current inline image unchanged and reject for ret
 test("cropping refuses stale, removed, read-only and unmounted inline images before and after upload", async () => {
   for (const timing of ["before", "during"]) {
     for (const invalidate of [
-      (props) => props.updateAttributes({ publicId: "another-image" }),
-      (props) => props.updateAttributes({ version: 10 }),
+      (props) => props.updateAttributes({ media: media("smarttools/blog/another-image", 1, 800, 600) }),
+      (props) => props.updateAttributes({ media: media("smarttools/blog/original", 10, 800, 600) }),
+      (props) =>
+        props.updateAttributes({ media: { ...source.media, entry: { ...source.media.entry, cloudName: "other" } } }),
       (props) => {
         props.removed = true;
       },
@@ -384,7 +387,7 @@ test("cropping refuses stale, removed, read-only and unmounted inline images bef
       await expect(
         uploadBlogImageReplacement(
           new File(["crop"], "crop.png"),
-          source,
+          source.media,
           props,
           async () => {
             uploads++;

@@ -1,7 +1,8 @@
+import { toolSpec } from "../../tests/helpers/toolSpec.mjs";
 import assert from "node:assert/strict";
 import { test, afterEach, vi } from "vitest";
 import { parseSettings } from "../../lib/tool-framework/settings.ts";
-import randomDefinition from "./definition.ts";
+const randomDefinition = await toolSpec("random-number-generator");
 import { run as randomNumbers } from "./run.ts";
 
 const context = (definition, text = "", settings = {}, secondary = "") => ({

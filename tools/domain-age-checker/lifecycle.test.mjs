@@ -1,8 +1,9 @@
+import { toolSpec } from "../../tests/helpers/toolSpec.mjs";
 // @vitest-environment jsdom
 import React, { act } from "react";
 import { beforeEach, expect, test, vi } from "vitest";
 import ToolPage from "../../components/ToolPage.tsx";
-import spec from "./definition.ts";
+const spec = await toolSpec("domain-age-checker");
 import { setupReactTools, mountTool, fill, click, button, field, waitFor } from "../../tests/helpers/react-tools.mjs";
 import { openSettings } from "../../tests/helpers/tool-workspace.mjs";
 

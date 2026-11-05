@@ -7,7 +7,7 @@ import {
 } from "./streaming-csv.ts";
 import { BoundedUtf8Preview } from "./bounded-text-preview.ts";
 import { createTablePreview } from "./table-preview.ts";
-import { LARGE_TEXT_PREVIEW_BYTES } from "../../tool-framework/limits.ts";
+import { getRuntimeLimits } from "../../tool-framework/limits.ts";
 import type { ToolResult } from "../../tool-framework/result.ts";
 import { ToolError, type ToolRunContext } from "../../tool-framework/run.ts";
 
@@ -105,7 +105,7 @@ export function createTextArtifactSink(
     source: channel.readable,
   });
   void artifactPromise.catch(() => undefined);
-  const preview = new BoundedUtf8Preview(LARGE_TEXT_PREVIEW_BYTES);
+  const preview = new BoundedUtf8Preview(getRuntimeLimits().largeTextPreviewBytes);
   let closed = false;
 
   return {

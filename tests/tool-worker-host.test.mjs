@@ -17,10 +17,16 @@ vi.mock("@/lib/tool-framework/artifacts.ts", () => ({
   createArtifactWriter: () => ({ write: async () => {} }),
 }));
 
-// A server-only tool ships a definition but no worker entry. Provide the
-// definition so the missing run.worker (not a missing definition) drives the
-// unknown-tool classification, matching a real server-only tool.
-vi.mock("@/tools/test-server-tool/definition", () => ({ default: { settings: {} } }));
+// One worker that throws while running, one whose module fails to load: both
+// are tool failures, not a missing worker.
+vi.mock("@/tools/test-broken-worker/run.worker", () => ({
+  default: async () => {
+    throw new Error("private failure detail");
+  },
+}));
+vi.mock("@/tools/test-broken-module/run.worker", () => {
+  throw new Error("private dependency failure");
+});
 
 await import("@/lib/tool-framework/tool.worker.ts");
 
@@ -31,11 +37,48 @@ afterAll(() => {
   else delete globalThis.postMessage;
 });
 
+// The page sends the spec it loaded from the database; only the fields these
+// workers read are declared here.
+const toggle = (value) => ({ kind: "toggle", label: "x", default: value });
+const INPUTS = {
+  "markdown-previewer": {
+    kind: "text",
+    label: "Markdown document",
+    acceptFiles: {
+      accept: ".md,.markdown,.txt,text/markdown,text/plain",
+      maxBytes: 2_000_000,
+      maxEditableBytes: 2_000_000,
+    },
+  },
+};
+const SETTINGS = {
+  "markdown-previewer": {
+    syntaxHighlighting: toggle(true),
+    safeLinks: toggle(true),
+    previewMode: { kind: "select", label: "x", default: "gfm", choices: [{ value: "gfm", label: "GFM" }] },
+  },
+};
+const specFor = (key) => ({
+  toolId: `devtools.${key}`,
+  app: "devtools",
+  input: INPUTS[key] ?? { kind: "text", label: "Input" },
+  settings: { fields: SETTINGS[key] ?? {} },
+});
+
 function dispatch(key, input = {}) {
   return new Promise((resolve) => {
     state.receive = resolve;
     state.listener({
-      data: { type: "run", jobId: key, key, files: [], settings: {}, text: "https://example.com", ...input },
+      data: {
+        type: "run",
+        jobId: key,
+        key,
+        files: [],
+        settings: {},
+        spec: specFor(key),
+        text: "https://example.com",
+        ...input,
+      },
     });
   });
 }

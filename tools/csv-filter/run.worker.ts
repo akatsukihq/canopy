@@ -9,7 +9,6 @@ import { parseUtilityTable, serializeTable, utilityDelimiter } from "../../lib/d
 import { createTablePreview } from "../../lib/devtools/shared/table-preview.ts";
 import type { ToolResult } from "../../lib/tool-framework/result.ts";
 import { ToolError, type ToolRun } from "../../lib/tool-framework/run.ts";
-import type { SettingsOf } from "../../lib/tool-framework/settings.ts";
 import {
   createTextArtifactSink,
   isLargeCsvRun,
@@ -17,7 +16,11 @@ import {
   serializeCsvRow,
 } from "../../lib/devtools/shared/streaming-csv-tool.ts";
 
-type Settings = SettingsOf<typeof import("./definition.ts").default.settings>;
+type Settings = {
+  readonly delimiter: string;
+  readonly query: string;
+  readonly column: string;
+};
 
 export const run: ToolRun<Settings> = async (ctx): Promise<ToolResult> => {
   const delimiter = utilityDelimiter(ctx.settings.delimiter);

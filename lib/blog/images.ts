@@ -1,5 +1,5 @@
 /** Server-only: upload credentials and authorization must never reach clients. */
-import config from "../config/config.ts";
+import { cloudinaryCredentials } from "../config/integrations.ts";
 import { createHmac, randomUUID, timingSafeEqual } from "node:crypto";
 import { v2 as cloudinary } from "cloudinary";
 import { db } from "../../db/index.ts";
@@ -12,6 +12,7 @@ const MAX_IMAGE_BYTES = 5 * 1024 * 1024;
 const UPLOAD_LIFETIME_SECONDS = 600;
 
 export interface BlogImageUploadCompletion {
+  cloudName: string;
   publicId: string;
   timestamp: number;
   name: string;
@@ -67,10 +68,9 @@ function imageMetadata(input: Record<string, unknown>) {
   return { name: input.name, size: input.size, type: input.type };
 }
 
-function credentials() {
-  const cloudName = config.cloudinary.cloudName?.trim();
-  const apiKey = config.cloudinary.apiKey?.trim();
-  const apiSecret = config.cloudinary.apiSecret?.trim();
+async function credentials() {
+  const saved = await cloudinaryCredentials();
+  const { cloudName, apiKey, apiSecret } = saved ?? { cloudName: "", apiKey: "", apiSecret: "" };
   if (!cloudName || !/^[a-zA-Z0-9_-]+$/.test(cloudName) || !apiKey || !apiSecret)
     throw new BlogImageUploadError(
       "UPLOAD_NOT_CONFIGURED",
@@ -82,7 +82,16 @@ function credentials() {
 function completionToken(actor: string, input: Omit<BlogImageUploadCompletion, "token">, secret: string): string {
   return createHmac("sha256", secret)
     .update(
-      JSON.stringify(["blog-image-upload", actor, input.publicId, input.timestamp, input.name, input.size, input.type]),
+      JSON.stringify([
+        "blog-image-upload",
+        actor,
+        input.cloudName,
+        input.publicId,
+        input.timestamp,
+        input.name,
+        input.size,
+        input.type,
+      ]),
     )
     .digest("hex");
 }
@@ -102,7 +111,7 @@ async function authorizeUpload(actorUserId: string) {
 export async function prepareBlogImageUpload(actorUserId: string, input: unknown): Promise<PreparedBlogImageUpload> {
   await authorizeUpload(actorUserId);
   const metadata = imageMetadata(uploadInput(input, ["name", "size", "type"]));
-  const { cloudName, apiKey, apiSecret } = credentials();
+  const { cloudName, apiKey, apiSecret } = await credentials();
   const folder = cloudinaryFolder("blog");
   const publicId = `${folder}/${randomUUID()}`;
   const timestamp = Math.floor(Date.now() / 1000);
@@ -114,7 +123,7 @@ export async function prepareBlogImageUpload(actorUserId: string, input: unknown
     overwrite: "false",
     allowed_formats: "jpg,jpeg,png,webp",
   };
-  const completion = { publicId, timestamp, ...metadata };
+  const completion = { cloudName, publicId, timestamp, ...metadata };
   return {
     uploadUrl: `https://api.cloudinary.com/v1_1/${cloudName}/image/upload`,
     fields: { ...fields, api_key: apiKey, signature: cloudinary.utils.api_sign_request(fields, apiSecret) },
@@ -123,12 +132,13 @@ export async function prepareBlogImageUpload(actorUserId: string, input: unknown
 }
 
 export async function completeBlogImageUpload(actorUserId: string, input: unknown): Promise<BlogImage> {
-  const value = uploadInput(input, ["publicId", "timestamp", "name", "size", "type", "token", "uploaded"]);
+  const value = uploadInput(input, ["cloudName", "publicId", "timestamp", "name", "size", "type", "token", "uploaded"]);
   const metadata = imageMetadata(value);
-  const { cloudName, apiSecret } = credentials();
+  const { cloudName, apiSecret } = await credentials();
   const folder = cloudinaryFolder("blog");
   const now = Math.floor(Date.now() / 1000);
   if (
+    value.cloudName !== cloudName ||
     typeof value.publicId !== "string" ||
     !value.publicId.startsWith(`${folder}/`) ||
     !/^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/.test(
@@ -142,7 +152,8 @@ export async function completeBlogImageUpload(actorUserId: string, input: unknow
     !/^[0-9a-f]{64}$/.test(value.token)
   )
     throw new BlogValidationError("Image upload authorization is invalid or expired. Choose the image again.");
-  const completion = { publicId: value.publicId, timestamp: value.timestamp, ...metadata };
+  // The signed cloud must be the one these credentials upload to, so a client cannot swap accounts.
+  const completion = { cloudName, publicId: value.publicId, timestamp: value.timestamp, ...metadata };
   const expected = completionToken(actorUserId, completion, apiSecret);
   if (!timingSafeEqual(Buffer.from(value.token, "hex"), Buffer.from(expected, "hex")))
     throw new BlogValidationError("Image upload authorization is invalid. Choose the image again.");
@@ -177,24 +188,26 @@ export async function completeBlogImageUpload(actorUserId: string, input: unknow
         "UPLOAD_REJECTED",
         "Images must be nonempty and no larger than 5 MiB. Choose a smaller image and upload it again.",
       );
-    image = validateBlogImage(
-      {
-        publicId: uploaded.public_id,
-        version: uploaded.version,
+    image = validateBlogImage({
+      media: {
+        v: 1,
+        provider: "cloudinary",
         format: uploaded.format,
         width: uploaded.width,
         height: uploaded.height,
-        alt: completion.name
-          .replace(/\.[^.]*$/u, "")
-          .replace(/[-_\s\u0000-\u001f\u007f]+/gu, " ")
-          .trim()
-          .slice(0, 500)
-          .replace(/[\uD800-\uDBFF]$/u, ""),
-        caption: "",
-        src: uploaded.secure_url,
+        bytes: completion.size,
+        uploadedAt: new Date().toISOString(),
+        entry: { cloudName, publicId: uploaded.public_id, version: uploaded.version },
       },
-      { cloudName },
-    );
+      alt: completion.name
+        .replace(/\.[^.]*$/u, "")
+        .replace(/[-_\s\u0000-\u001f\u007f]+/gu, " ")
+        .trim()
+        .slice(0, 500)
+        .replace(/[\uD800-\uDBFF]$/u, ""),
+      caption: "",
+      src: uploaded.secure_url,
+    });
   } catch (error) {
     if (error instanceof BlogImageUploadError) throw error;
     throw new BlogImageUploadError(
@@ -205,12 +218,14 @@ export async function completeBlogImageUpload(actorUserId: string, input: unknow
   try {
     return await db.transaction(async (transaction) => {
       await requireTransactionPermission(transaction, actorUserId, "blog", "edit");
-      await writeAudit(transaction, actorUserId, "blog.image.upload", "blog-image", image.publicId, {
-        publicId: image.publicId,
-        version: image.version,
-        format: image.format,
-        width: image.width,
-        height: image.height,
+      const { entry, format, width, height } = image.media;
+      await writeAudit(transaction, actorUserId, "blog.image.upload", "blog-image", entry.publicId, {
+        cloudName: entry.cloudName,
+        publicId: entry.publicId,
+        version: entry.version,
+        format,
+        width,
+        height,
       });
       return image;
     });

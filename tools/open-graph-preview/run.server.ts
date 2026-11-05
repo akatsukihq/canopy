@@ -1,10 +1,9 @@
 import type { ToolLinkPreviewImage, ToolLinkPreviewRender } from "../../lib/tool-framework/result.ts";
 import { ToolError, type ToolRun } from "../../lib/tool-framework/run.ts";
-import type { SettingsOf } from "../../lib/tool-framework/settings.ts";
 import { fetchPublicResource, parsePublicUrl } from "./fetchPage.ts";
 import { parseMetadata } from "./metadata.ts";
 
-type Settings = SettingsOf<typeof import("./definition.ts").default.settings>;
+type Settings = {};
 
 function isRasterImage(bytes: Buffer, mime: string): boolean {
   if (mime === "image/png") return bytes.subarray(0, 8).equals(Buffer.from([137, 80, 78, 71, 13, 10, 26, 10]));

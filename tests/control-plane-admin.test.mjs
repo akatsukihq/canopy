@@ -1,8 +1,9 @@
+import { toolSpec } from "./helpers/toolSpec.mjs";
 import { test, expect, vi, afterEach, onTestFinished } from "vitest";
 import redis from "redis";
 import { Cache, closeRedis } from "../lib/cache/index.ts";
 import { catalogCache } from "../lib/tool-framework/catalogCache.ts";
-import jsonFormatterSpec from "../tools/json-formatter/definition.ts";
+const jsonFormatterSpec = await toolSpec("json-formatter");
 
 import { ADMIN_ACCESS } from "../lib/authorization/index.ts";
 import {
@@ -641,6 +642,7 @@ test("stored tools toggle, and archiving disables them", async () => {
     order: 0,
     enabled: true,
     archived: false,
+    spec: jsonFormatterSpec,
   };
   stored.translations = {
     en: { status: "published", messages: toolTranslationSource(jsonFormatterSpec, stored, null) },

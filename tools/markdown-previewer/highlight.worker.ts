@@ -1,11 +1,16 @@
 import { createCodeHighlightBudget, highlightCode } from "../../lib/markdown/codeHighlight.ts";
-import { parseSettings } from "../../lib/tool-framework/settings.ts";
-import definition from "./definition.ts";
-import { renderMarkdownPreview } from "./run.worker.ts";
+import { parseSettings, type SettingsSpec } from "../../lib/tool-framework/settings.ts";
+import { renderMarkdownPreview, type MarkdownPreviewSettings } from "./run.worker.ts";
 
 type HighlightRequest =
   | { id: number; operation: "highlight"; code: string; language?: string }
-  | { id: number; operation: "export"; source: string; settings: Record<string, unknown> };
+  | {
+      id: number;
+      operation: "export";
+      source: string;
+      settings: Record<string, unknown>;
+      settingsSpec: SettingsSpec;
+    };
 
 const budget = createCodeHighlightBudget();
 const scope = globalThis as unknown as {
@@ -21,9 +26,13 @@ scope.addEventListener("message", async ({ data }) => {
     if (request.operation === "highlight" && typeof request.code === "string") {
       html = highlightCode(request.code, typeof request.language === "string" ? request.language : undefined, budget);
     } else if (request.operation === "export" && typeof request.source === "string") {
-      const result = await renderMarkdownPreview(request.source, parseSettings(definition.settings, request.settings), {
-        deferHighlighting: false,
-      });
+      const result = await renderMarkdownPreview(
+        request.source,
+        parseSettings(request.settingsSpec, request.settings) as MarkdownPreviewSettings,
+        {
+          deferHighlighting: false,
+        },
+      );
       html = result.html;
     } else {
       throw new Error("Invalid Markdown preview request.");

@@ -179,6 +179,39 @@
 .assistantActionLabel {
   display: inline-block;
 }
+.assistantThinking > summary {
+  display: flex;
+  width: fit-content;
+  align-items: center;
+  gap: calc(var(--spacing) * 2);
+  cursor: pointer;
+  list-style: none;
+  border-radius: var(--radius-sm);
+  font-size: var(--text-caption);
+  color: var(--muted-foreground);
+}
+.assistantThinking > summary::-webkit-details-marker {
+  display: none;
+}
+.assistantThinking > summary:focus-visible {
+  outline: calc(var(--spacing) * 0.5) solid var(--ring);
+  outline-offset: calc(var(--spacing) * 0.5);
+}
+.assistantThinking[open] > summary svg:not([class*="animate"]) {
+  transform: rotate(90deg);
+}
+.assistantThinkingBody {
+  max-height: calc(var(--spacing) * 40);
+  margin-top: calc(var(--spacing) * 2);
+  overflow-y: auto;
+  border-left: calc(var(--spacing) * 0.5) solid var(--border);
+  padding-left: calc(var(--spacing) * 3);
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  font-size: var(--text-caption);
+  line-height: 1.5;
+  color: var(--muted-foreground);
+}
 @media (prefers-reduced-motion: no-preference) {
   .assistantGeneratingText {
     background: linear-gradient(
@@ -420,3 +453,5 @@
   background: var(--card);
   box-shadow: var(--shadow-md);
 }
+
+/* Field chips share the agent chip's size; outline and @ tell them apart from agents. */

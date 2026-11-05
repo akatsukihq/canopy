@@ -1,9 +1,12 @@
 import type { ToolRun } from "../../lib/tool-framework/run.ts";
 import type { ToolResult } from "../../lib/tool-framework/result.ts";
-import type { SettingsOf } from "../../lib/tool-framework/settings.ts";
 import { requireUtilityInput } from "../../lib/devtools/shared/options.ts";
 
-type Settings = SettingsOf<typeof import("./definition.ts").default.settings>;
+type Settings = {
+  readonly indentWidth: string;
+  readonly printWidth: string;
+  readonly attributeWrapping: string;
+};
 
 function formatHtml(input: string, settings: Settings): string {
   requireUtilityInput(input, "HTML input");

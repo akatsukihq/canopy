@@ -6,10 +6,20 @@
 import { safeUrl } from "../../lib/devtools/shared/url.ts";
 import type { ToolResult } from "../../lib/tool-framework/result.ts";
 import { ToolError, type ToolErrorDetails, type ToolRun } from "../../lib/tool-framework/run.ts";
-import type { SettingsOf } from "../../lib/tool-framework/settings.ts";
+import type { SettingRow } from "../../lib/tool-framework/settings.ts";
 import { getParameterErrors } from "./parameters.ts";
 
-type Settings = SettingsOf<typeof import("./definition.ts").default.settings>;
+type Settings = {
+  readonly url: string;
+  readonly source: string;
+  readonly medium: string;
+  readonly campaign: string;
+  readonly term: string;
+  readonly content: string;
+  readonly parameters: readonly SettingRow[];
+  readonly normalization: string;
+  readonly existingQuery: string;
+};
 
 const PARAMETERS = [
   ["utm_source", "source"],

@@ -1,3 +1,4 @@
+import { toolSpec } from "./helpers/toolSpec.mjs";
 import { expect, test, vi } from "vitest";
 import { createTranslator } from "use-intl/core";
 import { parseStreamingCsv } from "../lib/devtools/shared/streaming-csv.ts";
@@ -6,13 +7,13 @@ import { parseUtilityTable } from "../lib/devtools/shared/table.ts";
 import { extractToolMessages, toolMessageTree, validateToolTranslation } from "../lib/tool-framework/translations.ts";
 import { translateToolResult } from "../lib/tool-framework/result.ts";
 import { run as format } from "../tools/csv-formatter/run.worker.ts";
-import formatDefinition from "../tools/csv-formatter/definition.ts";
+const formatDefinition = await toolSpec("csv-formatter");
 import { run as toJson } from "../tools/csv-to-json/run.worker.ts";
-import jsonDefinition from "../tools/csv-to-json/definition.ts";
+const jsonDefinition = await toolSpec("csv-to-json");
 import { run as extract } from "../tools/csv-column-extractor/run.worker.ts";
-import extractDefinition from "../tools/csv-column-extractor/definition.ts";
+const extractDefinition = await toolSpec("csv-column-extractor");
 import { run as validate } from "../tools/csv-validator/run.worker.ts";
-import validatorDefinition from "../tools/csv-validator/definition.ts";
+const validatorDefinition = await toolSpec("csv-validator");
 
 function translator(definition, locale = "en", overrides = {}) {
   const translate = createTranslator({
@@ -194,7 +195,7 @@ test.each([
   "csv-viewer",
   "tsv-to-csv",
 ])("%s exposes valid seedable native-ICU execution messages", async (key) => {
-  const { default: definition } = await import(`../tools/${key}/definition.ts`);
+  const definition = await toolSpec(key);
   const messages = extractToolMessages(definition);
   expect(messages["runtime.csv.processing"]).toBe("Processing delimited data");
   expect(messages["runtime.csv.errors.streamWidth"]).toContain("plural");

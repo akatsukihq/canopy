@@ -195,14 +195,15 @@ export default async function HomePage({
         {hasFilter || showAllTools ? (
           <CatalogListing category={category} className="pt-6 pb-12 sm:pb-16" query={query}>
             <AppContainer>
-              {hasFilter ? (
-                <BackButton
-                  className="mb-2"
-                  href={localizeHref(category && !query ? "/devtools?view=all" : "/devtools", locale)}
-                  label={category && !query ? common("allTools") : t("clearFilters")}
-                />
-              ) : null}
               <SectionHeading
+                back={
+                  hasFilter ? (
+                    <BackButton
+                      href={localizeHref(category && !query ? "/devtools?view=all" : "/devtools", locale)}
+                      label={category && !query ? common("allTools") : t("clearFilters")}
+                    />
+                  ) : undefined
+                }
                 action={
                   showAllTools || category ? (
                     <CategoryFilter

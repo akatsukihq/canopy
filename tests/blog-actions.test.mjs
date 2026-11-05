@@ -1,4 +1,6 @@
 import { afterAll, expect, test, vi } from "vitest";
+
+vi.mock("server-only", () => ({}));
 import { AuthorizationError } from "../lib/admin/index.ts";
 import { createBlogDocument, BlogValidationError } from "../lib/blog/document.ts";
 import { BlogError } from "../lib/blog/mutations.ts";

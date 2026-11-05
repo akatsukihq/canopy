@@ -10,9 +10,17 @@
  */
 
 import type { ToolPagesInspected, ToolRunFile, ToolValidate } from "../../lib/tool-framework/run.ts";
-import type { SettingsOf } from "../../lib/tool-framework/settings.ts";
+import type { WatermarkPosition, PageSelection } from "../../lib/tool-framework/settings.ts";
 
-type Settings = SettingsOf<typeof import("./definition.ts").default.settings>;
+type Settings = {
+  readonly watermarkKind: string;
+  readonly watermarkText: string;
+  readonly pages: PageSelection;
+  readonly opacity: number;
+  readonly watermarkSize: number;
+  readonly watermarkRotation: number;
+  readonly position: WatermarkPosition;
+};
 
 function isPdf(file: ToolRunFile): boolean {
   return file.mime === "application/pdf" || /\.pdf$/i.test(file.name);

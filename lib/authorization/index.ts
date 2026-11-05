@@ -91,6 +91,13 @@ export const PERMISSION_CATALOG = {
       delete: { description: "Delete unassigned custom roles." },
     },
   },
+  settings: {
+    description: "Platform settings and system limits.",
+    actions: {
+      view: { description: "View platform settings and system limits." },
+      edit: { description: "Change editable system limits." },
+    },
+  },
   audit: {
     description: "Privileged action history.",
     actions: {
@@ -113,6 +120,7 @@ export const ADMIN_ACCESS = freezeAccess({
   features: { view: true, edit: true, toggle: true },
   users: { view: true, suspend: true, assignRoles: true },
   roles: { view: true, create: true, edit: true, delete: true },
+  settings: { view: true, edit: true },
   audit: { view: true },
 });
 

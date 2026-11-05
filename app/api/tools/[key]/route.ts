@@ -1,7 +1,7 @@
 /**
  * The server execution host. It knows nothing about any individual tool: the
- * folder key arrives in the URL, and the two dynamic imports below are bundler
- * context modules over `tools/*` — the static prefix and suffix let the bundler
+ * folder key arrives in the URL, and the dynamic import below is a bundler
+ * context module over `tools/*` — the static prefix and suffix let the bundler
  * emit one chunk per folder. There is no map and no registry.
  *
  * A route handler rather than a server action on purpose: an action cannot be
@@ -15,16 +15,16 @@ import { captureException } from "@sentry/core";
 
 import { CODE_LANGUAGES } from "@/lib/code-execution/languages";
 import { checkRateLimit } from "@/lib/rateLimit";
+import { loadRuntimeSettings } from "@/lib/config/runtimeSettings.ts";
 import type { ToolResult } from "@/lib/tool-framework/result";
 import { ToolError, type ToolRun } from "@/lib/tool-framework/run";
 import { parseSettings } from "@/lib/tool-framework/settings";
-import type { ToolSpec } from "@/lib/tool-framework/spec";
+import { loadSpecByDefinitionKey } from "@/lib/tool-framework/catalog";
 import { errorMessage } from "@/utils/errorMessage";
 import { log, logError } from "@/lib/observability/logger.ts";
 
 /** Code execution is far costlier than other tools, so it gets its own, tighter bucket. */
 const CODE_BODY_MAX_BYTES = 256 * 1024;
-const CODE_EXEC_LIMIT_PER_MINUTE = 10;
 
 type ToolRequestBody = {
   readonly text?: unknown;
@@ -34,14 +34,6 @@ type ToolRequestBody = {
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null && !Array.isArray(value);
-}
-
-function readSpec(module: unknown): ToolSpec {
-  const spec = isRecord(module) ? module.default : null;
-  if (!isRecord(spec) || !isRecord(spec.settings)) {
-    throw new ToolError("unknown-tool", "This tool is not available.");
-  }
-  return spec as unknown as ToolSpec;
 }
 
 function readRun(module: unknown): ToolRun<never> {
@@ -99,9 +91,10 @@ export async function POST(request: Request, { params }: { params: Promise<{ key
     // ponytail: no trusted proxy-set header is documented in this repo (no caddy/deploy config), so the
     // spoofable first hop stays; a spoofer can mint buckets, bounded by the engine semaphore. Switch to
     // the header the front proxy overwrites once task 6 documents it.
+    const runtime = await loadRuntimeSettings();
     const rateLimit = Object.hasOwn(CODE_LANGUAGES, key)
-      ? checkRateLimit(`code-exec:${clientKey}`, { limit: CODE_EXEC_LIMIT_PER_MINUTE })
-      : checkRateLimit(`${key}:${clientKey}`);
+      ? checkRateLimit(`code-exec:${clientKey}`, { limit: Number(runtime["traffic.codeRunsPerMinute"].value) })
+      : checkRateLimit(`${key}:${clientKey}`, { limit: Number(runtime["traffic.toolRequestsPerMinute"].value) });
     if (!rateLimit.allowed) {
       log("warn", "api.tool.rate_limited", { tool: key, retryAfterSeconds: rateLimit.retryAfterSeconds });
       return NextResponse.json(
@@ -137,18 +130,15 @@ export async function POST(request: Request, { params }: { params: Promise<{ key
       throw new ToolError("invalid-request", "Request body must be JSON.");
     }
 
-    let modules: readonly [unknown, unknown];
+    let runModule: unknown;
     try {
-      modules = await Promise.all([
-        import(`../../../../tools/${key}/definition`),
-        import(`../../../../tools/${key}/run.server`),
-      ]);
+      runModule = await import(`../../../../tools/${key}/run.server`);
     } catch (error) {
       throw new ToolError("unknown-tool", errorMessage(error, "This tool is not available."));
     }
-
-    const spec = readSpec(modules[0]);
-    const run = readRun(modules[1]);
+    const spec = await loadSpecByDefinitionKey(key);
+    if (!spec) throw new ToolError("unknown-tool", "This tool is not available.");
+    const run = readRun(runModule);
 
     const result: ToolResult = await run({
       input: {

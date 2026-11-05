@@ -1,0 +1,79 @@
+# Piston + auth gate as one Compose stack (Coolify "Docker Compose" resource, or `docker compose up -d`).
+# Replaces host Caddy from provision.sh. Canopy talks only to `gate`; `piston` publishes no ports.
+#
+# Required env: PISTON_API_TOKEN (>= 32 chars, e.g. `openssl rand -hex 32`).
+# Optional env: PISTON_IMAGE_TAG (latest), PISTON_MEMORY (4g), PISTON_CPUS (1.5), PISTON_MAX_CONCURRENT_JOBS (4).
+# Canopy: PISTON_URL=http://gate:8080 (use the hostname Coolify shows if it renames the service), same token.
+#
+# Host-level step not expressible here (run once on the VM, same as provision.sh):
+#   sudo iptables -I DOCKER-USER -d 169.254.169.254 -j DROP   # sandbox must not reach cloud metadata
+services:
+  piston:
+    image: ghcr.io/akatsukihq/canopy-piston:${PISTON_IMAGE_TAG:-latest}
+    privileged: true # Isolate needs it; see docs/code-execution.md on the risk
+    restart: unless-stopped
+    # No volume on /piston: it would hide the baked-in packages.
+    mem_limit: ${PISTON_MEMORY:-4g}
+    memswap_limit: ${PISTON_MEMORY:-4g}
+    cpus: ${PISTON_CPUS:-1.5}
+    pids_limit: 4096
+    environment:
+      PISTON_DISABLE_NETWORKING: "true"
+      PISTON_RUN_TIMEOUT: "5000"
+      PISTON_RUN_CPU_TIME: "3000"
+      PISTON_COMPILE_TIMEOUT: "15000"
+      PISTON_COMPILE_CPU_TIME: "10000"
+      PISTON_RUN_MEMORY_LIMIT: "268435456"
+      PISTON_COMPILE_MEMORY_LIMIT: "536870912"
+      PISTON_MAX_PROCESS_COUNT: "64"
+      PISTON_OUTPUT_MAX_SIZE: "65536"
+      PISTON_MAX_FILE_SIZE: "10000000"
+      PISTON_MAX_CONCURRENT_JOBS: ${PISTON_MAX_CONCURRENT_JOBS:-4}
+      PISTON_REPO_URL: http://127.0.0.1:1/index # packages are baked in; runtime installs impossible
+    expose:
+      - "2000"
+
+  gate:
+    image: caddy:2
+    restart: unless-stopped
+    depends_on:
+      - piston
+    environment:
+      PISTON_API_TOKEN: ${PISTON_API_TOKEN:?set PISTON_API_TOKEN (32+ chars)}
+    expose:
+      - "8080"
+    # Writes the Caddyfile at start so no file mount is needed. Same rules as provision.sh:
+    # bearer auth, only GET /api/v2/runtimes and POST /api/v2/execute, 256 KiB body cap.
+    entrypoint:
+      - sh
+      - -c
+      - |
+        cat > /tmp/Caddyfile <<'CADDY'
+        {
+        	admin off
+        	auto_https off
+        }
+        :8080 {
+        	request_body {
+        		max_size 262144
+        	}
+        	@denied {
+        		not header Authorization "Bearer {env.PISTON_API_TOKEN}"
+        	}
+        	@runtimes {
+        		method GET
+        		path /api/v2/runtimes
+        	}
+        	@execute {
+        		method POST
+        		path /api/v2/execute
+        	}
+        	route {
+        		respond @denied "unauthorized" 401
+        		reverse_proxy @runtimes piston:2000
+        		reverse_proxy @execute piston:2000
+        		respond "not found" 404
+        	}
+        }
+        CADDY
+        exec caddy run --config /tmp/Caddyfile --adapter caddyfile

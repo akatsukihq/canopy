@@ -37,16 +37,15 @@ function publishedDate(value: Date | null): Date {
 }
 
 export function blogArticleMetadata(post: PublishedArticle, appUrl?: string): Metadata {
-  const options = { cloudName: config.cloudinary.cloudName?.trim() };
-  const document = validateBlogDocument(post.document, options);
+  const document = validateBlogDocument(post.document);
   const url = blogCanonicalUrl(post.slug, appUrl);
   const title = document.seoTitle || document.title;
   const description = document.seoDescription || document.excerpt;
   const image = document.coverImage
     ? {
-        url: blogImageUrl(document.coverImage, options),
-        width: document.coverImage.width,
-        height: document.coverImage.height,
+        url: blogImageUrl(document.coverImage),
+        width: document.coverImage.media.width,
+        height: document.coverImage.media.height,
         alt: document.coverImage.alt,
       }
     : undefined;
@@ -76,8 +75,7 @@ export function blogArticleMetadata(post: PublishedArticle, appUrl?: string): Me
 
 /** Return script-safe JSON, including when trusted admins wrote literal closing script tags. */
 export function blogStructuredData(post: PublishedArticle, appUrl?: string): string {
-  const options = { cloudName: config.cloudinary.cloudName?.trim() };
-  const document = validateBlogDocument(post.document, options);
+  const document = validateBlogDocument(post.document);
   return JSON.stringify({
     "@context": "https://schema.org",
     "@type": "BlogPosting",
@@ -88,7 +86,7 @@ export function blogStructuredData(post: PublishedArticle, appUrl?: string): str
     dateModified: publishedDate(post.publishedUpdatedAt).toISOString(),
     author: { "@type": "Person", name: document.authorName },
     publisher: { "@type": "Organization", name: "SmartTools" },
-    ...(document.coverImage ? { image: blogImageUrl(document.coverImage, options) } : {}),
+    ...(document.coverImage ? { image: blogImageUrl(document.coverImage) } : {}),
   })
     .replace(/</g, "\\u003c")
     .replace(/\u2028/g, "\\u2028")

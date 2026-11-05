@@ -11,7 +11,7 @@
  * position is not stable across a re-pick, and a declared MIME is caller-
  * supplied. The cost is that `input.accept` must also list `image/jpeg` and
  * `image/png`, because the shared `assertRunnableFiles` checks every file
- * against it — see the note on `definition.ts`.
+ * against it.
  */
 
 import { clamp } from "../../lib/tool-framework/media/imageCodec.ts";
@@ -33,9 +33,17 @@ import {
 } from "../../lib/tool-framework/media/validation.ts";
 import type { ToolResult } from "../../lib/tool-framework/result.ts";
 import { ToolError, type ToolRun, type ToolRunFile } from "../../lib/tool-framework/run.ts";
-import type { SettingsOf } from "../../lib/tool-framework/settings.ts";
+import type { WatermarkPosition, PageSelection } from "../../lib/tool-framework/settings.ts";
 
-type Settings = SettingsOf<typeof import("./definition.ts").default.settings>;
+type Settings = {
+  readonly watermarkKind: string;
+  readonly watermarkText: string;
+  readonly pages: PageSelection;
+  readonly opacity: number;
+  readonly watermarkSize: number;
+  readonly watermarkRotation: number;
+  readonly position: WatermarkPosition;
+};
 
 type Partitioned = {
   readonly document: ToolRunFile | null;

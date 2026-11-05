@@ -37,6 +37,7 @@ import type { CodeEditorHandle, CodeEditorProps } from "./CodeEditor";
 import { loadCodeEditorLanguage } from "./codeEditorLanguages";
 import { scheduleEditorFeatures } from "./deferredEditorFeatures";
 import { indentGuides } from "./indentGuides";
+import { placeholderChipsExtension } from "./placeholderChips";
 import { rainbowBrackets } from "./rainbowBrackets";
 import { createRunActions } from "./codeEditorRunActions";
 
@@ -214,6 +215,14 @@ const editorTheme = EditorView.theme({
     borderRadius: "1px",
     boxSizing: "border-box",
   },
+  ".cm-placeholderChip": {
+    backgroundColor: "var(--accent)",
+    color: "var(--primary)",
+    borderRadius: "4px",
+    padding: "0 4px",
+    font: "inherit",
+    cursor: "default",
+  },
   ".cm-tooltip": {
     backgroundColor: "var(--popover)",
     color: "var(--popover-foreground)",
@@ -388,6 +397,7 @@ export default function CodeEditorImpl({
   placeholder,
   showLineNumbers = true,
   colorPreviews = false,
+  placeholderChips = false,
   wrap = "soft",
   onCaretChange,
   onScroll,
@@ -533,6 +543,7 @@ export default function CodeEditorImpl({
           : codeHighlighting,
       searchHighlighting,
       ...(colorPreviews ? [colorPreviewExtension] : []),
+      ...(placeholderChips ? [placeholderChipsExtension] : []),
       rainbowBrackets,
       ...(languageName === "csv" || languageName === "tsv" ? [] : [indentGuides]),
       interactionExtensions,
@@ -564,6 +575,7 @@ export default function CodeEditorImpl({
     searchHighlighting,
     showLineNumbers,
     colorPreviews,
+    placeholderChips,
     wrap,
     runActionsExtension,
     hasRunActions,
@@ -620,6 +632,10 @@ export default function CodeEditorImpl({
       view
         ? {
             focus: () => view.focus(),
+            insertText(text) {
+              view.dispatch(view.state.replaceSelection(text), { userEvent: "input", scrollIntoView: true });
+              view.focus();
+            },
             scrollDOM: view.scrollDOM,
             scrollToLine(lineNumber, column = 1) {
               const line = view.state.doc.line(

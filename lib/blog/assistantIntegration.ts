@@ -3,10 +3,9 @@ import { z } from "zod";
 import { and, db, eq, sql, authUser, blogPostsTable as posts } from "../../db/index.ts";
 import { requirePermission } from "../admin/index.ts";
 import { requireTransactionPermission, writeAudit } from "../admin/adminMutations.ts";
-import { AIClient } from "../ai/client.ts";
+import { createAIClient } from "../config/integrations.ts";
 import { AIError } from "../ai/errors.ts";
 import type { AIMessage, AIResult } from "../ai/types.ts";
-import config from "../config/config.ts";
 import type {
   AssistantIntegration,
   AssistantTransaction,
@@ -144,8 +143,9 @@ async function auxiliary(
   if (run.operation !== "generate") return;
   let result: AIResult | undefined;
   try {
-    result = await new AIClient(run.provider).generate({
-      model: config.ai.titleModel || undefined,
+    const client = await createAIClient(run.provider, "title");
+    result = await client.generate({
+      model: client.model,
       signal,
       messages: [
         {
@@ -193,7 +193,7 @@ export const blogAssistantIntegration: AssistantIntegration = {
   key: "blog",
   defaultSettings: { language: "English", webSearch: false },
   validateSettings: (value) => settingsSchema.parse(value),
-  validateRequest: (value) => validateBlogInput(() => validateRunRequest(value, config.cloudinary.cloudName)),
+  validateRequest: (value) => validateBlogInput(() => validateRunRequest(value)),
   operation(request) {
     const standalone = request.operation === "agent";
     return {
@@ -203,6 +203,7 @@ export const blogAssistantIntegration: AssistantIntegration = {
       structuredOutput: request.operation === "agent",
     };
   },
+  agentEffort: (agentId) => getBlogAgent(agentId)?.effort,
   operationLabel(_operation, agentId) {
     return getBlogAgent(agentId)?.name ?? _operation;
   },
@@ -248,14 +249,12 @@ export const blogAssistantIntegration: AssistantIntegration = {
     const document = (value as BlogArtifact).content.document;
     return document
       ? validateBlogInput(() => ({
-          html: renderBlogDocument(validateBlogDocument(document, { cloudName: config.cloudinary.cloudName }), {
-            cloudName: config.cloudinary.cloudName,
-          }).html,
+          html: renderBlogDocument(validateBlogDocument(document)).html,
         }))
       : {};
   },
   buildRequest({ run, history, attachments, proposals, signal }) {
-    const request = validateBlogInput(() => validateRunRequest(run.request, config.cloudinary.cloudName, true));
+    const request = validateBlogInput(() => validateRunRequest(run.request, true));
     const proposalTool =
       (name: string) =>
       async (input: unknown, { toolCallId }: { toolCallId: string }) => {
@@ -304,10 +303,10 @@ export const blogAssistantIntegration: AssistantIntegration = {
       : undefined;
   },
   validateResult(result, input, proposals, inputArtifactIds) {
-    const request = validateBlogInput(() => validateRunRequest(input, config.cloudinary.cloudName, true));
+    const request = validateBlogInput(() => validateRunRequest(input, true));
     try {
       if (request.operation === "agent") {
-        const output = validateAgentOutput(result, request, inputArtifactIds, config.cloudinary.cloudName);
+        const output = validateAgentOutput(result, request, inputArtifactIds);
         return {
           response: emptyAssistantResult(),
           artifact: {

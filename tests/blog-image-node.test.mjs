@@ -8,20 +8,26 @@ import { BlogImageNode, blogEditorImageSource } from "../app/admin/(protected)/b
 import { createDraftPersistence } from "../app/admin/(protected)/blog/lib/draftPersistence.ts";
 import { createBlogDocument, validateBlogDocument } from "../lib/blog/document.ts";
 
-const image = {
-  publicId: "smarttools/blog/95c40d91-c008-4474-965b-71ec2e4f2b81",
-  version: 1234,
+const media = {
+  v: 1,
+  provider: "cloudinary",
   format: "webp",
   width: 800,
   height: 600,
+  bytes: 4096,
+  uploadedAt: "2026-01-01T00:00:00.000Z",
+  entry: { cloudName: "blog-cloud", publicId: "smarttools/blog/95c40d91-c008-4474-965b-71ec2e4f2b81", version: 1234 },
+};
+const image = {
+  media,
   alt: 'A diagram with "labels"',
   caption: "First line\nSecond line",
   displayWidth: 45,
   alignment: "right",
 };
-const schema = getSchema([StarterKit, BlogImageNode.configure({ cloudName: "blog-cloud" })]);
+const schema = getSchema([StarterKit, BlogImageNode]);
 const parse = schema.nodes.image.spec.parseDOM.find((rule) => rule.tag === "figure[data-blog-image]").getAttrs;
-function figure(metadata, src = blogEditorImageSource(image, "blog-cloud"), extra = {}) {
+function figure(metadata, src = blogEditorImageSource(media), extra = {}) {
   return {
     getAttribute(name) {
       return name === "data-blog-image" ? metadata : (extra[name] ?? null);
@@ -103,6 +109,7 @@ test("the installed image node serializes and parses clipboard metadata without 
 test("validated clipboard metadata cannot be overridden by arbitrary HTML attributes", () => {
   const parsed = parse(
     figure(JSON.stringify(image), undefined, {
+      media: "{}",
       publicId: "external",
       version: "-1",
       width: "-1",
@@ -132,7 +139,7 @@ test("clipboard parsing rejects untrusted URLs, malformed metadata, and values o
   for (const src of [
     null,
     "https://external.invalid/picture.png",
-    blogEditorImageSource(image, "another-cloud"),
+    blogEditorImageSource({ ...media, entry: { ...media.entry, cloudName: "another-cloud" } }),
     "javascript:alert(1)",
     "data:image/png;base64,AAAA",
   ]) {
@@ -149,13 +156,20 @@ test("clipboard parsing rejects untrusted URLs, malformed metadata, and values o
   ]) {
     expect(parse(figure(metadata))).toBe(false);
   }
+  const withEntry = (entry) => ({ media: { ...media, entry: { ...media.entry, ...entry } } });
+  const withMedia = (fields) => ({ media: { ...media, ...fields } });
   for (const attrs of [
-    { publicId: "../outside" },
-    { version: 0 },
-    { version: 1.5 },
-    { format: "svg" },
-    { width: 30001 },
-    { height: -1 },
+    withEntry({ publicId: "../outside" }),
+    withEntry({ version: 0 }),
+    withEntry({ version: 1.5 }),
+    withEntry({ cloudName: "bad/cloud" }),
+    withMedia({ format: "svg" }),
+    withMedia({ width: 30001 }),
+    withMedia({ height: -1 }),
+    withMedia({ uploadedAt: "now" }),
+    withMedia({ extra: 1 }),
+    { media: null },
+    { publicId: media.entry.publicId },
     { displayWidth: 9 },
     { displayWidth: 101 },
     { displayWidth: 33.5 },
@@ -180,7 +194,7 @@ test("copied image JSON survives the plain Server Action payload and backend val
     onState() {},
     request: async (input) => {
       expect(Object.getPrototypeOf(input.document.body.content[0].attrs)).toBe(Object.prototype);
-      saved = validateBlogDocument(input.document, { cloudName: "blog-cloud" });
+      saved = validateBlogDocument(input.document);
       return { ok: true, data: { version: 2 } };
     },
   });

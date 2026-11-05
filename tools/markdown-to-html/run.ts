@@ -1,9 +1,12 @@
 import { requireUtilityInput } from "../../lib/devtools/shared/options.ts";
 import type { ToolRun } from "../../lib/tool-framework/run.ts";
 import type { ToolResult } from "../../lib/tool-framework/result.ts";
-import type { SettingsOf } from "../../lib/tool-framework/settings.ts";
 
-type Settings = SettingsOf<typeof import("./definition.ts").default.settings>;
+type Settings = {
+  readonly markdownFlavor: string;
+  readonly sanitizeHtml: boolean;
+  readonly openLinksSafely: boolean;
+};
 
 const HTML_CHARACTER_REFERENCE = /&(?:#\d+;?|#x[\da-f]+;?|[a-z][a-z\d]+;)/i;
 

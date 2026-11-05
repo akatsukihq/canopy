@@ -1,10 +1,14 @@
+import { toolSpec } from "../../tests/helpers/toolSpec.mjs";
 import { afterEach, expect, test, vi } from "vitest";
 
 import { run } from "./run.ts";
 import { createDomainSummary } from "./preview.ts";
-import definition from "./definition.ts";
+const definition = await toolSpec("domain-age-checker");
 import { createTranslator } from "next-intl";
-import { extractToolMessages, toolMessageTree } from "../../lib/tool-framework/translations.ts";
+import { extractToolMessages, formatToolMessage, toolMessageTree } from "../../lib/tool-framework/translations.ts";
+
+const english = (key, values) => formatToolMessage("en", definition.messages[key] ?? key, values);
+const summaryOf = (raw, now = Date.now()) => createDomainSummary(raw, now, english);
 
 afterEach(() => vi.unstubAllGlobals());
 
@@ -39,7 +43,7 @@ test("domain-age-checker preserves its exact raw registration JSON", async () =>
 
   expect(result.render).toBe("text");
   expect(result.text).toBe(JSON.stringify(expected, null, 2));
-  expect(createDomainSummary(result.text).domain).toBe("EXAMPLE.COM");
+  expect(summaryOf(result.text).domain).toBe("EXAMPLE.COM");
 });
 
 test("domain-age-checker applies date visibility settings to both result views", async () => {
@@ -64,7 +68,7 @@ test("domain-age-checker applies date visibility settings to both result views",
       };
 
       expect(JSON.parse(result.text)).toEqual(expected);
-      const summary = createDomainSummary(result.text);
+      const summary = summaryOf(result.text);
       expect(summary.dates.some(({ label }) => label === "Registered")).toBe(showRegistrationDate);
       expect(summary.dates.some(({ label }) => label === "Reported expiry")).toBe(showExpiryDate);
       if (!showRegistrationDate) {
@@ -99,7 +103,7 @@ test("domain-age-checker keeps sparse and malformed registry fields consistent a
     };
 
     expect(JSON.parse(result.text)).toEqual(expected);
-    const summary = createDomainSummary(result.text);
+    const summary = summaryOf(result.text);
     expect(summary.age).toBe("Age unavailable");
     expect(summary.dates.map(({ value }) => value)).toEqual(["Not reported", "Not reported", "Not reported"]);
     expect(summary.nameservers).toEqual(nameservers);
@@ -109,7 +113,7 @@ test("domain-age-checker keeps sparse and malformed registry fields consistent a
 const NOW = Date.parse("2026-09-25T12:00:00Z");
 
 function summarize(record, now = NOW) {
-  return createDomainSummary(JSON.stringify(record), now);
+  return summaryOf(JSON.stringify(record), now);
 }
 
 test("domain summary leads with a readable current age and dates in UTC", () => {
@@ -202,7 +206,7 @@ test("statuses explain both RDAP and EPP codes in ordinary language", () => {
 
 test("malformed records and unexpected fields cannot become objects or code in the preview", () => {
   for (const raw of ["bad json", "null", "42", "[]", '"example.com"']) {
-    const summary = createDomainSummary(raw, NOW);
+    const summary = summaryOf(raw, NOW);
     expect(summary.domain).toBe("Domain not reported");
     expect(summary.age).toBe("Age unavailable");
     expect(summary.ageDetail).toContain("could not be read");

@@ -13,14 +13,15 @@ import {
   assistantAttachmentsTable as attachments,
   assistantMessagesTable as messages,
 } from "../../db/index.ts";
-import config from "../config/config.ts";
-import { AIClient } from "../ai/client.ts";
+import { loadRuntimeSettings } from "../config/runtimeSettings.ts";
+import { activeAIProvider, createAIClient } from "../config/integrations.ts";
 import {
   parseStoredRequest,
   parseStoredResult,
   parseMessageParts,
   AssistantError,
   assistantId,
+  assistantResourceId,
   threadPatchSchema,
   validateAssistantImage,
   publicReference,
@@ -38,6 +39,7 @@ import type {
 
 import type { AssistantIntegration, AssistantTransaction, StoredRun } from "./integration.ts";
 import { attachmentProvider, deleteRunResponses } from "./resources.ts";
+import { NEW_THREAD_TITLE } from "./types.ts";
 export const ACTIVE_RUN_STATUSES = ["queued", "running", "unknown"] as const;
 export const privateExpiry = () => new Date(Date.now() + 30 * 24 * 60 * 60 * 1000);
 
@@ -313,20 +315,22 @@ export function createAssistantThreads(integration: AssistantIntegration) {
       completedAt: row.completedAt?.toISOString() ?? null,
     };
   }
-  function assistantAvailability(): AssistantAvailability {
+  async function assistantAvailability(): Promise<AssistantAvailability> {
+    const settings = await loadRuntimeSettings();
     try {
-      const capabilities = new AIClient(config.ai.provider).getCapabilities();
-      const enabled = config.ai.enabled && capabilities.configured;
+      const client = await createAIClient();
+      const capabilities = client.getCapabilities();
+      const enabled = settings["ai.enabled"].value === true && capabilities.configured;
       return {
         enabled,
-        provider: config.ai.provider,
+        provider: client.provider,
         capabilities,
         reason: enabled ? undefined : "The assistant is not configured. Manual work remains available.",
       };
     } catch {
       return {
         enabled: false,
-        provider: config.ai.provider,
+        provider: activeAIProvider(settings),
         capabilities: {
           images: false,
           structuredOutput: false,
@@ -337,10 +341,11 @@ export function createAssistantThreads(integration: AssistantIntegration) {
       };
     }
   }
-  function requireAssistantClient(provider = config.ai.provider) {
-    if (!config.ai.enabled)
+  async function requireAssistantClient(provider?: string) {
+    const settings = await loadRuntimeSettings();
+    if (settings["ai.enabled"].value !== true)
       throw new AssistantError("UNAVAILABLE", "The assistant is disabled. You can continue manually.", 503);
-    const client = new AIClient(provider);
+    const client = await createAIClient(provider);
     const caps = client.getCapabilities();
     if (!caps.configured)
       throw new AssistantError("UNAVAILABLE", "The provider is not configured for generation.", 503);
@@ -353,7 +358,7 @@ export function createAssistantThreads(integration: AssistantIntegration) {
     edit = false,
     operation?: string,
   ) {
-    if (resourceId !== null) assistantId.parse(resourceId);
+    if (resourceId !== null) assistantResourceId.parse(resourceId);
     await integration.authorize(tx, actor, resourceId, edit, operation);
   }
   async function requireThread(
@@ -408,7 +413,7 @@ export function createAssistantThreads(integration: AssistantIntegration) {
           ownerId: actor,
           resourceId: resourceId ?? null,
           integrationKey: integration.key,
-          title: value.title ?? "New thread",
+          title: value.title ?? NEW_THREAD_TITLE,
           settings: { ...integration.defaultSettings, ...integration.validateSettings(value.settings ?? {}) },
         })
         .returning();
@@ -499,7 +504,7 @@ export function createAssistantThreads(integration: AssistantIntegration) {
         attachments: [...files, ...selectedArtifacts].map((file) => attachmentView(file)),
         executions: executionResults.executions,
         executionsCursor: executionResults.nextCursor,
-        ...assistantAvailability(),
+        ...(await assistantAvailability()),
       };
     });
   }
@@ -507,6 +512,26 @@ export function createAssistantThreads(integration: AssistantIntegration) {
     const value = threadPatchSchema.parse(input);
     return db.transaction(async (tx) => {
       const thread = await requireThread(tx, actor, resourceId, threadId, { edit: true, forUpdate: true });
+      if (value.activeVariant) {
+        const { messageId, runId } = value.activeVariant;
+        const [variant] = await tx
+          .select({ id: runs.id })
+          .from(runs)
+          .where(
+            and(
+              eq(runs.id, runId),
+              eq(runs.threadId, threadId),
+              eq(runs.inputMessageId, messageId),
+              eq(runs.status, "completed"),
+              sql`${runs.expiresAt} > now()`,
+            ),
+          );
+        if (!variant) throw new AssistantError("NOT_FOUND", "That response is no longer available.", 404);
+        await tx
+          .update(messages)
+          .set({ meta: sql`${messages.meta} || ${JSON.stringify({ activeRunId: runId })}::jsonb` })
+          .where(and(eq(messages.id, messageId), eq(messages.threadId, threadId)));
+      }
       const [updated] = await tx
         .update(threads)
         .set({
@@ -594,7 +619,7 @@ export function createAssistantThreads(integration: AssistantIntegration) {
     for (const file of removed.files) {
       try {
         const provider = attachmentProvider(file.data);
-        if (provider) await new AIClient(provider.name).deleteFile(provider.fileId);
+        if (provider) await (await createAIClient(provider.name)).deleteFile(provider.fileId);
         await db.delete(attachments).where(eq(attachments.id, file.id));
       } catch {
         /* Scheduled cleanup retries retained private file handles. */
@@ -624,7 +649,7 @@ export function createAssistantThreads(integration: AssistantIntegration) {
     if (file.size > 5 * 1024 * 1024) throw new AssistantError("VALIDATION", "Images must be at most 5 MiB.");
     const data = new Uint8Array(await file.arrayBuffer());
     validateAssistantImage(data, file.type);
-    const client = requireAssistantClient();
+    const client = await requireAssistantClient();
     if (!client.getCapabilities().images)
       throw new AssistantError("CAPABILITY", "This provider does not support images.");
     const id = randomUUID();
@@ -636,7 +661,7 @@ export function createAssistantThreads(integration: AssistantIntegration) {
         ownerId: actor,
         type: "file",
         label: file.name,
-        data: { mimeType: file.type, sizeBytes: file.size, provider: { name: config.ai.provider } },
+        data: { mimeType: file.type, sizeBytes: file.size, provider: { name: client.provider } },
         status: "processing",
         expiresAt: new Date(Date.now() + 24 * 60 * 60 * 1000),
       });
@@ -650,7 +675,7 @@ export function createAssistantThreads(integration: AssistantIntegration) {
           data: {
             mimeType: file.type,
             sizeBytes: file.size,
-            provider: { name: config.ai.provider, fileId: uploaded.id, details: {} },
+            provider: { name: client.provider, fileId: uploaded.id, details: {} },
           },
           updatedAt: new Date(),
         })
@@ -691,7 +716,7 @@ export function createAssistantThreads(integration: AssistantIntegration) {
       return row;
     });
     const provider = attachmentProvider(file.data);
-    if (provider) await new AIClient(provider.name).deleteFile(provider.fileId);
+    if (provider) await (await createAIClient(provider.name)).deleteFile(provider.fileId);
     await db.transaction(async (tx) => {
       await tx.delete(attachments).where(eq(attachments.id, id));
     });

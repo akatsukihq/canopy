@@ -1,5 +1,4 @@
 import { z } from "zod";
-import config from "../../config/config.ts";
 import type { EmailSender, EmailMessage } from "../sender.ts";
 
 const deliveryResponse = z.object({
@@ -18,13 +17,33 @@ export class CloudflareEmailSender implements EmailSender {
   private readonly accountId: string;
   private readonly apiToken: string;
 
-  constructor() {
-    const { accountId, apiToken } = config.email;
-    this.accountId = accountId?.trim() ?? "";
-    this.apiToken = apiToken?.trim() ?? "";
-    if (!this.accountId || !this.apiToken) {
-      throw new Error("CLOUDFLARE_EMAIL_ACCOUNT_ID and CLOUDFLARE_EMAIL_API_TOKEN are required");
+  constructor({ accountId, apiToken }: { accountId: string; apiToken: string }) {
+    this.accountId = accountId;
+    this.apiToken = apiToken;
+  }
+
+  /**
+   * Cloudflare has no email-specific dry run, so this checks that the token is active.
+   * Account-owned tokens verify under the account; user tokens only under /user.
+   * It cannot prove the token has the Email Sending permission.
+   */
+  async verify(): Promise<void> {
+    const base = "https://api.cloudflare.com/client/v4";
+    const urls = [`${base}/accounts/${encodeURIComponent(this.accountId)}/tokens/verify`, `${base}/user/tokens/verify`];
+    let rejected = false;
+    for (const url of urls) {
+      try {
+        const response = await fetch(url, {
+          headers: { Authorization: `Bearer ${this.apiToken}` },
+          signal: AbortSignal.timeout(15_000),
+        });
+        if (response.ok) return;
+        if (response.status < 500) rejected = true;
+      } catch {
+        // Network failure: try the next endpoint, then report unreachable.
+      }
     }
+    throw new Error(rejected ? "The provider rejected these credentials." : "Could not reach the provider.");
   }
 
   async send(message: EmailMessage): Promise<void> {

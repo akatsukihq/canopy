@@ -1,10 +1,11 @@
+import { toolSpec } from "../../tests/helpers/toolSpec.mjs";
 // @vitest-environment jsdom
 import assert from "node:assert/strict";
 import { Blob as NodeBlob } from "node:buffer";
 import React, { act, useState } from "react";
 import { beforeEach, test, vi } from "vitest";
 import Workspace from "./workspace.tsx";
-import definition from "./definition.ts";
+const definition = await toolSpec("curl-to-axios");
 import { run } from "./run.ts";
 import { parseSettings } from "../../lib/tool-framework/settings.ts";
 import { setupReactTools, mountTool, click, button, field, fill } from "../../tests/helpers/react-tools.mjs";

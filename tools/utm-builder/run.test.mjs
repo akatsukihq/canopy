@@ -1,6 +1,7 @@
+import { toolSpec } from "../../tests/helpers/toolSpec.mjs";
 import { expect, test, vi } from "vitest";
 import { parseSettings } from "../../lib/tool-framework/settings.ts";
-import definition from "./definition.ts";
+const definition = await toolSpec("utm-builder");
 import { getParameterErrors } from "./parameters.ts";
 import { run } from "./run.ts";
 

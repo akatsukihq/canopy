@@ -1,21 +1,30 @@
 import type { ToolSpec } from "@/lib/tool-framework/spec";
-import jpgPng from "@/tools/jpg-to-png/definition";
-import jpgWebp from "@/tools/jpg-to-webp/definition";
-import pngJpg from "@/tools/png-to-jpg/definition";
-import pngWebp from "@/tools/png-to-webp/definition";
-import webpJpg from "@/tools/webp-to-jpg/definition";
-import webpPng from "@/tools/webp-to-png/definition";
-import heicJpg from "@/tools/heic-to-jpg/definition";
-import heicPng from "@/tools/heic-to-png/definition";
-
-const CONVERSIONS: readonly ToolSpec[] = [jpgPng, jpgWebp, pngJpg, pngWebp, webpJpg, webpPng, heicJpg, heicPng];
+/** Tools that share one workspace and can switch output format in place. */
+export const IMAGE_CONVERSION_KEYS: readonly string[] = [
+  "jpg-to-png",
+  "jpg-to-webp",
+  "png-to-jpg",
+  "png-to-webp",
+  "webp-to-jpg",
+  "webp-to-png",
+  "heic-to-jpg",
+  "heic-to-png",
+];
 export const IMAGE_OUTPUT_KEY = "imageOutputFormat";
 
-export function resolveImageConversion(original: ToolSpec, values: Readonly<Record<string, unknown>>) {
-  const registered = CONVERSIONS.find((entry) => entry.toolId === original.toolId);
+/**
+ * `conversions` are the sibling specs the page loaded from the database;
+ * empty for every other tool.
+ */
+export function resolveImageConversion(
+  original: ToolSpec,
+  values: Readonly<Record<string, unknown>>,
+  conversions: readonly ToolSpec[] = [],
+) {
+  const registered = conversions.find((entry) => entry.toolId === original.toolId);
   const key = original.toolId.split(".")[1];
   const [source, initialTarget] = key.split("-to-");
-  const choices = registered ? CONVERSIONS.filter((entry) => entry.toolId.startsWith(`media.${source}-to-`)) : [];
+  const choices = registered ? conversions.filter((entry) => entry.toolId.startsWith(`media.${source}-to-`)) : [];
   const selected = choices.find((entry) => entry.toolId === `media.${source}-to-${values[IMAGE_OUTPUT_KEY]}`);
   const spec = selected && selected.toolId !== original.toolId ? selected : original;
   const target = selected ? selected.toolId.split("-to-")[1] : initialTarget;

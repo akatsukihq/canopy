@@ -8,9 +8,11 @@
  */
 
 import type { ToolPagesInspected, ToolValidate } from "../../lib/tool-framework/run.ts";
-import { parsePageSelection, type SettingsOf } from "../../lib/tool-framework/settings.ts";
+import { parsePageSelection } from "../../lib/tool-framework/settings.ts";
 
-type Settings = SettingsOf<typeof import("./definition.ts").default.settings>;
+type Settings = {
+  readonly pages: string;
+};
 
 /**
  * Replaces the empty-selection half of the old flow: `buildJobOptions` threw

@@ -1,9 +1,10 @@
+import { toolSpec } from "../../tests/helpers/toolSpec.mjs";
 // @vitest-environment jsdom
 import assert from "node:assert/strict";
 import React, { act } from "react";
 import { beforeEach, test, vi } from "vitest";
 import Workspace from "./workspace.tsx";
-import definition from "./definition.ts";
+const definition = await toolSpec("jwt-decoder");
 import { run } from "./run.ts";
 import { setupReactTools, mountTool, click, button, field } from "../../tests/helpers/react-tools.mjs";
 

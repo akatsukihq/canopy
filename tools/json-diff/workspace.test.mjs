@@ -1,10 +1,11 @@
+import { toolSpec } from "../../tests/helpers/toolSpec.mjs";
 // @vitest-environment jsdom
 import { act } from "react";
 import { expect, test, vi } from "vitest";
 import { setupReactTools, fill, click, button, field, waitFor } from "../../tests/helpers/react-tools.mjs";
 import { mountWorkspace, selectView, press } from "../../tests/helpers/json-workspaces.mjs";
 import DiffWorkspace from "./workspace.tsx";
-import diffDefinition from "./definition.ts";
+const diffDefinition = await toolSpec("json-diff");
 import { run as diffJson } from "./run.ts";
 
 vi.mock("@/components/content/CodeEditor", async () => ({

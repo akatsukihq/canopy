@@ -30,9 +30,17 @@ import {
 import { createOutputFilename, validatePdfSelection } from "../../lib/tool-framework/media/validation.ts";
 import type { ToolResult } from "../../lib/tool-framework/result.ts";
 import { ToolError, type ToolRun } from "../../lib/tool-framework/run.ts";
-import type { SettingsOf } from "../../lib/tool-framework/settings.ts";
+import type { PageSelection } from "../../lib/tool-framework/settings.ts";
 
-type Settings = SettingsOf<typeof import("./definition.ts").default.settings>;
+type Settings = {
+  readonly pages: PageSelection;
+  readonly pageSize: string;
+  readonly width: number;
+  readonly height: number;
+  readonly orientation: string;
+  readonly fit: string;
+  readonly margin: number;
+};
 
 function namedSize(value: string): PdfNamedPageSize {
   return value === "letter" || value === "legal" || value === "custom" ? value : "a4";

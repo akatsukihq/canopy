@@ -1,6 +1,5 @@
 /**
- * Pre-run hooks, held to the same discipline as `definition.ts`: pure, React-
- * free, no heavy dependencies.
+ * Pre-run hooks: pure, React-free, no heavy dependencies.
  *
  * They live here rather than beside `run` because `run.worker.ts` statically
  * imports `lib/tool-framework/media/pdfRender.ts`, the sole owner of
@@ -10,9 +9,14 @@
  */
 
 import type { ToolValidate } from "../../lib/tool-framework/run.ts";
-import type { SettingsOf } from "../../lib/tool-framework/settings.ts";
 
-type Settings = SettingsOf<typeof import("./definition.ts").default.settings>;
+type Settings = {
+  readonly mode: string;
+  readonly removeMetadata: boolean;
+  readonly strongPreset: string;
+  readonly color: string;
+  readonly confirmed: boolean;
+};
 
 /**
  * Replaces the `definition.slug === "compress-pdf"` guard at

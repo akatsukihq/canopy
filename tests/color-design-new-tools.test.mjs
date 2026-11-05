@@ -1,11 +1,12 @@
+import { toolSpec } from "./helpers/toolSpec.mjs";
 import { test, expect } from "vitest";
 import { contrast, suggestForeground } from "../tools/contrast-checker/model.ts";
 import { run as checkContrast } from "../tools/contrast-checker/run.ts";
 import { generatePalette, readPalette } from "../tools/palette-generator/model.ts";
 import { run as exportPalette } from "../tools/palette-generator/run.ts";
 import { parseSettings } from "../lib/tool-framework/settings.ts";
-import contrastDefinition from "../tools/contrast-checker/definition.ts";
-import paletteDefinition from "../tools/palette-generator/definition.ts";
+const contrastDefinition = await toolSpec("contrast-checker");
+const paletteDefinition = await toolSpec("palette-generator");
 
 test("contrast has exact WCAG bounds and composites transparent layers in order", () => {
   expect(contrast("black", "white", "white").ratio).toBe(21);

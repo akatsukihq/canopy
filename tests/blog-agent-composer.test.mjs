@@ -175,3 +175,14 @@ test("composer content bounds text, nodes, depth, size and inline agent count", 
   };
   expect(parseComposerContent(oversized)).toBe(undefined);
 });
+
+test("field mention chips keep only a safe id and a label", () => {
+  const doc = (attrs) => ({
+    type: "doc",
+    content: [{ type: "paragraph", content: [{ type: "fieldMention", attrs }, { type: "text", text: " fix" }] }],
+  });
+  expect(parseComposerContent(doc({ id: "seoTitle", label: "SEO title" }))).toBeDefined();
+  expect(parseComposerContent(doc({ id: "tool.name", label: "tool.name" }))).toBeDefined();
+  for (const attrs of [{ id: "seo title", label: "x" }, { id: "seoTitle", label: "" }, { id: "a", label: "b", extra: 1 }])
+    expect(parseComposerContent(doc(attrs))).toBeUndefined();
+});

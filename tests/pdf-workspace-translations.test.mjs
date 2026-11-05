@@ -1,3 +1,4 @@
+import { toolSpec } from "./helpers/toolSpec.mjs";
 import React from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import { NextIntlClientProvider } from "next-intl";
@@ -18,10 +19,7 @@ vi.mock("@/components/PdfFileWorkspace", () => ({
 }));
 
 async function preview(key, settings, translations = {}) {
-  const [{ default: Workspace }, { default: spec }] = await Promise.all([
-    import(`../tools/${key}/workspace.tsx`),
-    import(`../tools/${key}/definition.ts`),
-  ]);
+  const [{ default: Workspace }, spec] = await Promise.all([import(`../tools/${key}/workspace.tsx`), toolSpec(key)]);
   return renderToStaticMarkup(
     React.createElement(
       NextIntlClientProvider,

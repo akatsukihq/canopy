@@ -1,10 +1,12 @@
 import type { ToolRun } from "../../lib/tool-framework/run.ts";
 import type { ToolResult } from "../../lib/tool-framework/result.ts";
-import type { SettingsOf } from "../../lib/tool-framework/settings.ts";
 import { parseUtilityJson } from "../../lib/devtools/shared/json-input.ts";
 import { resolveJsonPath } from "./json-path.ts";
 
-type Settings = SettingsOf<typeof import("./definition.ts").default.settings>;
+type Settings = {
+  readonly repairMode: string;
+  readonly path: string;
+};
 
 export const run: ToolRun<Settings> = (ctx): ToolResult => {
   const value = parseUtilityJson(ctx.input.text, {

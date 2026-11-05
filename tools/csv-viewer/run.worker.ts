@@ -2,20 +2,21 @@
 
 import type { ToolRun } from "../../lib/tool-framework/run.ts";
 import type { ToolResult } from "../../lib/tool-framework/result.ts";
-import type { SettingsOf } from "../../lib/tool-framework/settings.ts";
 import { isLargeCsvRun, parseCsvRun } from "../../lib/devtools/shared/streaming-csv-tool.ts";
-import { CSV_PREVIEW_BYTES } from "../../lib/tool-framework/limits.ts";
+import { getRuntimeLimits } from "../../lib/tool-framework/limits.ts";
 import { parseUtilityTable, utilityDelimiter } from "../../lib/devtools/shared/table.ts";
 
-type Settings = SettingsOf<typeof import("./definition.ts").default.settings>;
+type Settings = {
+  readonly delimiter: string;
+};
 
 export const run: ToolRun<Settings> = async (ctx): Promise<ToolResult> => {
   const delimiter = utilityDelimiter(ctx.settings.delimiter);
   if (isLargeCsvRun(ctx)) {
     const parsed = await parseCsvRun(ctx, {
       delimiter,
-      maxPreviewBytes: CSV_PREVIEW_BYTES,
-      previewRows: 1_001,
+      maxPreviewBytes: getRuntimeLimits().csvPreviewBytes,
+      previewRows: getRuntimeLimits().csvPreviewRows + 1,
     });
     const [columns = [], ...rows] = parsed.preview;
     return {

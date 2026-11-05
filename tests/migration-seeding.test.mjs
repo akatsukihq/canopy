@@ -28,11 +28,6 @@ vi.mock("node:fs/promises", () => ({
   readFile: (...args) => globalThis.__migrationFiles.readFile(...args),
   readdir: (...args) => globalThis.__migrationFiles.readdir(...args),
 }));
-vi.mock("@/db/seedManagedTools.ts", () => ({
-  seedManagedTools: async () => {
-    globalThis.__migrationSeedState.seeds++;
-  },
-}));
 
 const MIGRATE = "@/db/scripts/migrate.mjs";
 const SEED = "@/db/scripts/seed.mjs";
@@ -86,7 +81,6 @@ async function run(
   state = {
     rows: [],
     migrations: [],
-    seeds: 0,
     connected: false,
     closed: false,
     transactions: [],
@@ -144,7 +138,6 @@ test("empty catalog receives every seed with JSON and dates intact", async () =>
   }
   expect(state.transactions).toEqual(["begin", "commit"]);
   expect(state.migrations).toEqual([]);
-  expect(state.seeds).toBe(1);
   expect(state.closed).toBe(true);
 }, 30000); // Cold-start: first run transforms the drizzle-orm/schema graph.
 
@@ -176,7 +169,6 @@ test("only the selected folder runs, in filename order, without seeding", async 
     process.env.NEXT_PUBLIC_CLOUDINARY_CLOUD_NAME?.trim() || process.env.CLOUDINARY_CLOUD_NAME?.trim() || "",
   );
   expect(state.rows).toEqual([]);
-  expect(state.seeds).toBe(0);
   expect(state.closed).toBe(true);
 });
 
@@ -184,7 +176,6 @@ test("baseline runs only its SQL without seeding", async () => {
   await run("0001-baseline");
   expect(state.migrations).toEqual(["BASELINE ONE", "BASELINE TWO"]);
   expect(state.rows).toEqual([]);
-  expect(state.seeds).toBe(0);
 });
 
 test("missing, invalid, unknown and empty selections execute nothing", async () => {
@@ -200,7 +191,6 @@ test("missing, invalid, unknown and empty selections execute nothing", async () 
   for (const [index, args] of cases.entries()) {
     await expect(run(`invalid-${index}`, 0, null, args)).rejects.toThrow(/folder|Usage|SQL/);
     expect(state.migrations).toEqual([]);
-    expect(state.seeds).toBe(0);
   }
 });
 
@@ -215,6 +205,5 @@ test("SQL failure stops the folder and closes the connection", async () => {
   expect(thrown).toBe(failure);
   expect(state.migrations).toEqual(["ICON ONE"]);
   expect(state.deleted).toEqual([]);
-  expect(state.seeds).toBe(0);
   expect(state.closed).toBe(true);
 });

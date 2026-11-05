@@ -74,6 +74,7 @@ import {
   type ToolRunInput,
 } from "@/lib/tool-framework/run";
 import type { SettingsOf, SettingsSpec } from "@/lib/tool-framework/settings";
+import { setRuntimeLimits, type RuntimeLimits } from "@/lib/tool-framework/limits";
 import type { ToolInputSpec, ToolSpec } from "@/lib/tool-framework/spec";
 import { isLargeTextFile } from "@/lib/tool-framework/textFileInput";
 import { useToolRun } from "@/lib/tool-framework/useToolRun";
@@ -196,8 +197,8 @@ function toOutcome(result: ToolResult): ToolExecutionOutcome<ToolResult> {
 // ---------------------------------------------------------------------------
 
 /** Turns the worker's job state into the promise the runtime's `execute` needs. */
-function useWorkerHost() {
-  const { cancel, cleanupArtifacts, reset, state, start } = useToolRun();
+function useWorkerHost(spec: ToolSpec) {
+  const { cancel, cleanupArtifacts, reset, state, start } = useToolRun(spec);
   const pending = useRef<{
     jobId: string | null;
     reject: (reason: unknown) => void;
@@ -327,6 +328,7 @@ interface ToolChrome {
   readonly resetPageState: () => void;
   readonly settings: RuntimeSettings;
   readonly spec: ToolSpec;
+  readonly conversions?: readonly ToolSpec[];
   readonly setToolbarActions: (actions: WorkspaceToolbarActions | null) => void;
   readonly toolbarActions: WorkspaceToolbarActions | null;
   readonly validationReason: string | null;
@@ -622,6 +624,7 @@ function ToolWorkspaceSlot(): ReactElement {
         running={running}
         settings={chrome.settings}
         spec={chrome.spec}
+        conversions={chrome.conversions}
       />
     </Suspense>
   );
@@ -687,6 +690,8 @@ function toWorkbenchDefinition(spec: ToolSpec, definitionKey: string): ToolDefin
 
 export interface ToolPageProps {
   availableLocales?: readonly Locale[];
+  /** Sibling image-conversion specs, so the workspace can switch output format. */
+  conversions?: readonly ToolSpec[];
   account: { returnTo: string; user: { name: string; isAdmin?: boolean } | null };
   category: string;
   /** The tool's folder under `tools/`. Never the public slug. */
@@ -694,6 +699,8 @@ export interface ToolPageProps {
   description: string;
   icon: ResolvedIcon;
   relatedTools: readonly { href: string; label: string }[];
+  /** Resolved system limits for this request; code defaults when omitted. */
+  limits?: RuntimeLimits;
   spec: ToolSpec;
   title: string;
 }
@@ -709,13 +716,17 @@ export default function ToolPage(props: ToolPageProps): ReactElement {
 function ToolPageState({
   account,
   category,
+  conversions,
   definitionKey,
   description,
   icon,
+  limits,
   relatedTools,
   spec,
   title,
 }: ToolPageProps): ReactElement {
+  // Idempotent, and must be in place before any child reads a limit.
+  if (limits) setRuntimeLimits(limits);
   const t = useTranslations("Tool.runtime");
   const framework = useTranslations("Workbench");
   const [errorLocation, setErrorLocation] = useState<{ line: number; column: number }>();
@@ -725,7 +736,12 @@ function ToolPageState({
   const [workspaceKey, setWorkspaceKey] = useState(0);
   const [shareInitialized, setShareInitialized] = useState(!spec.sharing);
   const completedShare = useRef<{ input: WorkspaceInputState; settings: RuntimeSettings } | null>(null);
-  const { cleanupArtifacts: cleanupWorkerArtifacts, progress, reset: resetWorker, run: runOnWorker } = useWorkerHost();
+  const {
+    cleanupArtifacts: cleanupWorkerArtifacts,
+    progress,
+    reset: resetWorker,
+    run: runOnWorker,
+  } = useWorkerHost(spec);
 
   useEffect(() => {
     void sweepStaleArtifactJobsOnce().catch(() => undefined);
@@ -772,7 +788,7 @@ function ToolPageState({
           );
           return { ...outcome, result, facts: result.stats ?? outcome.facts };
         };
-        const conversion = resolveImageConversion(spec, settings);
+        const conversion = resolveImageConversion(spec, settings, conversions);
         const runKey = conversion.choices.length ? conversion.key : definitionKey;
         const run = await loadMainThreadRun(runKey);
         signal.throwIfAborted();
@@ -795,6 +811,7 @@ function ToolPageState({
               key: runKey,
               secondary: input.secondary,
               settings: conversion.settings,
+              spec: conversion.spec,
               text: input.text,
             },
             signal,
@@ -821,7 +838,7 @@ function ToolPageState({
         throw error;
       }
     },
-    [definitionKey, runOnWorker, settings, spec, t, framework],
+    [conversions, definitionKey, runOnWorker, settings, spec, t, framework],
   );
 
   // Memoised on purpose: `useToolRuntime` keys its effects on the whole spec, so
@@ -859,6 +876,7 @@ function ToolPageState({
       resetPageState,
       settings,
       spec,
+      conversions,
       setToolbarActions,
       toolbarActions,
       validationReason,
@@ -877,6 +895,7 @@ function ToolPageState({
       resetPageState,
       settings,
       spec,
+      conversions,
       toolbarActions,
       validationReason,
       Workspace,

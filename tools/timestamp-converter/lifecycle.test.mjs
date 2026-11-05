@@ -1,3 +1,4 @@
+import { toolSpec } from "../../tests/helpers/toolSpec.mjs";
 // @vitest-environment jsdom
 import React, { act } from "react";
 import { beforeEach, expect, test, vi } from "vitest";
@@ -13,7 +14,7 @@ import {
 } from "../../tests/helpers/react-tools.mjs";
 import { choose } from "../../tests/helpers/tool-workspace.mjs";
 import ToolPage from "../../components/ToolPage.tsx";
-import spec from "./definition.ts";
+const spec = await toolSpec("timestamp-converter");
 
 vi.mock("@/components/FileProcessorWorkspace", () => ({ FileProcessorWorkspace: () => null }));
 vi.mock("@/app/media/components/ImageConversionWorkspace", () => ({ ImageConversionWorkspace: () => null }));

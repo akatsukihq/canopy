@@ -1,4 +1,8 @@
+import type { AIEffort } from "../ai/types.ts";
 import type { JSONContent } from "@tiptap/core";
+
+/** Title of a thread the title model has not named yet. */
+export const NEW_THREAD_TITLE = "New thread";
 
 export type AssistantExecutionMode = "conversational" | "standalone";
 export type AssistantRunStatus = "queued" | "running" | "completed" | "failed" | "cancelled" | "unknown";
@@ -15,6 +19,8 @@ export type AssistantRunRequest = {
   settings?: Record<string, unknown>;
   references?: string[];
   attachmentIds?: string[];
+  model?: string;
+  effort?: AIEffort;
 };
 export type AssistantProposal = {
   id: string;
@@ -119,15 +125,23 @@ export type AssistantMessage = {
 export type AssistantEvent =
   | { type: "run"; run: AssistantRun; attachments?: AssistantAttachment[] }
   | { type: "text-delta"; text: string }
+  | { type: "reasoning-delta"; text: string }
   | { type: "text"; text: string }
   | { type: "proposal"; proposal: AssistantProposal }
   | { type: "completed"; run: AssistantRun }
+  | { type: "title"; title: string }
   | { type: "error"; message: string; run?: AssistantRun };
 export type AssistantAvailability = {
   enabled: boolean;
   provider: string;
   capabilities: { images: boolean; structuredOutput: boolean; webSearch: boolean; urlRetrieval: boolean };
   reason?: string;
+};
+/** Models the composer picker offers; `effort` marks models that accept a reasoning effort. */
+export type AssistantModels = {
+  provider: string;
+  defaultModel: string;
+  models: { id: string; name: string; efforts: AIEffort[] }[];
 };
 export type AssistantExecutionSummary = {
   id: string;

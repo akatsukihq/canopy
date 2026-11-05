@@ -449,3 +449,13 @@ test("combined references and attachments are bounded before resource creation",
     validateSharedRequest({ ...input, references: [...input.references, input.references[0]] }).references.length,
   ).toBe(2);
 });
+
+test("run requests accept a picked model and a supported effort only", () => {
+  const base = { clientRequestId: "request-1", operation: "chat", message: "Hi" };
+  expect(validateSharedRequest({ ...base, model: "claude-opus-5-5", effort: "high" })).toMatchObject({
+    model: "claude-opus-5-5",
+    effort: "high",
+  });
+  expect(() => validateSharedRequest({ ...base, effort: "extreme" })).toThrow();
+  expect(() => validateSharedRequest({ ...base, model: "" })).toThrow();
+});

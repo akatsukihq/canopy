@@ -14,6 +14,8 @@ type Props = {
   compact: boolean;
   actionable: boolean;
   stale: boolean;
+  /** Replaces the default stale explanation, e.g. a validation error. */
+  blockedReason?: string;
   actionLabel: string;
   onApply: () => void | Promise<void>;
   onDiscard: () => void | Promise<void>;
@@ -29,6 +31,7 @@ export function ChangeCard({
   compact,
   actionable,
   stale,
+  blockedReason,
   actionLabel,
   onApply,
   onDiscard,
@@ -38,6 +41,7 @@ export function ChangeCard({
   const toggle = useRef<HTMLButtonElement>(null);
   const detailed = expanded || !compact;
   const excerpt = kind === "delete" ? before : after;
+  const preview = excerpt.length > 110 ? `${excerpt.slice(0, 110).replace(/\s+\S*$/, "")}…` : excerpt;
   const wordCount = excerpt.trim().split(/\s+/).filter(Boolean).length;
   const badge = (
     <span className={`${styles.badge} rounded-full`} data-kind={kind}>
@@ -77,10 +81,16 @@ export function ChangeCard({
   return (
     <section aria-label={title} className={styles.card} data-detailed={detailed}>
       <div className={styles.header}>
-        {detailed ? badge : <h4 className={styles.title}>{title}</h4>}
-        {actionable && (
-          <TooltipProvider>
-            <div className={styles.actions}>
+        <h4 className={styles.title}>{title}</h4>
+        {detailed && (
+          <span className={styles.facts}>
+            {wordCount} {wordCount === 1 ? "word" : "words"}
+          </span>
+        )}
+        <div className={styles.actions}>
+          {detailed && badge}
+          {actionable && (
+            <TooltipProvider>
               <Tooltip>
                 <TooltipTrigger asChild>
                   <Button
@@ -109,24 +119,24 @@ export function ChangeCard({
                   </span>
                 </TooltipTrigger>
                 <TooltipContent>
-                  {stale ? "This section changed. Ask for a fresh suggestion." : actionLabel}
+                  {stale ? (blockedReason ?? "This section changed. Ask for a fresh suggestion.") : actionLabel}
                 </TooltipContent>
               </Tooltip>
-            </div>
-          </TooltipProvider>
-        )}
+            </TooltipProvider>
+          )}
+        </div>
       </div>
       {detailed ? (
         <>
-          <div className={styles.summary}>
-            <h4 className={styles.title}>{title}</h4>
-            <p className={styles.facts}>
-              {[actionable && "Not applied", placement, `${wordCount} ${wordCount === 1 ? "word" : "words"}`]
-                .filter(Boolean)
-                .join(" · ")}
+          {expanded ? (
+            <p className={styles.excerpt}>
+              {placement} {toggleButton}
             </p>
-          </div>
-          {!expanded && <p className={styles.excerpt}>{excerpt}</p>}
+          ) : (
+            <p className={styles.excerpt}>
+              {preview} {toggleButton}
+            </p>
+          )}
         </>
       ) : null}
       <div id={previewId} hidden={!expanded} className={styles.diff}>
@@ -153,16 +163,18 @@ export function ChangeCard({
           </div>
         )}
       </div>
-      {actionable && stale && <p className={styles.facts}>This section changed. Ask for a fresh suggestion.</p>}
-      <div className={styles.footer}>
-        {!detailed && (
-          <>
-            {badge}
-            <p className={styles.placement}>{placement}</p>
-          </>
-        )}
-        {toggleButton}
-      </div>
+      {actionable && stale && (
+        <p className={styles.facts} role="alert">
+          {blockedReason ?? "This section changed. Ask for a fresh suggestion."}
+        </p>
+      )}
+      {!detailed && (
+        <div className={styles.footer}>
+          {badge}
+          <p className={styles.placement}>{placement}</p>
+          {toggleButton}
+        </div>
+      )}
     </section>
   );
 }

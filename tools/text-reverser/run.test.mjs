@@ -1,6 +1,7 @@
+import { toolSpec } from "../../tests/helpers/toolSpec.mjs";
 import { expect, test } from "vitest";
 import { parseSettings } from "../../lib/tool-framework/settings.ts";
-import definition from "./definition.ts";
+const definition = await toolSpec("text-reverser");
 import { run } from "./run.ts";
 
 async function execute(text = "", settings = {}, secondary) {

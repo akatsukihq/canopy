@@ -1,9 +1,20 @@
-import { expect, test } from "vitest";
+import { afterEach, expect, test, vi } from "vitest";
 import { ADMIN_ACCESS } from "../lib/authorization/index.ts";
 import { auditEventsTable, db, managedToolsTable, toolContentTable } from "../db/index.ts";
 import { reservedToolSlugs } from "../lib/tool-catalog/index.ts";
-import { createManagedTool } from "../lib/admin/adminMutations.ts";
+import { createManagedTool, ToolSpecValidationError } from "../lib/admin/adminMutations.ts";
 import { TOOL_CATEGORIES } from "../lib/tool-framework/categories.ts";
+import { toolSpec } from "./helpers/toolSpec.mjs";
+
+const limits = vi.hoisted(() => ({ violations: [] }));
+afterEach(() => {
+  limits.violations = [];
+});
+
+vi.mock("@/lib/tool-framework/systemLimits.ts", () => ({
+  loadSystemLimits: async () => ({}),
+  limitViolations: () => limits.violations,
+}));
 
 const APP = "devtools";
 // Resolved from the registry: no category or tool is named here.
@@ -274,9 +285,8 @@ test("a created tool is disabled, unarchived, and paired with a tool_content row
     expect(created.toolId).toBe(`${APP}.${KEY}`);
 
     // The content row carries the chosen category and nothing else. Every
-    // other column stays null so it still inherits from `definition.ts` once
-    // the folder ships; the category is persisted because the form asked for
-    // it and there is no code yet to fall back to.
+    // other column stays null so it inherits from the stored spec; the
+    // category is persisted because the form asked for it.
     expect(contentWrite(state).values).toEqual({
       toolId: `${APP}.${KEY}`,
       category: CATEGORY,
@@ -306,5 +316,85 @@ test("name and description are required and stored trimmed", async () => {
     });
     expect(toolWrite(state).values.name).toBe("Aardvark Widget");
     expect(toolWrite(state).values.description).toBe("Does an aardvark-shaped thing.");
+  });
+});
+
+// -- optional spec ----------------------------------------------------------
+
+/** A stored spec re-addressed to the tool being created, so only the case under test differs. */
+async function specFor(overrides = {}) {
+  const stored = await toolSpec("gradient-generator");
+  return { ...stored, toolId: `${APP}.${KEY}`, app: APP, ...overrides };
+}
+
+test("a valid spec is validated and stored as the draft, never as the live spec", async () => {
+  const spec = await specFor();
+  await withFakeDatabase([EDITOR, siblings()], async (state) => {
+    await createManagedTool("actor", { ...DRAFT, spec });
+
+    const { values } = toolWrite(state);
+    expect(values.specDraft).toEqual(spec);
+    expect(values).not.toHaveProperty("spec");
+    expect(auditWrite(state).values.metadata.hasSpecDraft).toBe(true);
+  });
+});
+
+test("the draft keeps the author's key order because the raw JSON is stored", async () => {
+  const spec = await specFor();
+  await withFakeDatabase([EDITOR, siblings()], async (state) => {
+    await createManagedTool("actor", { ...DRAFT, spec });
+    expect(Object.keys(toolWrite(state).values.specDraft)).toEqual(Object.keys(spec));
+  });
+});
+
+test("a spec that fails the schema is rejected with issues and writes nothing", async () => {
+  const spec = await specFor({ trigger: "nonsense" });
+  await withFakeDatabase([EDITOR], async (state) => {
+    const error = await createManagedTool("actor", { ...DRAFT, spec }).catch((caught) => caught);
+    expect(error).toBeInstanceOf(ToolSpecValidationError);
+    expect(error.issues.some((issue) => /trigger/.test(issue))).toBe(true);
+    expect(state).toEqual({ inserts: [], updates: [], deletes: [] });
+  });
+});
+
+test("a spec whose toolId belongs to another tool is rejected and writes nothing", async () => {
+  const spec = await specFor({ toolId: "devtools.other-tool" });
+  await withFakeDatabase([EDITOR], async (state) => {
+    const error = await createManagedTool("actor", { ...DRAFT, spec }).catch((caught) => caught);
+    expect(error).toBeInstanceOf(ToolSpecValidationError);
+    expect(error.issues).toEqual([`toolId: must be "${APP}.${KEY}"`]);
+    expect(state.inserts).toEqual([]);
+  });
+});
+
+test("a spec whose app differs from the new tool's app is rejected and writes nothing", async () => {
+  const spec = await specFor({ app: "media" });
+  await withFakeDatabase([EDITOR], async (state) => {
+    const error = await createManagedTool("actor", { ...DRAFT, spec }).catch((caught) => caught);
+    expect(error).toBeInstanceOf(ToolSpecValidationError);
+    expect(error.issues.some((issue) => /^app: /.test(issue))).toBe(true);
+    expect(state.inserts).toEqual([]);
+  });
+});
+
+test("a spec over a system limit is rejected and writes nothing", async () => {
+  const spec = await specFor();
+  limits.violations = ["input.maxLength 9 exceeds max_editable_text_chars 1"];
+  await withFakeDatabase([EDITOR], async (state) => {
+    const error = await createManagedTool("actor", { ...DRAFT, spec }).catch((caught) => caught);
+    expect(error).toBeInstanceOf(ToolSpecValidationError);
+    expect(error.issues).toEqual(limits.violations);
+    expect(state.inserts).toEqual([]);
+  });
+});
+
+test("without a spec the tool is created with no draft and an audit that says so", async () => {
+  await withFakeDatabase([EDITOR, siblings()], async (state) => {
+    await createManagedTool("actor", DRAFT);
+
+    const { values } = toolWrite(state);
+    expect(values.specDraft).toBeNull();
+    expect(values).not.toHaveProperty("spec");
+    expect(auditWrite(state).values.metadata.hasSpecDraft).toBe(false);
   });
 });

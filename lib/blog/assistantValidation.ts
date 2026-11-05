@@ -37,7 +37,7 @@ const contextSchema = z
   })
   .strict();
 
-export function validateRunRequest(input: unknown, cloudName?: string, reserved = false): BlogAssistantRequest {
+export function validateRunRequest(input: unknown, reserved = false): BlogAssistantRequest {
   const request = validateAssistantRequest(input);
   const operation = z.enum(["generate", "chat", "rewrite", "agent"]).parse(request.operation);
   const parsed = { ...request, operation, settings: request.settings && settingsSchema.parse(request.settings) };
@@ -49,7 +49,7 @@ export function validateRunRequest(input: unknown, cloudName?: string, reserved 
       throw new AssistantError("VALIDATION", "Choose an article and private thread first.");
     if (context.selectedText || context.editorJson || parsed.inputMessageId)
       throw new AssistantError("VALIDATION", "Agent requests use the current document and attached sources.");
-    const document = context.document === undefined ? undefined : validateBlogDocument(context.document, { cloudName });
+    const document = context.document === undefined ? undefined : validateBlogDocument(context.document);
     if (agent.requiresDocument && !document)
       throw new AssistantError("VALIDATION", "Attach the current blog to this agent.");
     if (["auditor", "optimizer"].includes(agent.id) && (!document || !blogDocumentText(document).trim()))

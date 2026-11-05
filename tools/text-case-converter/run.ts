@@ -7,9 +7,10 @@
 import { words } from "../../lib/devtools/shared/text.ts";
 import { ToolError, type ToolRun } from "../../lib/tool-framework/run.ts";
 import type { ToolResult } from "../../lib/tool-framework/result.ts";
-import type { SettingsOf } from "../../lib/tool-framework/settings.ts";
 
-type Settings = SettingsOf<typeof import("./definition.ts").default.settings>;
+type Settings = {
+  readonly target: string;
+};
 
 function convertTextCase(value: string, target: string): string {
   // Use locale-independent casing so recipients of a shared link get identical text.

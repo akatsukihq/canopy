@@ -27,7 +27,7 @@
 import { cache } from "react";
 import { and, eq, getTableColumns, sql } from "drizzle-orm";
 import { getPaperworkToolMessages, resolvePaperworkTranslation } from "../paperwork/toolMessages.ts";
-import { defaultLocale, localizeHref, type Locale } from "../i18n/config.ts";
+import { defaultLocale, isLocale, localizeHref, locales, type Locale } from "../i18n/config.ts";
 import { getCommonMessages } from "../i18n/messages.ts";
 import {
   applyToolMessages,
@@ -50,10 +50,12 @@ import {
 import { getEnabledTools, isToolAvailable, isValidToolSlug, mergeToolManifest } from "../tool-catalog/index.ts";
 import type { ToolApp as PublicToolApp } from "../tool-catalog/index.ts";
 
-import { isCategoryKey, type CategoryKey, type ToolApp } from "./categories";
+import type { CategoryKey, ToolApp } from "./categories";
 import { resolveContent } from "./content";
 import { resolveIcon, type ResolvedIcon } from "./icons";
 import type { ToolContent, ToolSpec } from "./spec";
+import { parseToolSpec } from "./specSchema";
+import { clampSpecLimits, loadSystemLimits } from "./systemLimits.ts";
 
 /** How many tools `relatedTools` returns, matching the tool page's shelf. */
 const RELATED_LIMIT = 3;
@@ -119,46 +121,49 @@ export function definitionKeyOf(toolId: string): string | null {
   return DEFINITION_KEY_PATTERN.test(key) ? key : null;
 }
 
-function isToolSpec(value: unknown): value is ToolSpec {
-  if (typeof value !== "object" || value === null) return false;
-  const spec = value as Partial<ToolSpec>;
-  return (
-    typeof spec.toolId === "string" &&
-    typeof spec.name === "string" &&
-    typeof spec.description === "string" &&
-    isCategoryKey(spec.category) &&
-    Array.isArray(spec.keywords) &&
-    typeof spec.content === "object" &&
-    spec.content !== null
-  );
-}
-
 /**
- * Loads one tool's shipped declaration by folder name.
+ * A row's stored definition, validated by `parseToolSpec` and clamped to the system limits.
  *
- * Returns `null` rather than throwing: a stale row pointing at a folder that
- * no longer ships must drop out of the catalogue, not break every page that
- * lists it.
+ * Returns `null` rather than throwing: a row with a missing or malformed spec
+ * must drop out of the catalogue, not break every page that lists it.
  */
-export async function loadSpec(definitionKey: string): Promise<ToolSpec | null> {
-  try {
-    const loaded: unknown = await import(`../../tools/${definitionKey}/definition`);
-    const value =
-      typeof loaded === "object" && loaded !== null && "default" in loaded
-        ? (loaded as { default: unknown }).default
-        : null;
-    return isToolSpec(value) ? value : null;
-  } catch {
+export async function specFromRow(row: Pick<ManagedToolRow, "toolId" | "app" | "spec">): Promise<ToolSpec | null> {
+  const parsed = parseToolSpec(row.spec);
+  if (!parsed.ok) {
+    if (row.spec != null) console.error(`Invalid stored spec for ${row.toolId}: ${parsed.issues.join("; ")}`);
     return null;
   }
+  if (parsed.spec.toolId !== row.toolId || parsed.spec.app !== row.app) return null;
+  return clampSpecLimits(parsed.spec, await loadSystemLimits());
+}
+
+/** Loads one tool's stored definition by stable tool ID. */
+export async function loadSpec(toolId: string): Promise<ToolSpec | null> {
+  if (!isDatabaseConfigured()) return null;
+  const [row] = await db
+    .select({ toolId: managedToolsTable.toolId, app: managedToolsTable.app, spec: managedToolsTable.spec })
+    .from(managedToolsTable)
+    .where(eq(managedToolsTable.toolId, toolId))
+    .limit(1);
+  return row ? specFromRow(row) : null;
+}
+
+/** Loads the stored definition of the code folder `tools/<definitionKey>`. */
+export async function loadSpecByDefinitionKey(definitionKey: string): Promise<ToolSpec | null> {
+  if (!DEFINITION_KEY_PATTERN.test(definitionKey)) return null;
+  for (const app of ["devtools", "media"] as const) {
+    const spec = await loadSpec(`${app}.${definitionKey}`);
+    if (spec) return spec;
+  }
+  return null;
 }
 
 async function resolveToolSource(row: ManagedToolRow & { slug: string }, contentRow: ToolContentRow | null) {
   const definitionKey = definitionKeyOf(row.toolId);
   if (!definitionKey) return null;
 
-  const spec = await loadSpec(definitionKey);
-  if (!spec || spec.app !== row.app) return null;
+  const spec = await specFromRow(row);
+  if (!spec) return null;
 
   // The admin-authored name/description are the live ones, so they, not the
   // shipped strings, are what the SEO fields fall back to.
@@ -205,7 +210,7 @@ async function buildTool(
     seoTitle: formatToolMessage(locale, translation.messages.seoTitle!),
     seoDescription: formatToolMessage(locale, translation.messages.seoDescription!),
     content: localizedSpec.content,
-    icon: resolveIcon(row.toolId, row.name, row.iconUrl),
+    icon: resolveIcon(row.toolId, row.name, row.icon),
     href: localizeHref(`/${spec.app}/${row.slug}`, locale),
     spec: { ...localizedSpec, messages: undefined },
   };
@@ -285,7 +290,7 @@ async function buildToolListing(
     order: row.order,
     category: source.resolved.category,
     ...text,
-    icon: resolveIcon(row.toolId, row.name, row.iconUrl),
+    icon: resolveIcon(row.toolId, row.name, row.icon),
     href: localizeHref(`/${source.spec.app}/${row.slug}`, text.locale),
   };
 }
@@ -343,7 +348,7 @@ export const getPublicToolListings = cache(
               app: tool.app,
               ...text,
               href: localizeHref(`/paperwork/${tool.slug}`, text.locale),
-              icon: resolveIcon(tool.toolId, text.name, tool.iconUrl),
+              icon: resolveIcon(tool.toolId, text.name, tool.icon),
               category: common.Common.documents,
               categoryKey: null,
             },
@@ -444,7 +449,7 @@ const loadCatalog = cache(async (locale: Locale = defaultLocale, app?: PublicToo
         name: tool.name,
         description: tool.description,
         href: tool.href,
-        icon: resolveIcon(tool.toolId, tool.name, tool.iconUrl),
+        icon: resolveIcon(tool.toolId, tool.name, tool.icon),
         keywords: tool.keywords ?? [],
         category: getCommonMessages(locale).Common.documents,
         categoryKey: null,
@@ -457,6 +462,33 @@ const loadCatalog = cache(async (locale: Locale = defaultLocale, app?: PublicToo
   // Request-only caching makes admin publication visible on every app instance.
   return load();
 });
+
+/**
+ * Sitemap URLs only: enabled, non-archived tools and the locales whose
+ * translation is marked published. Publishing already validates the full
+ * contract, so this skips re-parsing specs and translations per request.
+ * English must be published, since every other locale falls back to it.
+ */
+export async function getSitemapTools(): Promise<readonly { href: string; availableLocales: Locale[] }[]> {
+  if (!isDatabaseConfigured()) return [];
+  const published = sql<string[]>`COALESCE((
+    SELECT jsonb_agg(t.key) FROM jsonb_each(${managedToolsTable.translations}) t
+    WHERE t.value->>'status' = 'published'
+  ), '[]'::jsonb)`;
+  const rows = await db
+    .select({ app: managedToolsTable.app, slug: managedToolsTable.slug, published })
+    .from(managedToolsTable)
+    .where(and(eq(managedToolsTable.enabled, true), eq(managedToolsTable.archived, false)))
+    .orderBy(managedToolsTable.app, managedToolsTable.order);
+  const counts = new Map<string, number>();
+  for (const row of rows) counts.set(`${row.app}/${row.slug}`, (counts.get(`${row.app}/${row.slug}`) ?? 0) + 1);
+  return rows.flatMap((row) => {
+    if (!row.slug || !isValidToolSlug(row.app, row.slug) || counts.get(`${row.app}/${row.slug}`) !== 1) return [];
+    const have = new Set(row.published.filter(isLocale));
+    if (!have.has(defaultLocale)) return [];
+    return [{ href: `/${row.app}/${row.slug}`, availableLocales: locales.filter((l) => have.has(l)) }];
+  });
+}
 
 /** Every enabled, non-archived, slugged tool. Optionally narrowed to one app. */
 export const getTools = cache(

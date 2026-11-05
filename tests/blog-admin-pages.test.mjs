@@ -2,6 +2,8 @@ import { createElement } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import { afterAll, expect, test, vi } from "vitest";
 
+vi.mock("server-only", () => ({}));
+
 // Admin routes resolve through the admin subdomain whenever APP_URL is a real
 // host (localhost included), so appHref() rewrites "/admin/..." to
 // "http://admin.localhost/...". A loopback IP has no subdomains, keeping

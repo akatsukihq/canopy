@@ -87,25 +87,29 @@ The database owns public slug, display name, description, effective `iconKey`,
 category, keywords, catalog order, visibility, SEO, page copy, examples, FAQ,
 limitations, privacy copy, and related tool IDs.
 
+The tool spec (identity, input and settings metadata, labels, trigger, page
+copy, examples) lives in `managed_tools.spec` and is edited in Admin. There is
+no `definition.ts`. Every load and save passes `parseToolSpec`
+(`lib/tool-framework/specSchema.ts`), and `clampSpecLimits` caps sizes to
+`system_limits`; a row with an invalid spec drops out of the public catalogue.
+
 `iconKey` is a validated string from a closed shared icon registry, never a
-React component or arbitrary import name. `definition.ts` provides the required
-safe fallback for bootstrap and recovery; valid published database content
-provides the effective catalog/page icon. Unknown keys fail validation and fall
+React component or arbitrary import name. Unknown keys fail validation and fall
 back safely.
 
-Code owns executable and security-sensitive behaviour. Database data must never
-select a React component, import path, runner, renderer, capability, schema,
-processing default, or executable expression.
+Code owns executable and security-sensitive behaviour. The run file is chosen
+by the folder (`tools/<definitionKey>/run*.ts`), never by stored data. Database
+data must never select a React component, import path, runner, renderer, or
+executable expression.
 
 ### Public translations
 
 Store authored translations on the existing `managed_tools.translations` JSONB
 record. The public resolver returns only a complete, published locale and sends
-only that tool's selected messages to its client provider. English definitions
-are bootstrap contracts, not the live source of translated display text.
+only that tool's selected messages to its client provider.
 
-Definition labels, options, page copy and SEO fields are extracted automatically.
-For custom UI, declare bootstrap messages in `definition.messages`, then use
+Spec labels, options, page copy and SEO fields are extracted automatically.
+For custom UI, declare English messages in the spec's `messages`, then use
 `useTranslations("Tool.runtime")` in the workspace. Use native ICU `{name}` and
 plural messages; keep complete sentences together. Execution adapters can return
 `labelMessage`, `detailMessage`, `titleMessage`, or structured `ToolError` details
@@ -113,14 +117,11 @@ so the shared host formats display metadata after execution. Never translate
 identifiers, enum values, source code, user data, or artifact bytes, and never
 branch on a translated label.
 
-When adding or changing message keys, run the English translation backfill before
-deploying the adapter. It preserves existing edits, removes retired source keys,
-and drafts incompatible translations. Admin's existing translation editor picks
-up the current contract automatically; no per-tool editor is needed. Each tool's
-`translations.json` is an exported snapshot for review and database migration,
-not a runtime dictionary. Refresh snapshots explicitly after database edits;
-normal seeding must not overwrite authored translations from these files. See
-`db/migration/0003-tool-translations/README.md` for rollout commands.
+Message keys change with the spec in Admin; saving it syncs English and sends
+other languages whose key set changed back to draft. Admin's translation editor
+picks up the current contract automatically; no per-tool editor is needed.
+Translations live only in the database — there are no `translations.json` files
+for tools.
 
 ## Identity and Resolution
 
@@ -153,7 +154,8 @@ Use only the files the tool needs:
 
 ```text
 tools/<definition-key>/
-  definition.ts
+  run.ts | run.worker.ts | run.server.ts
+  icon.svg
   execution.ts
   result.ts
   workspace.tsx
@@ -162,16 +164,6 @@ tools/<definition-key>/
 
 This is a responsibility map, not mandatory scaffolding. Do not create empty
 files, one-use wrappers, local barrels, or speculative adapters.
-
-### `definition.ts`
-
-- Server-safe and React-free.
-- Declares identity, fallback `iconKey`, app, capabilities, input/settings
-  metadata, lifecycle labels, trigger mode, and command visibility.
-- Satisfies the shared `ToolDefinition` contract.
-- Does not import `.tsx`, browser APIs, workers, server actions, or heavy
-  execution dependencies.
-- Does not duplicate database-owned slug, catalog, SEO, or related-tool data.
 
 ### `execution.ts`
 

@@ -1,14 +1,15 @@
+import { toolSpec } from "./helpers/toolSpec.mjs";
 import redis from "redis";
 import { beforeEach, expect, test, vi } from "vitest";
 import { catalogCache } from "@/lib/tool-framework/catalogCache.ts";
-import markdownDefinition from "../tools/markdown-previewer/definition.ts";
-import jsonDefinition from "../tools/json-formatter/definition.ts";
+const markdownDefinition = await toolSpec("markdown-previewer");
+const jsonDefinition = await toolSpec("json-formatter");
 import { extractToolMessages, escapeToolText } from "../lib/tool-framework/translations.ts";
 import { getPaperworkToolMessages } from "../lib/paperwork/toolMessages.ts";
 
 const state = vi.hoisted(() => ({ configured: true, rows: [], content: [], failure: false, reads: 0, queries: [] }));
 vi.mock("@/db/index.ts", async () => {
-  const { managedToolsTable, toolContentTable } = await vi.importActual("../db/schema.ts");
+  const { managedToolsTable, systemLimitsTable, toolContentTable } = await vi.importActual("../db/schema.ts");
   const { PgDialect } = await import("drizzle-orm/pg-core");
   const dialect = new PgDialect();
   const columnKeys = Object.fromEntries(
@@ -18,14 +19,19 @@ vi.mock("@/db/index.ts", async () => {
   );
   return {
     managedToolsTable,
+    systemLimitsTable,
     toolContentTable,
     isDatabaseConfigured: () => state.configured,
     db: {
       select: (projection) => {
         let predicate;
         let joined = false;
+        let source;
         const builder = {
-          from: () => builder,
+          from: (table) => {
+            source = table;
+            return builder;
+          },
           leftJoin: () => {
             joined = true;
             return builder;
@@ -37,6 +43,8 @@ vi.mock("@/db/index.ts", async () => {
           then: (resolve, reject) =>
             Promise.resolve()
               .then(() => {
+                // No system limits configured: specs pass through unclamped.
+                if (source === systemLimitsTable) return [];
                 state.reads++;
                 if (state.failure) throw new Error("Database unavailable");
                 const query = predicate ? dialect.sqlToQuery(predicate) : null;
@@ -103,7 +111,7 @@ function row(app, key, changes = {}) {
     order: 0,
     enabled: true,
     archived: false,
-    iconUrl: null,
+    icon: null,
     createdAt: new Date(),
     updatedAt: new Date(),
     ...changes,
@@ -120,7 +128,9 @@ function row(app, key, changes = {}) {
           name: value.name,
           description: value.description,
         });
-  return { ...value, translations: { en: { status: "published", messages } } };
+  const base = key === "json-formatter" ? jsonDefinition : markdownDefinition;
+  const spec = app === "paperwork" ? null : { ...base, toolId: value.toolId, app };
+  return { spec, ...value, translations: { en: { status: "published", messages } } };
 }
 const catalog = await import("@/lib/tool-framework/catalog.ts");
 const { getTools, getPublicTools, getPaperworkTools, resolveToolPage } = catalog;
@@ -240,7 +250,7 @@ test("discovery uses published DB copy, excludes unavailable tools, and retries 
   state.reads = 0;
   const tool = row("devtools", "markdown-previewer", {
     name: "Preview Markdown",
-    iconUrl: "https://example.test/icon.png",
+    icon: { v: 1, provider: "cloudinary", format: "png", width: 256, height: 256, uploadedAt: "2026-01-01T00:00:00Z", entry: { cloudName: "c", publicId: "a/b/x", version: 1 } },
   });
   const source = {
     ...markdownDefinition,
@@ -269,7 +279,7 @@ test("discovery uses published DB copy, excludes unavailable tools, and retries 
     row("paperwork", "disabled", { enabled: false }),
     row("paperwork", "archived", { archived: true }),
     row("paperwork", "invalid", { slug: "api" }),
-    row("devtools", "not-shipped"),
+    row("devtools", "not-shipped", { spec: null }),
   ];
   const redisSpy = vi.spyOn(redis, "createClient").mockImplementation(() => {
     throw new Error("Public reads must not use Redis");
@@ -279,7 +289,7 @@ test("discovery uses published DB copy, excludes unavailable tools, and retries 
     expect(tools).toHaveLength(1);
     expect(tools[0].keywords).toEqual(["published-keyword"]);
     expect(tools[0].seoTitle).toBe("Published title");
-    expect(tools[0].icon).toEqual({ kind: "url", url: tool.iconUrl });
+    expect(tools[0].icon).toEqual({ kind: "url", url: "https://res.cloudinary.com/c/image/upload/f_png,c_fill,w_256,h_256,q_auto/v1/a/b/x.png", media: tool.icon });
     const paperwork = await getPaperworkTools();
     expect(paperwork.map((item) => item.componentKey)).toEqual(["invoice-generator", "receipt-generator"]);
     expect((await getPublicTools()).map((item) => item.href)).toContain("/paperwork/custom-invoice");
@@ -476,14 +486,14 @@ test("full public discovery retains every valid published locale for sitemap cov
 
 test("related tools prioritize curated cards, then unique category matches, without validating neighbor runtimes", async () => {
   const [whitespaceDefinition, duplicateDefinition, sorterDefinition] = await Promise.all([
-    import("../tools/whitespace-remover/definition.ts").then((module) => module.default),
-    import("../tools/duplicate-line-remover/definition.ts").then((module) => module.default),
-    import("../tools/text-sorter/definition.ts").then((module) => module.default),
+    toolSpec("whitespace-remover"),
+    toolSpec("duplicate-line-remover"),
+    toolSpec("text-sorter"),
   ]);
   const target = row("devtools", "markdown-previewer");
   const curated = row("devtools", "json-formatter", { order: 99 });
   const neighbors = [whitespaceDefinition, duplicateDefinition, sorterDefinition].map((definition, index) => {
-    const tool = row("devtools", definition.toolId.split(".")[1], { order: index + 1 });
+    const tool = row("devtools", definition.toolId.split(".")[1], { order: index + 1, spec: definition });
     tool.translations.en.messages = extractToolMessages({
       ...definition,
       name: tool.name,

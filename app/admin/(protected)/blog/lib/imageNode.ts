@@ -1,6 +1,8 @@
 import { Node } from "@tiptap/core";
 import { z } from "zod";
 import type { BlogImage } from "@/lib/blog/document";
+import { BLOG_IMAGE_PUBLIC_ID } from "@/lib/blog/utils";
+import { mediaRef, mediaUrl, type MediaRef } from "@/lib/media";
 
 const safeText = (max: number) =>
   z
@@ -9,13 +11,7 @@ const safeText = (max: number) =>
     .refine((value) => value.isWellFormed() && !/[\u0000-\u0008\u000b\u000c\u000e-\u001f\u007f]/u.test(value));
 const imageAttributes = z
   .object({
-    publicId: z
-      .string()
-      .regex(/^smarttools\/blog\/[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/),
-    version: z.number().int().min(1).max(Number.MAX_SAFE_INTEGER),
-    format: z.enum(["jpg", "jpeg", "png", "webp"]),
-    width: z.number().int().min(1).max(30000),
-    height: z.number().int().min(1).max(30000),
+    media: mediaRef.refine((media) => BLOG_IMAGE_PUBLIC_ID.test(media.entry.publicId)),
     alt: safeText(500),
     caption: safeText(1000),
     displayWidth: z
@@ -32,16 +28,12 @@ const imageAttributes = z
   })
   .strict();
 
-export function blogEditorImageSource(
-  image: Pick<BlogImage, "publicId" | "version"> & { format: string },
-  cloudName: string,
-) {
-  return `https://res.cloudinary.com/${encodeURIComponent(cloudName)}/image/upload/v${image.version}/${image.publicId.split("/").map(encodeURIComponent).join("/")}.${encodeURIComponent(image.format)}`;
+export function blogEditorImageSource(media: MediaRef): string {
+  return mediaUrl(media);
 }
 
 /** Uploaded assets remain structured image nodes when copied or cut between editor positions. */
 export const BlogImageNode = Node.create<{
-  cloudName: string;
   onUploadImage: (file: File) => Promise<BlogImage | null>;
 }>({
   name: "image",
@@ -49,15 +41,11 @@ export const BlogImageNode = Node.create<{
   atom: true,
   draggable: true,
   addOptions() {
-    return { cloudName: "", onUploadImage: async () => null };
+    return { onUploadImage: async () => null };
   },
   addAttributes() {
     const defaults = {
-      publicId: "",
-      version: 0,
-      format: "png",
-      width: 1,
-      height: 1,
+      media: null,
       alt: "",
       caption: "",
       displayWidth: 100,
@@ -77,21 +65,14 @@ export const BlogImageNode = Node.create<{
         tag: "figure[data-blog-image]",
         getAttrs: (element) => {
           const metadata = element.getAttribute("data-blog-image");
-          if (
-            !metadata ||
-            metadata.length > 6144 ||
-            new TextEncoder().encode(metadata).length > 6144 ||
-            !/^[a-zA-Z0-9_-]+$/.test(this.options.cloudName)
-          )
-            return false;
+          if (!metadata || metadata.length > 6144 || new TextEncoder().encode(metadata).length > 6144) return false;
           try {
             const input: unknown = JSON.parse(metadata);
             if (input && typeof input === "object" && Object.hasOwn(input, "__proto__")) return false;
             const parsed = imageAttributes.safeParse(input);
             if (
               !parsed.success ||
-              element.querySelector("img")?.getAttribute("src") !==
-                blogEditorImageSource(parsed.data, this.options.cloudName)
+              element.querySelector("img")?.getAttribute("src") !== blogEditorImageSource(parsed.data.media)
             )
               return false;
             return parsed.data;
@@ -115,10 +96,10 @@ export const BlogImageNode = Node.create<{
       [
         "img",
         {
-          src: blogEditorImageSource(attrs, this.options.cloudName),
+          src: blogEditorImageSource(attrs.media),
           alt: attrs.alt,
-          width: attrs.width,
-          height: attrs.height,
+          width: attrs.media.width,
+          height: attrs.media.height,
           style: "width:100%;height:auto",
         },
       ],

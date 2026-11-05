@@ -4,7 +4,7 @@ import {
   type StreamingJsonInput,
   type StreamingJsonMode,
 } from "./streaming-json.ts";
-import { LARGE_TEXT_PREVIEW_BYTES } from "../../tool-framework/limits.ts";
+import { getRuntimeLimits } from "../../tool-framework/limits.ts";
 import type { ToolResult } from "../../tool-framework/result.ts";
 import { ToolError, type ToolRunContext } from "../../tool-framework/run.ts";
 
@@ -68,7 +68,7 @@ export async function validateStreamingJsonRun(ctx: ToolRunContext<unknown>): Pr
   const result = await processStreamingJson(sourceFor(ctx), {
     mode: "validate",
     onInputProgress: inputProgress(ctx),
-    previewLimit: LARGE_TEXT_PREVIEW_BYTES,
+    previewLimit: getRuntimeLimits().largeTextPreviewBytes,
     signal: ctx.signal,
   });
   if (!result.ok) throwJsonError(result.error);
@@ -119,7 +119,7 @@ export async function transformLargeJsonRun(
     indentation: options.indentation,
     mode: options.mode,
     onInputProgress: inputProgress(ctx),
-    previewLimit: LARGE_TEXT_PREVIEW_BYTES,
+    previewLimit: getRuntimeLimits().largeTextPreviewBytes,
     signal: ctx.signal,
     writable: channel.writable,
   });

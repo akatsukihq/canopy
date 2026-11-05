@@ -7,10 +7,14 @@
 
 import type { ToolRun } from "../../lib/tool-framework/run.ts";
 import type { ToolResult } from "../../lib/tool-framework/result.ts";
-import type { SettingsOf } from "../../lib/tool-framework/settings.ts";
 import { textMetrics } from "../../lib/devtools/shared/text.ts";
 
-type Settings = SettingsOf<typeof import("./definition.ts").default.settings>;
+type Settings = {
+  readonly countHyphenated: boolean;
+  readonly ignoreNumbers: boolean;
+  readonly excludeEmails: boolean;
+  readonly estimateReadingTime: boolean;
+};
 
 export const run: ToolRun<Settings> = (ctx): ToolResult => {
   const metrics = textMetrics(ctx.input.text, {

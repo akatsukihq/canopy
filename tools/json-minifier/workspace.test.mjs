@@ -1,6 +1,7 @@
+import { toolSpec } from "../../tests/helpers/toolSpec.mjs";
 // @vitest-environment jsdom
 import { vi } from "vitest";
-import definition from "./definition.ts";
+const definition = await toolSpec("json-minifier");
 import { run } from "./run.worker.ts";
 import { setupReactTools } from "../../tests/helpers/react-tools.mjs";
 import { testJsonWorkspace } from "../../tests/helpers/json-generic-workspace.mjs";

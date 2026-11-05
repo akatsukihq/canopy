@@ -1,8 +1,9 @@
+import { toolSpec } from "../../tests/helpers/toolSpec.mjs";
 import assert from "node:assert/strict";
 const { test } = await import(process.env.VITEST ? "vitest" : "node:test");
 
 import { getCronFieldError, getScheduleSummary } from "./configuration.ts";
-import definition from "./definition.ts";
+const definition = await toolSpec("cron-builder");
 import { run } from "./run.ts";
 
 const defaults = Object.fromEntries(

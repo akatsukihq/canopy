@@ -1,8 +1,9 @@
+import { toolSpec } from "../../tests/helpers/toolSpec.mjs";
 import assert from "node:assert/strict";
 import { execFileSync } from "node:child_process";
 import { test } from "vitest";
 import { parseSettings } from "../../lib/tool-framework/settings.ts";
-import differenceDefinition from "./definition.ts";
+const differenceDefinition = await toolSpec("date-difference");
 import { run as difference } from "./run.ts";
 
 const context = (definition, text = "", settings = {}, secondary = "") => ({

@@ -20,10 +20,11 @@
 
 import type { ToolRun } from "../../lib/tool-framework/run.ts";
 import type { ToolResult } from "../../lib/tool-framework/result.ts";
-import type { SettingsOf } from "../../lib/tool-framework/settings.ts";
 import { requireUtilityInput } from "../../lib/devtools/shared/options.ts";
 
-type Settings = SettingsOf<typeof import("./definition.ts").default.settings>;
+type Settings = {
+  readonly showOutlines: boolean;
+};
 
 const OUTLINE_STYLE = "<style>*,*::before,*::after{outline:1px solid #2563eb!important}</style>";
 

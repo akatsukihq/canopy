@@ -158,6 +158,13 @@ function ToastClose({
   );
 }
 
+const TONE: Record<string, string> = {
+  success: "border-success/30 bg-success-soft text-foreground",
+  error: "border-destructive/30 bg-destructive-soft text-foreground",
+  warning: "border-warning/30 bg-warning-soft text-foreground",
+  info: "border-primary/30 bg-primary/10 text-foreground",
+};
+
 function ToastIcon({ type }: { type: string | undefined }) {
   const Icon =
     type === "success"
@@ -177,7 +184,10 @@ function ToastIcon({ type }: { type: string | undefined }) {
       data-slot="toast-icon"
       className={cn(
         "size-4 shrink-0",
+        type === "success" && "text-success",
         type === "error" && "text-destructive",
+        type === "warning" && "text-warning",
+        type === "info" && "text-primary",
         type === "loading" && "animate-spin motion-reduce:animate-none",
       )}
     />
@@ -195,7 +205,10 @@ function ToastList({ top, closeButton, dismissible }: { top: boolean; closeButto
       onKeyDown={(event) => {
         if (!dismissible && event.key === "Escape") event.preventBaseUIHandler();
       }}
-      className={top ? "top-0 bottom-auto origin-top [--direction:1] after:top-auto after:bottom-full" : undefined}
+      className={cn(
+        toastItem.type && TONE[toastItem.type],
+        top && "top-0 bottom-auto origin-top [--direction:1] after:top-auto after:bottom-full",
+      )}
     >
       <ToastContent>
         <ToastIcon type={toastItem.type} />

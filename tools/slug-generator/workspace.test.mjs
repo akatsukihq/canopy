@@ -1,6 +1,7 @@
+import { toolSpec } from "../../tests/helpers/toolSpec.mjs";
 // @vitest-environment jsdom
 import { beforeEach, expect, test, vi } from "vitest";
-import definition from "./definition.ts";
+const definition = await toolSpec("slug-generator");
 import { run } from "./run.ts";
 import { setupReactTools, fill, click, button, field, waitFor } from "../../tests/helpers/react-tools.mjs";
 import { mountWorkspace, choose } from "../../tests/helpers/tool-workspace.mjs";

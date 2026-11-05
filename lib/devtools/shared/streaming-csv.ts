@@ -1,4 +1,4 @@
-import { CSV_MAX_FIELD_BYTES, CSV_MAX_ROW_BYTES } from "../../tool-framework/limits.ts";
+import { getRuntimeLimits } from "../../tool-framework/limits.ts";
 import type { ToolMessage } from "../../tool-runtime/types.ts";
 
 export type CsvChunk = string | Uint8Array;
@@ -68,8 +68,8 @@ export async function parseStreamingCsv(
     signal,
     validateWidth = true,
     maxPreviewBytes = 256 * 1024,
-    maxFieldBytes = CSV_MAX_FIELD_BYTES,
-    maxRowBytes = CSV_MAX_ROW_BYTES,
+    maxFieldBytes = getRuntimeLimits().csvMaxFieldBytes,
+    maxRowBytes = getRuntimeLimits().csvMaxRowBytes,
   } = options;
 
   if (delimiter.length !== 1 || delimiter === '"' || delimiter === "\r" || delimiter === "\n") {

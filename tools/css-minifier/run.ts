@@ -1,10 +1,13 @@
 import type { ToolRun } from "../../lib/tool-framework/run.ts";
 import type { ToolResult } from "../../lib/tool-framework/result.ts";
-import type { SettingsOf } from "../../lib/tool-framework/settings.ts";
 import { requireUtilityInput } from "../../lib/devtools/shared/options.ts";
 import { protectCssStrings } from "../../lib/devtools/shared/code.ts";
 
-type Settings = SettingsOf<typeof import("./definition.ts").default.settings>;
+type Settings = {
+  readonly browserCompatibility: string;
+  readonly mergeRules: boolean;
+  readonly normalizeColors: boolean;
+};
 
 function normalizeHexColors(css: string): string {
   return css.replace(/([:\s,(])#([\da-f]{6}|[\da-f]{8})(?![\da-f])/gi, (match, prefix: string, hex: string) => {

@@ -1,5 +1,5 @@
 import config from "@/lib/config/config.ts";
-import { getPublicTools } from "@/lib/tool-framework/catalog";
+import { getSitemapTools } from "@/lib/tool-framework/catalog";
 import { getBlogSitemapEntries } from "@/lib/blog/queries";
 import type { MetadataRoute } from "next";
 import { localizeHref } from "@/lib/i18n/config";
@@ -19,12 +19,13 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
 
   // A sitemap is not worth a 500. If the catalog cannot be read, serve the
   // known-good static entries rather than failing the whole route.
-  let tools: Awaited<ReturnType<typeof getPublicTools>> = [];
-  try {
-    tools = await getPublicTools();
-  } catch {
-    tools = [];
-  }
+  // Both reads are independent; run them together. The blog read needs the tool
+  // count only to size its limit, so it is trimmed afterwards.
+  const [tools, allPosts] = await Promise.all([
+    getSitemapTools().catch(() => []),
+    // A blog migration or read failure must not remove the existing tool URLs.
+    getBlogSitemapEntries(50000).catch(() => []),
+  ]);
 
   // ponytail: one sitemap holds 50,000 URLs; split into sitemap files before
   // reaching this total. Keep the established tool URLs ahead of blog entries.
@@ -45,18 +46,13 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
       })),
     )
     .slice(0, 50000);
-  try {
-    const posts = await getBlogSitemapEntries(50000 - entries.length);
-    entries.push(
-      ...posts.map((post) => ({
-        url: new URL(`/blog/${post.slug}`, base).toString(),
-        lastModified: post.publishedUpdatedAt ?? undefined,
-        changeFrequency: "weekly" as const,
-        priority: 0.7,
-      })),
-    );
-  } catch {
-    // A blog migration or read failure must not remove the existing tool URLs.
-  }
+  entries.push(
+    ...allPosts.slice(0, 50000 - entries.length).map((post) => ({
+      url: new URL(`/blog/${post.slug}`, base).toString(),
+      lastModified: post.publishedUpdatedAt ?? undefined,
+      changeFrequency: "weekly" as const,
+      priority: 0.7,
+    })),
+  );
   return entries;
 }

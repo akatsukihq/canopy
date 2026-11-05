@@ -10,10 +10,14 @@
 
 import { ToolError, type ToolRun } from "../../lib/tool-framework/run.ts";
 import type { ToolResult } from "../../lib/tool-framework/result.ts";
-import type { SettingsOf } from "../../lib/tool-framework/settings.ts";
 import { parseDate } from "../../lib/devtools/shared/datetime.ts";
 
-type Settings = SettingsOf<typeof import("./definition.ts").default.settings>;
+type Settings = {
+  readonly displayTimezone: string;
+  readonly locale: string;
+  readonly showUtc: boolean;
+  readonly preserveOffset: boolean;
+};
 
 /** Pinned so the same instant renders identically on every machine. */
 const LOCAL_FORMAT_LOCALE = "en-US";

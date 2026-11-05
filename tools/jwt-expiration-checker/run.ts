@@ -6,10 +6,13 @@
 
 import { decodeJwt } from "../../lib/devtools/shared/jwt.ts";
 import { ToolError, type ToolRun } from "../../lib/tool-framework/run.ts";
-import type { SettingsOf } from "../../lib/tool-framework/settings.ts";
 import { isNumericDate, type JwtExpirationResult, type JwtExpirationSummary } from "./result.ts";
 
-type Settings = SettingsOf<typeof import("./definition.ts").default.settings>;
+type Settings = {
+  readonly useLocalTime: boolean;
+  readonly decodePayload: boolean;
+  readonly warnBeforeExpiry: boolean;
+};
 
 export const run: ToolRun<Settings> = (ctx): JwtExpirationResult => {
   const { payload } = decodeJwt(ctx.input.text);
