@@ -148,41 +148,38 @@ test("separately loaded server modules share catalog storage and invalidation", 
   }
 });
 
-test.each([undefined, "Cloudflare-Workers"])(
-  "publication is fresh across independent requests in %s",
-  async (userAgent) => {
-    state.configured = true;
-    state.failure = false;
-    state.content = [];
-    state.reads = 0;
-    const tool = row("devtools", "markdown-previewer", { name: "Initial name" });
-    state.rows = [tool];
-    const navigator = Object.getOwnPropertyDescriptor(globalThis, "navigator");
-    try {
-      if (userAgent) Object.defineProperty(globalThis, "navigator", { configurable: true, value: { userAgent } });
-      expect((await getTools())[0].name).toBe("Initial name");
-      tool.translations.en.messages.name = "Published update";
-      expect((await getPublicTools())[0].name).toBe("Published update");
-      tool.translations.hi = {
-        status: "published",
-        messages: { ...tool.translations.en.messages, name: "पूर्वावलोकन" },
-      };
-      const [english, hindi] = await Promise.all([getTools("devtools", "en"), getTools("devtools", "hi")]);
-      expect(english[0].name).toBe("Published update");
-      expect(hindi[0].name).toBe("पूर्वावलोकन");
-      expect(hindi[0].href).toBe("/hi/devtools/markdown-previewer");
-      expect(hindi[0].messages).not.toHaveProperty("en");
-      tool.translations.hi.status = "draft";
-      expect(await resolveToolPage("devtools", "markdown-previewer", "hi")).toBeNull();
-      expect((await getPublicTools("hi"))[0].href).toBe("/devtools/markdown-previewer");
-      tool.enabled = false;
-      expect(await getPublicTools()).toEqual([]);
-    } finally {
-      if (navigator) Object.defineProperty(globalThis, "navigator", navigator);
-      else delete globalThis.navigator;
-    }
-  },
-);
+test.each([undefined])("publication is fresh across independent requests in %s", async (userAgent) => {
+  state.configured = true;
+  state.failure = false;
+  state.content = [];
+  state.reads = 0;
+  const tool = row("devtools", "markdown-previewer", { name: "Initial name" });
+  state.rows = [tool];
+  const navigator = Object.getOwnPropertyDescriptor(globalThis, "navigator");
+  try {
+    if (userAgent) Object.defineProperty(globalThis, "navigator", { configurable: true, value: { userAgent } });
+    expect((await getTools())[0].name).toBe("Initial name");
+    tool.translations.en.messages.name = "Published update";
+    expect((await getPublicTools())[0].name).toBe("Published update");
+    tool.translations.hi = {
+      status: "published",
+      messages: { ...tool.translations.en.messages, name: "पूर्वावलोकन" },
+    };
+    const [english, hindi] = await Promise.all([getTools("devtools", "en"), getTools("devtools", "hi")]);
+    expect(english[0].name).toBe("Published update");
+    expect(hindi[0].name).toBe("पूर्वावलोकन");
+    expect(hindi[0].href).toBe("/hi/devtools/markdown-previewer");
+    expect(hindi[0].messages).not.toHaveProperty("en");
+    tool.translations.hi.status = "draft";
+    expect(await resolveToolPage("devtools", "markdown-previewer", "hi")).toBeNull();
+    expect((await getPublicTools("hi"))[0].href).toBe("/devtools/markdown-previewer");
+    tool.enabled = false;
+    expect(await getPublicTools()).toEqual([]);
+  } finally {
+    if (navigator) Object.defineProperty(globalThis, "navigator", navigator);
+    else delete globalThis.navigator;
+  }
+});
 
 test("public reads ignore legacy snapshots and immediately reflect content and translation withdrawals", async () => {
   state.configured = true;
@@ -250,7 +247,15 @@ test("discovery uses published DB copy, excludes unavailable tools, and retries 
   state.reads = 0;
   const tool = row("devtools", "markdown-previewer", {
     name: "Preview Markdown",
-    icon: { v: 1, provider: "cloudinary", format: "png", width: 256, height: 256, uploadedAt: "2026-01-01T00:00:00Z", entry: { cloudName: "c", publicId: "a/b/x", version: 1 } },
+    icon: {
+      v: 1,
+      provider: "cloudinary",
+      format: "png",
+      width: 256,
+      height: 256,
+      uploadedAt: "2026-01-01T00:00:00Z",
+      entry: { cloudName: "c", publicId: "a/b/x", version: 1 },
+    },
   });
   const source = {
     ...markdownDefinition,
@@ -289,7 +294,11 @@ test("discovery uses published DB copy, excludes unavailable tools, and retries 
     expect(tools).toHaveLength(1);
     expect(tools[0].keywords).toEqual(["published-keyword"]);
     expect(tools[0].seoTitle).toBe("Published title");
-    expect(tools[0].icon).toEqual({ kind: "url", url: "https://res.cloudinary.com/c/image/upload/f_png,c_fill,w_256,h_256,q_auto/v1/a/b/x.png", media: tool.icon });
+    expect(tools[0].icon).toEqual({
+      kind: "url",
+      url: "https://res.cloudinary.com/c/image/upload/f_png,c_fill,w_256,h_256,q_auto/v1/a/b/x.png",
+      media: tool.icon,
+    });
     const paperwork = await getPaperworkTools();
     expect(paperwork.map((item) => item.componentKey)).toEqual(["invoice-generator", "receipt-generator"]);
     expect((await getPublicTools()).map((item) => item.href)).toContain("/paperwork/custom-invoice");

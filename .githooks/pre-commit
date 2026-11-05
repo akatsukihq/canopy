@@ -7,7 +7,7 @@ if ! git diff --cached --quiet --no-renames -- \
   ':(glob)app/**/*.json' ':(glob)lib/**/*.json' ':(glob)db/**/*.json' \
   ':(glob)tools/**/*.json' ':(glob)tests/**/*.json' \
   package.json pnpm-lock.yaml pnpm-workspace.yaml 'tsconfig*.json' \
-  wrangler.jsonc Dockerfile compose.yml .githooks/pre-commit
+  Dockerfile compose.yml .githooks/pre-commit
 then
   pnpm test:affected || printf '%s\n' 'Tests failed; continuing with staged-file formatting.'
 else

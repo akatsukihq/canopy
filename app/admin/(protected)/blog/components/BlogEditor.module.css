@@ -12,6 +12,9 @@
   min-height: calc(var(--spacing) * 14);
   padding: calc(var(--spacing) * 1) calc(var(--spacing) * 5);
 }
+.header > :first-child {
+  align-self: center;
+}
 .title {
   min-width: 0;
   flex: 1;

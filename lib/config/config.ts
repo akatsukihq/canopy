@@ -57,16 +57,6 @@ const config = {
   get schedulerSecret() {
     return process.env.SCHEDULER_SECRET;
   },
-  get blog() {
-    return {
-      publishUrl: process.env.BLOG_PUBLISH_URL,
-    };
-  },
-  get assistant() {
-    return {
-      maintenanceUrl: process.env.ASSISTANT_MAINTENANCE_URL,
-    };
-  },
   get ai() {
     return {
       enabled: process.env.AI_ENABLED === "true",

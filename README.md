@@ -100,7 +100,7 @@ Verify after deploying by exercising a server action and API request, then check
 their traces and child spans. Sampling means not every successful request appears.
 
 Google OAuth needs `GOOGLE_CLIENT_ID` and `GOOGLE_CLIENT_SECRET`. Verification, recovery,
-and deletion emails use the Cloudflare Email Sending REST API from both Workers and Node deployments.
+and deletion emails use the Cloudflare Email Sending REST API from Node.
 `EMAIL_PROVIDER=cloudflare` selects the sender and is also the default when omitted.
 `lib/email/sender.ts` defines the shared `EmailSender` contract and `getEmailSender` factory;
 provider implementations live in `lib/email/senders/`. The Cloudflare class in
@@ -123,22 +123,16 @@ registering it in the factory before selecting its type through configuration.
    [Email Sending and Email Routing have separate DNS records](https://developers.cloudflare.com/email-service/configuration/domains/).
 3. Create an API token scoped to that account with **Email Sending: Edit** permission.
    Set `CLOUDFLARE_EMAIL_ACCOUNT_ID` to the sending account's ID and
-   `CLOUDFLARE_EMAIL_API_TOKEN` to that token. These are separate from Wrangler's
-   deployment credentials and `CLOUDFLARE_ACCOUNT_ID`.
+   `CLOUDFLARE_EMAIL_API_TOKEN` to that token.
 4. Set `ACCOUNTS_EMAIL=accounts@smarttools.lol` (or a sender on your onboarded domain)
    and `SUPPORT_EMAIL=support@smarttools.lol`. The contact form opens the visitor's
    email app; support messages and replies remain handled in Zoho.
-5. Put these settings in `.env.local` for Next.js development/Docker, `.env` for Worker
-   preview, `.env.prod` for local production deployment, and the runtime environment
-   of any Node deployment. Local Worker deployment uploads the email token as a secret
-   and the account ID as a plain-text variable. For Workers Builds, set the token as a
-   Worker runtime secret and the account ID and sender as runtime variables before
-   deploying; Build Variables do not provide email credentials to the deployed Worker.
+5. Put these settings in `.env.local` for development and in the Coolify application's
+   environment variables for production.
 
 After deploying with the new settings, verify signup verification, password recovery,
 and deletion confirmation using a controlled account and check Email Sending activity.
-Remove the old Resend runtime secret and revoke its token after confirming delivery;
-omitting a secret from an environment file does not delete it from an existing Worker.
+Remove the old Resend runtime secret and revoke its token after confirming delivery.
 
 ## Shared Assistant and content
 
@@ -188,8 +182,7 @@ Applied migrations are not tracked; explicitly rerunning a folder runs its SQL a
 On Node deployments, public tool listings, ecosystem navigation, and global search share a
 resolved in-memory catalog with a 24-hour TTL. Admin tool edits clear it in the current
 process; restart other Node instances after edits that must appear immediately.
-Cloudflare Containers use the same Node cache; the current configuration routes the public
-and admin hosts to one shared instance. React also deduplicates catalog reads within a page
+The public and admin hosts share one Coolify instance and therefore this cache. React also deduplicates catalog reads within a page
 render. User and authorization caches continue to use Redis.
 
 ### Generic Assistant migration
@@ -227,12 +220,9 @@ These tests create and remove temporary schemas and deliberately never fall back
 to `DATABASE_URL`.
 
 Assistant retention and provider-resource cleanup runs at 00:00 and 12:00 UTC daily,
-independently of Blog publication's 30-minute Worker schedule. Set
-`SCHEDULER_SECRET` to the same random bearer secret in the application
-and scheduler environment. Leave `ASSISTANT_MAINTENANCE_URL` empty to use the
-Worker's self binding, or set it to an HTTPS Docker endpoint ending exactly in
-`/api/internal/assistant/maintenance`. Blog publishing and Assistant maintenance
-share this secret; each cron trigger invokes only its corresponding operation.
+independently of Blog publication's 30-minute schedule (see [Scheduled jobs](#scheduled-jobs)).
+Blog publishing and Assistant maintenance share `SCHEDULER_SECRET`; each task invokes only
+its corresponding operation.
 Assistant cleanup is invoked only through its independent maintenance endpoint;
 Blog publishing no longer invokes conversation cleanup.
 
@@ -376,187 +366,29 @@ and register its OAuth callback if using Google login. These steps remain manual
 Restart development or rebuild and redeploy after changing the registry or
 `APP_URL`.
 
-## Cloudflare Containers
+## Deployment (Coolify)
 
-Cloudflare Container deployment is currently dormant. The manual `pnpm run deploy` and `pnpm run deploy:preview`
-commands still publish to Cloudflare if intentionally invoked, but GitHub Actions
-no longer builds or publishes a Cloudflare image. The production Worker is configured
-for **https://smarttools.lol** and **https://admin.smarttools.lol**; preview uses
-**https://canopy-dev.aashishpal50.workers.dev**.
-The Worker forwards requests to `CanopyContainer`; the standalone Next.js server runs
-inside the container on port 3000, including authentication, admin pages, API routes,
-streaming responses, and static files. The existing application login and admin
-permissions apply.
+Production runs on an Oracle server through Coolify, built from the repository `Dockerfile`
+(`canopy:main` application, project **Web**). Runtime settings are Coolify environment
+variables; use `.env.example` as the list of keys.
 
-The Worker and container application identities are `canopy` and `canopy-dev`;
-SmartTools remains the public brand. These names create new deployment identities
-and do not rename existing cloud resources or copy their settings. For production
-cutover, configure the new Worker's runtime secrets, move the public and admin
-custom domains, and reconnect Workers Builds to `canopy`. Disable the old Worker's
-cron triggers before enabling the new Worker's triggers to avoid duplicate jobs.
-Retain the existing authentication secret and cookie prefix so sessions remain
-compatible. Existing cloud resources require a separate, deliberate cutover.
+### Scheduled jobs
 
-Each environment uses one shared container instance and sleeps after two idle
-minutes. The first request after sleeping starts the container, so allow for a cold
-start. A single instance limits the initial deployment's resource footprint; it is
-not automatic horizontal scaling. Container CPU, memory, disk, and network usage
-have their own charges in addition to the Worker and Durable Object. Check the
-[Containers pricing](https://developers.cloudflare.com/containers/platform/pricing/)
-and measured usage before changing instance size or idle time.
+Coolify Scheduled Tasks trigger the internal cron endpoints from inside the app container.
+Both endpoints require `SCHEDULER_SECRET` as a bearer token, so set it in the application's
+environment first (for example `openssl rand -base64 48 | tr -d '\n'`). The runtime image has
+no curl or wget, so the commands use Node:
 
-### Configure once
+| Task | Schedule (UTC) | Command |
+| --- | --- | --- |
+| Blog publish-due | `*/30 * * * *` | `node -e "fetch('http://localhost:3000/api/internal/blog/publish-due',{method:'POST',headers:{Authorization:'Bearer '+process.env.SCHEDULER_SECRET}}).then(async r=>{console.log(r.status,await r.text());process.exit(r.ok?0:1)})"` |
+| Assistant maintenance | `0 0,12 * * *` | same command with `/api/internal/assistant/maintenance` |
 
-1. Enable Workers Paid and configure the `smarttools.lol` Cloudflare DNS zone for
-   production's public and admin custom domains. The dev Worker uses workers.dev.
-2. Install and start a Docker-compatible engine, then run `pnpm exec wrangler login`.
-   Local builds and deployments build the repository's Dockerfile. Workers Builds
-   can also build the image in CI.
-3. Prepare `.env.prod` with production settings and `.env` with dev settings. These
-   files are ignored by Git. Include the applicable values from `.env.example`:
-   - `DATABASE_URL` — required at runtime. Containers use PostgreSQL's Node driver
-     and the existing connection pool (`DATABASE_POOL_MAX`, default 3). Hyperdrive
-     is no longer bound to the Worker. Use a database endpoint reachable from the
-     container; for Supabase, use an appropriate pooler connection.
-   - `BETTER_AUTH_SECRET` — retain the existing persistent authentication secret.
-   - `CLOUDFLARE_EMAIL_ACCOUNT_ID`, `CLOUDFLARE_EMAIL_API_TOKEN`, and `ACCOUNTS_EMAIL`
-     — the [onboarded account-email sender](#account-email-setup).
-   - `GOOGLE_CLIENT_ID` and `GOOGLE_CLIENT_SECRET` if using Google login.
-   - `CLOUDINARY_CLOUD_NAME`, `CLOUDINARY_API_KEY`, and `CLOUDINARY_API_SECRET`
-     if using admin image uploads.
-   - `SCHEDULER_SECRET` — one shared bearer secret for all internal cron jobs.
-     Generate it with `openssl rand -hex 32`, add it to `.env.prod`, and run
-     `pnpm run deploy` to upload it and roll out the matching container environment.
-     Production retains the cron timings and points its
-     Worker self binding to `canopy`; leave external target URLs unset.
-   - Other integrations used by the app, including `REDIS_URL` if enabled.
-4. If using Google login, retain the production callbacks
-   `https://smarttools.lol/api/auth/callback/google` and
-   `https://admin.smarttools.lol/api/auth/callback/google`. Register the new preview
-   callback `https://canopy-dev.aashishpal50.workers.dev/api/auth/callback/google`.
-5. Database migrations and initial seeding remain separate, explicit operations.
-   The container build, startup, and deployment do not run them. Existing databases
-   need no migration solely to change hosting.
+Each execution's output and exit code appear in the task's history in Coolify.
 
-### Build settings and runtime secrets
-
-Local `pnpm run build:cloudflare` and `pnpm run deploy` read `.env.prod`;
-`pnpm run deploy:preview` and `pnpm run preview` read `.env`. Commands stop if their
-selected file is missing and do not edit environment files. Other dotenv files
-and inherited application values cannot supply missing settings. Docker excludes
-all dotenv files, `.dev.vars`, local dependencies, and prior build outputs.
-
-Docker connection settings come from the invoking shell and Docker's active
-context, not `.env` or `.env.prod`. Export `DOCKER_HOST`, `DOCKER_CONTEXT`, or
-`WRANGLER_DOCKER_BIN` in your shell only when overriding the active Docker setup.
-
-`APP_URL` comes from the selected `wrangler.jsonc` environment:
-`https://smarttools.lol` for production and
-`https://canopy-dev.aashishpal50.workers.dev` for dev. Local preview overrides
-both the image build and Worker to `http://localhost:8787`. The selected file cannot
-override that origin. Each image must be built for its public origin because
-Next.js embeds it into browser navigation and admin URLs.
-
-Only `APP_URL`, `NEXT_PUBLIC_*` values, and a random public deployment revision enter
-Docker build arguments. The wrapper
-passes public settings as `CANOPY_PUBLIC_BUILD_ENV` JSON using Wrangler's
-`containers[].image_vars`. For example, set `NEXT_PUBLIC_CLOUDINARY_CLOUD_NAME`
-and `NEXT_PUBLIC_SENTRY_DSN` in the selected environment file before building.
-Changing a public value requires rebuilding the image. The Dockerfile creates a
-random, disposable Better Auth key inside the build process for route collection;
-the deployed app receives its persistent key only when the container starts.
-`SENTRY_AUTH_TOKEN` is never forwarded as an image build argument. This workflow
-does not upload source maps with private build credentials.
-
-For local deploy commands, known basic settings such as `CACHE_ENABLED`,
-`AI_ENABLED`, `OPENAI_MODEL`, and `CLOUDFLARE_EMAIL_ACCOUNT_ID` become plain Worker
-variables. Credentials and unknown settings are uploaded using a temporary secrets
-file with owner-only permissions, which is removed after success or failure.
-The Worker passes the explicit application settings in `worker.ts` to the container
-at startup; add any new runtime setting there as well. Deployed settings omitted
-from a later file are retained; removing a line does not delete a remote secret.
-Never put runtime secrets in Docker build arguments.
-
-**Runtime changes require a completed container rollout.** A running container
-retains its startup environment. The deployment wrapper adds a new random
-`CANOPY_DEPLOYMENT_REVISION` to the final image label on every invocation. This
-changes the image digest without putting secrets into the image, so even a deployment
-that only changes Worker settings replaces the running container. The label is
-applied after copying the app, allowing Docker to reuse its existing build layers.
-See [startup environment behavior](https://developers.cloudflare.com/containers/examples/env-vars-and-secrets/)
-and [deployment behavior](https://developers.cloudflare.com/containers/guides/deploy/).
-
-After editing runtime settings, run `pnpm run deploy:preview` for dev or
-`pnpm run deploy` for production, including when values were changed through the
-Cloudflare dashboard. In **Workers & Pages > Containers**, select the application
-associated with `canopy-dev` or `canopy` and confirm the old process is
-replaced and requests reach the healthy new instance. Complete this for every
-environment whose settings changed. A Worker-only deployment, direct
-`wrangler secret put`, or `wrangler versions upload` does not guarantee a restart.
-
-Schedule secret rotations between cron runs. The shared `SCHEDULER_SECRET`
-must match between the Worker and container;
-a cron invocation during the update/rollout gap can receive `401`. Verify both jobs
-after rotation. The deployment is not transactional and this single-instance
-replacement can briefly interrupt requests. Changing dashboard settings without
-running the wrapper leaves those settings pending until a real container restart;
-continuous traffic can prevent the two-minute idle shutdown.
-
-### Verify and deploy
-
-```bash
-node --test tests/cloudflare-build.test.mjs
-pnpm lint
-# Build a local linux/amd64 image and check the Worker bundle without uploading:
-pnpm run build:cloudflare
-# Build and run locally at http://localhost:8787 with .env:
-pnpm run preview
-# Deploy and test the separate dev environment first:
-pnpm run deploy:preview
-# Publish production after verification:
-pnpm run deploy
-```
-
-Local preview needs a running Docker engine. A database on your computer must be
-reachable from the container; `localhost` inside Docker refers to the container.
-On Docker Desktop, use `host.docker.internal` for a host database. Use `pnpm dev`
-for the ordinary Next.js development loop.
-
-Dev has no scheduled cron triggers and its self binding points to `canopy-dev`.
-Dev admin stays at `/admin`; production admin uses `https://admin.smarttools.lol`.
-Check login, account recovery, admin reads/writes, tool execution, Paperwork/PDF
-exports, Media processing, and AI streaming before production. Confirm both production
-jobs: blog publication every 30 minutes and assistant cleanup at 00:00 and 12:00 UTC.
-Verify container startup and a fresh request after idle sleep as well.
-
-Deployment uploads Worker code and updates the container image; these are not one
-transaction, and initial provisioning or a rollout may take several minutes.
-Retain the previous Worker version and container image before cutover. A Worker
-rollback alone does not revert its container image or database. See the
-[deployment guide](https://developers.cloudflare.com/containers/guides/deploy/)
-and [container rollouts](https://developers.cloudflare.com/containers/configuration/rollouts/).
-
-### Workers Builds
-
-Connect the production branch to the `canopy` Worker, using the
-repository root. Configure Node and pnpm versions supported by the repository
-(`NODE_VERSION=26`, `PNPM_VERSION=11.14.0`), leave the build command empty, and set
-the deploy command to `pnpm run deploy`. The Dockerfile controls the container's
-Node version independently.
-
-The wrapper recognizes `WORKERS_CI` and deploys with `--keep-vars`, preserving
-existing Worker runtime variables and secrets without reading `.env.prod`.
-Before the first container deployment from CI, configure all runtime settings and
-secrets on the new Worker, including `DATABASE_URL`, `BETTER_AUTH_SECRET`, and
-`SCHEDULER_SECRET`; settings from the old Worker are not copied automatically. Configure public
-`NEXT_PUBLIC_*` settings as Build Variables. Runtime secrets are not required in
-Build Variables. CI target checks and deployment output settings are retained.
-
-Use the separate `canopy-dev` environment for remote testing; ordinary
-`wrangler versions upload` does not publish a new container image. The package
-scripts reject extra arguments and inherited `CLOUDFLARE_ENV` to avoid targeting
-an unintended environment. Use explicit `pnpm run deploy`, since pnpm also has a
-built-in command named `deploy`.
+The application itself marks Assistant runs left `running` by a restart or deploy as failed
+(`failInterruptedRuns`, at startup and every 10 minutes), so editors get Retry instead of an
+endless "Check status".
 
 ## Optional Google Analytics 4
 

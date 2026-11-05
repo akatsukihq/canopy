@@ -59,12 +59,6 @@ COPY --from=builder --chown=nextjs:nodejs /app/.next/standalone ./
 COPY --from=builder --chown=nextjs:nodejs /app/.next/static ./.next/static
 COPY --from=builder --chown=nextjs:nodejs /app/public ./public
 
-# Runtime settings are read at startup. A new public revision ensures Wrangler
-# replaces running containers even when only Worker secrets/variables changed.
-# Keep this after COPY so changing the revision reuses the application build.
-ARG CANOPY_DEPLOYMENT_REVISION=local
-LABEL org.opencontainers.image.revision="${CANOPY_DEPLOYMENT_REVISION}"
-
 USER nextjs
 EXPOSE 3000
 # bookworm-slim has no curl/wget, so probe with node. Coolify picks this up automatically.

@@ -242,7 +242,7 @@ The helper assists the admin; it does not translate on its own.
      database (`tests/helpers/toolSpec.mjs`: `toolSpec(key)`, `allToolSpecs()`).
 2. **Icons are served from the tool folders, no Cloudinary.** A prepare step
    (like `prepare:vendor`) copies `tools/<key>/icon.svg` to `public/tool-icons/<key>.svg`
-   (gitignored) before `dev` and `build`. Next and the Cloudflare build serve them as
+   (gitignored) before `dev` and `build`. Next serves them as
    static files at `/tool-icons/<key>.svg`. The catalog derives the URL from the key;
    `icon_url` and the Cloudinary upload scripts are retired for tools with a folder.
 3. **Folderless tools** (13 metadata-only records): out of scope, ongoing work.

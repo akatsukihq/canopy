@@ -1,15 +1,11 @@
+import { build } from "esbuild";
 import { test, expect, type Page } from "@playwright/test";
-import { createRequire } from "node:module";
 import { mkdtemp, readFile, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { resolve } from "node:path";
 import postcss from "postcss";
 import tailwind from "@tailwindcss/postcss";
 
-const require = createRequire(import.meta.url);
-const { build } = createRequire(require.resolve("wrangler/package.json"))("esbuild") as {
-  build(options: Record<string, unknown>): Promise<{ outputFiles: { path: string; text: string }[] }>;
-};
 const root = process.cwd();
 const original = "A clear introduction helps readers understand the article.";
 let javascript: string, stylesheet: string;

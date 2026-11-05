@@ -21,7 +21,6 @@ node_modules
 .next
 **/.next
 .open-next
-.wrangler
 .dev.vars*
 **/.dev.vars*
 

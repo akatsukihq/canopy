@@ -1,17 +1,13 @@
+import { build } from "esbuild";
 import { test, expect } from "@playwright/test";
 import type { AssistantProposal } from "../../lib/assistant/types.ts";
 import type { BlogProposalData } from "../../lib/blog/assistantTypes.ts";
-import { createRequire } from "node:module";
 import { mkdtemp, readFile, readdir, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { resolve } from "node:path";
 import postcss from "postcss";
 import tailwind from "@tailwindcss/postcss";
 
-const require = createRequire(import.meta.url);
-const { build } = createRequire(require.resolve("wrangler/package.json"))("esbuild") as {
-  build(options: Record<string, unknown>): Promise<{ outputFiles: { path: string; text: string }[] }>;
-};
 let html: string;
 test.beforeAll(async () => {
   const root = process.cwd();

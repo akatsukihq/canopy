@@ -126,8 +126,6 @@ test("configuration stays lazy across environment loading, updates and replaceme
     ["CLOUDINARY_API_SECRET", () => config.cloudinary.apiSecret],
     ["CLOUDINARY_URL", () => config.cloudinary.url],
     ["SCHEDULER_SECRET", () => config.schedulerSecret],
-    ["BLOG_PUBLISH_URL", () => config.blog.publishUrl],
-    ["ASSISTANT_MAINTENANCE_URL", () => config.assistant.maintenanceUrl],
     ["NODE_ENV", () => config.analytics.NODE_ENV],
     ["VERCEL_ENV", () => config.analytics.VERCEL_ENV],
     ["GA_MEASUREMENT_ID", () => config.analytics.GA_MEASUREMENT_ID],

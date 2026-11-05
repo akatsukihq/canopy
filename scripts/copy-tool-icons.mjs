@@ -4,7 +4,7 @@ import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 
 // Copies each tool's icon.svg to public/tool-icons/<key>.svg and writes the list of keys
-// that have one, so the runtime (no filesystem on Cloudflare) can tell without a request.
+// that have one, so the runtime can tell without a filesystem read or request.
 const appRoot = dirname(dirname(fileURLToPath(import.meta.url)));
 const target = join(appRoot, "public/tool-icons");
 // Paperwork tools have no tools/<key> folder; their icons sit beside their page.

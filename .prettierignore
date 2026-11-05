@@ -8,7 +8,6 @@ public/code/vendor/
 node_modules/
 .next/
 .open-next/
-.wrangler/
 build/
 dist/
 coverage/

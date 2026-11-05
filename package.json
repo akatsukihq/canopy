@@ -15,13 +15,8 @@
     "tool:new": "canopy tool new",
     "admin:promote": "node db/scripts/promote-admin.mjs",
     "build": "pnpm run prepare:vendor && tsc --noEmit && next build --webpack",
-    "build:cloudflare": "node scripts/cloudflare.mjs build",
-    "preview": "node scripts/cloudflare.mjs local",
-    "deploy:preview": "node scripts/cloudflare.mjs preview",
-    "deploy": "node scripts/cloudflare.mjs deploy",
     "start": "next start -p 3000",
     "lint": "tsc --noEmit",
-    "lint:worker": "tsc --noEmit -p tsconfig.worker.json",
     "format": "prettier --write .",
     "format:check": "prettier --check .",
     "test": "TZ=UTC node --max-old-space-size=768 node_modules/vitest/vitest.mjs run",
@@ -38,7 +33,6 @@
     "@ai-sdk/anthropic": "^4.0.56",
     "@ai-sdk/openai": "^4.0.69",
     "@base-ui/react": "^1.8.0",
-    "@cloudflare/containers": "^0.3.7",
     "@codemirror/autocomplete": "6.20.3",
     "@codemirror/commands": "6.10.4",
     "@codemirror/lang-cpp": "6.0.3",
@@ -139,7 +133,6 @@
   },
   "devDependencies": {
     "@canopy/cli": "workspace:*",
-    "@cloudflare/workers-types": "^5.20261007.1",
     "@playwright/test": "1.61.1",
     "@serwist/next": "^9.5.12",
     "@tailwindcss/postcss": "^4.3.3",
@@ -153,6 +146,7 @@
     "@types/react-dom": "^19.2.3",
     "@typescript/native-preview": "7.0.0-dev.20260707.2",
     "@vitest/coverage-v8": "^5.0.1",
+    "esbuild": "0.28.1",
     "jsdom": "^30.1.1",
     "lint-staged": "^17.5.1",
     "postcss": "8.5.23",
@@ -160,7 +154,6 @@
     "serwist": "^9.5.12",
     "tailwindcss": "^4.3.3",
     "typescript": "~7.0.2",
-    "vitest": "^5.0.1",
-    "wrangler": "^4.131.1"
+    "vitest": "^5.0.1"
   }
 }

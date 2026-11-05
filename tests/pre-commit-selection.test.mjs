@@ -83,7 +83,6 @@ test("the commit hook runs advisory tests only for staged executable or runtime 
     "pnpm-workspace.yaml",
     "tsconfig.json",
     "next.config.mjs",
-    "wrangler.jsonc",
     "Dockerfile",
     "compose.yml",
     ...["app", "lib", "db", "tools", "tests"].map((scope) => `${scope}/data.json`),

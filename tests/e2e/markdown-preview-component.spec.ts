@@ -1,15 +1,11 @@
+import { build } from "esbuild";
 import { test, expect } from "@playwright/test";
-import { createRequire } from "node:module";
 import { mkdtemp, readFile, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { resolve } from "node:path";
 import postcss from "postcss";
 import tailwind from "@tailwindcss/postcss";
 
-const require = createRequire(import.meta.url);
-const { build } = createRequire(require.resolve("wrangler/package.json"))("esbuild") as {
-  build(options: Record<string, unknown>): Promise<{ outputFiles: { path: string; text: string }[] }>;
-};
 const source =
   '# A reusable preview\n\nFirst line\nSecond line\n\n![Useful image](./picture.svg)\n\n![Unsafe image](javascript:alert%281%29)\n\n<img src=x onerror="window.injected=true">\n\n- [x] Completed task\n- [ ] Next task\n\n```js\nconst answer = 42;\n```';
 let html: string;

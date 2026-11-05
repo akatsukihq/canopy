@@ -13,7 +13,6 @@ env.prod
 
 .next/
 .open-next/
-.wrangler/
 .dev.vars*
 next-env.d.ts
 .pnpm-store/

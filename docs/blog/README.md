@@ -11,7 +11,7 @@ This document defines the phase-one design. The backend is implemented in the mo
 - `lib/blog/publication.ts`: canonical metadata, script-safe structured data, and RSS generation.
 - `app/admin/(protected)/blog/actions.ts`: session-derived mutation/read/upload actions with structured failures. Mutations accept `postId` and the expected `version`; none accepts an actor or editable slug.
 - `app/blog/feed.xml/route.ts`, `app/sitemap.ts`, and `app/api/internal/blog/publish-due/route.ts`: public distribution and authenticated scheduling adapters.
-- `worker.ts` and `wrangler.jsonc`: Cloudflare self-binding dispatch and the 30-minute trigger. Docker targeting uses the optional HTTPS `BLOG_PUBLISH_URL`.
+- Coolify Scheduled Task (`*/30 * * * *`) calls publish-due with `SCHEDULER_SECRET`; see the root README "Scheduled jobs".
 
 Server mutation actions are `create`, `duplicate`, `save`, `publish`, `schedule`, `retrySchedule`, `cancelSchedule`, `unpublish`, `trash`, `restoreTrash`, `restoreRevision`, and `saveTerm`. Read actions are `list`, `post`, `history`, `preview`, and `taxonomy`. Save uses `mode: "autosave" | "manual"`; schedule uses an ISO timestamp with an explicit UTC offset. `saveTerm` accepts only `kind`, optional existing `id`, and `name`. A successful scheduling result includes the new schedule ID and frozen revision.
 
@@ -40,8 +40,7 @@ The fallback flag uses the available pnpm installation when the pinned package-m
 - Include categories, tags, search, SEO metadata, RSS, and related SmartTools links.
 - Manage one category/tag catalog shared across all blog posts, with admin creator/editor tracking. “Global” means blog-wide; other SmartTools features keep their existing taxonomy.
 - Generate each post's slug **once from its initial title**. Add a random suffix on collision. **The slug never changes afterward**, including when restoring revisions.
-- Use **Cloudflare Cron** to trigger scheduled publishing every **30 minutes**.
-- Keep the publishing logic compatible with Cloudflare Workers and Docker; Cloudflare Cron is the selected scheduler for this phase.
+- A **Coolify Scheduled Task** triggers scheduled publishing every **30 minutes**.
 - Start with indexed database reads and server-rendered pages. Persistent page caching remains deferred.
 
 The existing tool code already provides title normalization and immutable stored slugs. Its current creation path rejects duplicate slugs; blogs will add the requested collision handling. See [slug normalization](../../lib/tool-catalog/index.ts) and [tool creation](../../lib/admin/adminMutations.ts).
@@ -54,7 +53,7 @@ The feature references are [HubSpot's publishing workflow](https://knowledge.hub
 flowchart LR
     Admin["Admin editor"] --> Actions["Authenticated Server Actions"]
     Actions --> Domain["Blog domain logic"]
-    Cron["Cloudflare Cron<br/>Every 30 minutes"] --> Endpoint["Protected publishing endpoint"]
+    Cron["Coolify Scheduled Task<br/>Every 30 minutes"] --> Endpoint["Protected publishing endpoint"]
     Endpoint --> Domain
     Domain --> DB[("Existing PostgreSQL")]
     Public["Public blog pages"] --> Queries["Published-content queries"]
@@ -458,7 +457,7 @@ Create a new draft from the selected post's working document. Generate a new imm
 
 ## 8. Scheduling every 30 minutes
 
-Cloudflare Cron is the scheduler for this phase. Use `*/30 * * * *`, running at `:00` and `:30`. Cloudflare Cron evaluates schedules in UTC; article scheduling timestamps are also stored in UTC. [Cloudflare Cron documentation](https://developers.cloudflare.com/workers/configuration/cron-triggers/).
+A Coolify Scheduled Task runs `*/30 * * * *`, at `:00` and `:30` UTC; article scheduling timestamps are also stored in UTC.
 
 An article scheduled for 10:12 becomes eligible at 10:12 and normally publishes during the 10:30 run. Outages or backlog can delay it further.
 
@@ -480,15 +479,13 @@ Cancellation locks the post, checks publishing permission and the expected versi
 
 ### Execution
 
-The Cloudflare scheduled handler calls the application-owned endpoint:
+The scheduled task calls the application-owned endpoint from inside the app container:
 
 **`POST /api/internal/blog/publish-due`**
 
-- Register the 30-minute trigger on the existing Cloudflare Worker and add a scheduled handler.
-- For the Workers deployment, invoke the endpoint through the existing Worker service binding so it retains the application's database request lifecycle.
-- If the application is hosted on Docker, Cloudflare remains the scheduler and sends an authenticated HTTPS request to that deployment's production endpoint. A Docker-host cron is not required.
-- Configure one production target per database. Every invocation uses the shared `SCHEDULER_SECRET` as a bearer secret and the same database-backed publishing implementation. Assistant maintenance uses this same secret.
-- Await the endpoint result and report non-success responses through Worker observability. The scheduler carries no article content or direct database credentials for a remote Docker target.
+- The command and schedule are in the root README "Scheduled jobs".
+- Every invocation uses the shared `SCHEDULER_SECRET` as a bearer secret and the same database-backed publishing implementation. Assistant maintenance uses this same secret.
+- Coolify records each execution's output and exit code; a non-2xx response fails the task.
 
 For each run:
 
@@ -596,9 +593,9 @@ The migration runner executes only the folder supplied to `pnpm db:migrate <fold
 it does not track applied migrations. Explicitly rerunning `baseline` also reruns this
 migration, which must not duplicate grants, alter article content, or reset state.
 
-Document the shared `SCHEDULER_SECRET` with an empty value in `.env.example`. Generate it with `openssl rand -hex 32`, add it to `.env.prod`, and run `pnpm run deploy` to configure the same value in the app and the Cloudflare scheduler. Register `*/30 * * * *` in the Worker's cron triggers and verify the configured production target. When rotating the shared secret, complete the container rollout and verify both Blog publishing and Assistant maintenance.
+Document the shared `SCHEDULER_SECRET` with an empty value in `.env.example`. Generate it with `openssl rand -hex 32` and set it in the Coolify application's environment. When rotating the shared secret, redeploy and verify both Blog publishing and Assistant maintenance tasks.
 
-Deploy database changes before application changes. Verify exactly one Cloudflare scheduling trigger targets each production database; duplicate scheduling remains safe but unnecessary. Vercel Cron and host-managed cron setup are outside this phase.
+Deploy database changes before application changes. Keep exactly one publish-due task per production database; duplicate scheduling remains safe but unnecessary.
 
 ## 12. Verification and acceptance
 
@@ -623,7 +620,7 @@ Deploy database changes before application changes. Verify exactly one Cloudflar
 
 ### Scheduling
 
-- Verify the Cloudflare trigger sends an authenticated request every 30 minutes to the intended production deployment; requests with a missing or incorrect secret are rejected.
+- Verify the Coolify task sends an authenticated request every 30 minutes; requests with a missing or incorrect secret are rejected.
 - Selected times publish on the next eligible half-hour run.
 - Missed runs catch up using `scheduled_at <= database time`.
 - Newer draft edits cannot change a frozen scheduled revision.

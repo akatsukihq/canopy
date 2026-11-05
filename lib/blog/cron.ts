@@ -3,14 +3,6 @@ import { errorMessage } from "../../utils/errorMessage.ts";
 
 type PublishCounts = { attempted: number; published: number; failed: number; remaining: number };
 
-export type BlogCronEnv = {
-  APP_URL?: string;
-  SCHEDULER_SECRET?: string;
-  BLOG_PUBLISH_URL?: string;
-  WORKER_SELF_REFERENCE?: { fetch(request: Request): Promise<Response> };
-};
-
-const PUBLISH_PATH = "/api/internal/blog/publish-due";
 const TOKEN_PATTERN = /^[A-Za-z0-9._~+/-]+=*$/;
 const validSecret = (value: string | undefined): value is string =>
   Boolean(value && value.length <= 1024 && TOKEN_PATTERN.test(value));
@@ -58,66 +50,5 @@ export async function handleBlogPublishRequest(
       { error: errorMessage(error, "Blog publishing is temporarily unavailable.") },
       { status: 503, headers },
     );
-  }
-}
-
-export async function runBlogPublishCron(
-  env: BlogCronEnv,
-  fetchRemote: (request: Request) => Promise<Response> = fetch,
-): Promise<PublishCounts> {
-  if (!validSecret(env.SCHEDULER_SECRET)) throw new Error("Invalid blog scheduler configuration.");
-  let target: URL;
-  try {
-    target = env.BLOG_PUBLISH_URL
-      ? new URL(env.BLOG_PUBLISH_URL)
-      : new URL(PUBLISH_PATH, new URL(env.APP_URL ?? "https://canopy.internal").origin);
-  } catch {
-    throw new Error("Invalid blog scheduler configuration.");
-  }
-  if (
-    target.pathname !== PUBLISH_PATH ||
-    target.username ||
-    target.password ||
-    target.search ||
-    target.hash ||
-    (env.BLOG_PUBLISH_URL && target.protocol !== "https:") ||
-    (!env.BLOG_PUBLISH_URL && !env.WORKER_SELF_REFERENCE)
-  ) {
-    throw new Error("Invalid blog scheduler configuration.");
-  }
-  const request = new Request(target, {
-    method: "POST",
-    headers: { Authorization: `Bearer ${env.SCHEDULER_SECRET}` },
-    redirect: "manual",
-    signal: AbortSignal.timeout(30_000),
-  });
-  let response: Response;
-  try {
-    response = env.BLOG_PUBLISH_URL ? await fetchRemote(request) : await env.WORKER_SELF_REFERENCE!.fetch(request);
-  } catch {
-    throw new Error("Blog publishing request failed.");
-  }
-  if (!response.ok) {
-    await response.body?.cancel().catch(() => {});
-    throw new Error(`Blog publishing request returned HTTP ${response.status}.`);
-  }
-  const reader = response.body?.getReader();
-  if (!reader) throw new Error("Blog publishing returned an invalid response.");
-  const chunks: Uint8Array[] = [];
-  let length = 0;
-  try {
-    while (true) {
-      const chunk = await reader.read();
-      if (chunk.done) break;
-      length += chunk.value.byteLength;
-      if (length > 4096) throw new Error("Response too large.");
-      chunks.push(chunk.value);
-    }
-    return publishCounts(JSON.parse(Buffer.concat(chunks, length).toString("utf8")));
-  } catch {
-    await reader.cancel().catch(() => {});
-    throw new Error("Blog publishing returned an invalid response.");
-  } finally {
-    reader.releaseLock();
   }
 }
