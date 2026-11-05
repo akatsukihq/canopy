@@ -1,9 +1,10 @@
 "use client";
 
-import { useEffect, useId, useRef, useState } from "react";
+import { useEffect, useId, useRef, useState, type ComponentProps } from "react";
 import {
   ArrowUp,
   Check,
+  ChevronLeft,
   ChevronRight,
   CloudOff,
   Copy,
@@ -21,6 +22,7 @@ import {
   FileText,
   SlidersHorizontal,
   Sparkles,
+  AtSign,
   Square,
   SquarePen,
   X,
@@ -44,17 +46,20 @@ import {
   TooltipTrigger,
   toast,
 } from "@/components/ui/index.tsx";
+import { NEW_THREAD_TITLE } from "@/lib/assistant/types";
 import type { AssistantRun, AssistantThread, AssistantMessage, AssistantAttachment } from "@/lib/assistant/types";
 import type { AssistantIntegrationUI } from "./types";
 import styles from "./Assistant.module.css";
 import { AssistantRunCard, AssistantSources, AssistantResultActions } from "./AssistantOutput";
-import { agentSlashQuery } from "@/lib/assistant/composer";
+import { agentSlashQuery, mentionQuery } from "@/lib/assistant/composer";
 import { assistantCacheKey, assistantRequest } from "@/lib/assistant/client";
 import { AssistantComposer, type AssistantComposerHandle } from "./AssistantComposer";
 import { AssistantHeader } from "./AssistantHeader";
 import { AssistantLinkForm } from "./AssistantLinkForm";
 import { MarkdownPreview } from "@/components/content/MarkdownPreview";
-import { AssistantProgress } from "./AssistantProgress";
+import { useTypedText } from "./useTypedText";
+import { AssistantProgress, AssistantThinking } from "./AssistantProgress";
+import { AssistantModelPicker } from "./AssistantModelPicker";
 import { ChangeCard } from "./ChangeCard";
 import { ReportView } from "./ReportView";
 import { useAssistant } from "@/lib/assistant/useAssistant";
@@ -139,6 +144,8 @@ function AssistantPanelInstance({ resourceId, ownerId, integration, onClose }: P
   const [uploadingScopes, setUploadingScopes] = useState<Record<string, boolean>>({});
   const [preparingScopes, setPreparingScopes] = useState<Record<string, boolean>>({});
   const composer = useRef<AssistantComposerHandle>(null);
+  /** Each thread's title when first shown, so only a later change types itself out. */
+  const firstTitles = useRef(new Map<string, string>());
   const fileInput = useRef<HTMLInputElement>(null);
   const messages = useRef<HTMLDivElement>(null);
   const scope = assistant.scopeId;
@@ -184,7 +191,29 @@ function AssistantPanelInstance({ resourceId, ownerId, integration, onClose }: P
       !slashToken?.query ||
       `${agent.name} ${agent.command} ${agent.aliases.join(" ")}`.toLowerCase().includes(slashToken.query),
   );
-  const slashOpen = !!slashToken && slashKey !== dismissedSlash;
+  const slashOpen = integration.agents.length > 0 && !!slashToken && slashKey !== dismissedSlash;
+  const mentionToken = integration.mentions?.length ? mentionQuery(assistant.message, caret) : null;
+  const mentionKey = mentionToken ? `@${mentionToken.start}:${mentionToken.end}:${mentionToken.query}` : null;
+  const mentions = (integration.mentions ?? [])
+    .filter((entry) => !mentionToken?.query || `${entry.id} ${entry.label}`.toLowerCase().includes(mentionToken.query))
+    .slice(0, 30);
+  const mentionOpen = !slashOpen && !!mentionToken && mentionKey !== dismissedSlash;
+  const menuOpen = slashOpen || mentionOpen;
+  const menuItems = slashOpen
+    ? commands.map(({ id, name, description, icon }) => ({ id, name, description, icon: icon ?? Sparkles }))
+    : mentions.map(({ id, label, description }) => ({
+        id,
+        name: label,
+        description: description ?? `@${id}`,
+        icon: AtSign,
+      }));
+  function chooseMenuItem(index: number) {
+    if (slashOpen) return chooseCommand(index);
+    const entry = mentions[index];
+    if (!entry || !mentionToken) return;
+    setDismissedSlash(mentionKey);
+    composer.current?.insertMention(entry.id, entry.label, mentionToken.start, mentionToken.end);
+  }
   function selectAgent(id: string) {
     assistant.composerState({ ...assistant.getComposerSelection(), agentId: id, agentOffset: caret });
     composer.current?.insertAgent(id);
@@ -236,13 +265,13 @@ function AssistantPanelInstance({ resourceId, ownerId, integration, onClose }: P
   }, [scope]);
   useEffect(() => {
     setSlashIndex(0);
-  }, [slashKey]);
+  }, [slashKey, mentionKey]);
   useEffect(() => {
     if (integration.initialAgentId) selectAgent(integration.initialAgentId);
   }, [integration.initialAgentId]);
   useEffect(() => {
-    if (slashOpen) globalThis.document.getElementById(commandId(slashIndex))?.scrollIntoView({ block: "nearest" });
-  }, [slashOpen, slashIndex]);
+    if (menuOpen) globalThis.document.getElementById(commandId(slashIndex))?.scrollIntoView({ block: "nearest" });
+  }, [menuOpen, slashIndex]);
   function addReferenceLink() {
     try {
       const url = new URL(linkDraft.trim());
@@ -351,7 +380,10 @@ function AssistantPanelInstance({ resourceId, ownerId, integration, onClose }: P
         },
         scope,
         {
-          executionMode: operation === integration.agentOperation ? "standalone" : "conversational",
+          executionMode:
+            operation === integration.agentOperation && integration.agentOperation !== integration.conversationOperation
+              ? "standalone"
+              : "conversational",
           referenceLinks: retry ? [] : referenceLinks,
           onReferenceAdded: (threadId, remaining) => {
             const text = remaining.join("\n");
@@ -393,8 +425,45 @@ function AssistantPanelInstance({ resourceId, ownerId, integration, onClose }: P
       if (fileInput.current) fileInput.current.value = "";
     }
   }
-  const generatingStatus = <AssistantProgress>Generating response…</AssistantProgress>;
+  const thinking = (
+    <AssistantThinking reasoning={assistant.stream?.reasoning} answering={!!assistant.stream?.text} />
+  );
+  // An unnamed thread shows "Assistant" until the title model names it, so the header changes once.
+  const threadTitle = (assistant.selected && detail?.thread.title !== NEW_THREAD_TITLE && detail?.thread.title) || "";
+  // A title types itself out only when it appears or changes while this thread is open, not on load or switch.
+  const seenTitle = assistant.selected ? firstTitles.current.get(assistant.selected) : undefined;
+  if (assistant.selected && detail?.thread.id === assistant.selected && seenTitle === undefined)
+    firstTitles.current.set(assistant.selected, threadTitle);
+  const typedTitle =
+    useTypedText(
+      threadTitle,
+      threadTitle && seenTitle !== undefined && seenTitle !== threadTitle
+        ? `title:${assistant.selected}:${threadTitle}`
+        : null,
+    ) || "Assistant";
+  // Retries answer the same question; group them so only one answer per question shows.
+  const variantRuns = new Map<string, AssistantRun[]>();
+  for (const run of [...runs].sort((a, b) => a.createdAt.localeCompare(b.createdAt)))
+    if (run.inputMessageId && run.executionMode === "conversational")
+      variantRuns.set(run.inputMessageId, [...(variantRuns.get(run.inputMessageId) ?? []), run]);
+  /** Answers that can be paged: completed ones, plus the newest while it is the one shown. */
+  function variantsOf(questionId: string) {
+    const all = variantRuns.get(questionId) ?? [];
+    const pinned = detail?.messages.find((message) => message.id === questionId)?.meta.activeRunId;
+    const shown = all.find((run) => run.id === pinned && run.status === "completed") ?? all.at(-1);
+    const list = all.filter((run) => run.status === "completed" || run === all.at(-1));
+    return { list: shown && !list.includes(shown) ? [...list, shown] : list, shown };
+  }
+  const latestQuestionId = (detail?.messages ?? []).filter((message) => message.role === "user").at(-1)?.id;
   function result(run: AssistantRun, message: AssistantMessage) {
+    const variants = run.inputMessageId ? variantsOf(run.inputMessageId).list : [run];
+    const position = variants.findIndex((entry) => entry.id === run.id);
+    // Only the latest answer can be retried, so the conversation never branches.
+    const retryable = !run.inputMessageId || run.inputMessageId === latestQuestionId;
+    const showVariant = (next: AssistantRun | undefined) => {
+      if (!next || !run.inputMessageId || next.status !== "completed") return;
+      assistant.selectVariant(run.inputMessageId, next.id).catch((cause) => toast.error(readable(cause)));
+    };
     const text = message.parts
       .filter((part) => part.type === "text")
       .map((part) => part.text)
@@ -405,7 +474,7 @@ function AssistantPanelInstance({ resourceId, ownerId, integration, onClose }: P
         {run.status !== "completed" &&
           (tab === "assistant" || assistant.stream?.run.id !== run.id) &&
           (assistant.stream?.run.id === run.id && run.status !== "failed" && run.status !== "cancelled" ? (
-            generatingStatus
+            thinking
           ) : (
             <p role="status" className="text-caption text-muted-foreground">
               {run.status === "failed"
@@ -417,7 +486,8 @@ function AssistantPanelInstance({ resourceId, ownerId, integration, onClose }: P
           ))}
         {run.errorMessage && <p className="text-caption text-destructive">{run.errorMessage}</p>}
         {(assistant.stream?.run.id === run.id ? assistant.stream.text || text : text) && (
-          <MarkdownPreview
+          <TypedMarkdown
+            typingKey={assistant.stream?.run.id === run.id || assistant.freshRunIds.includes(run.id) ? run.id : null}
             markdown={assistant.stream?.run.id === run.id ? assistant.stream.text || text : text}
             {...integration.markdown}
             className={styles.assistantMarkdown}
@@ -429,6 +499,33 @@ function AssistantPanelInstance({ resourceId, ownerId, integration, onClose }: P
         {run.status === "completed" && view.changes.map(({ id, ...change }) => <ChangeCard key={id} {...change} />)}
         {run.status === "completed" && (
           <div className="-mt-2 flex w-fit items-center gap-0 text-muted-foreground">
+            {variants.length > 1 && position >= 0 && (
+              <div className="order-last flex items-center" role="group" aria-label="Response versions">
+                <Button
+                  size="icon-xs"
+                  variant="ghost"
+                  className="size-6"
+                  aria-label="Previous response"
+                  disabled={busy || position === 0}
+                  onClick={() => showVariant(variants[position - 1])}
+                >
+                  <ChevronLeft aria-hidden="true" />
+                </Button>
+                <span className="min-w-8 text-center text-caption tabular-nums" aria-live="polite">
+                  {position + 1}/{variants.length}
+                </span>
+                <Button
+                  size="icon-xs"
+                  variant="ghost"
+                  className="size-6"
+                  aria-label="Next response"
+                  disabled={busy || position === variants.length - 1}
+                  onClick={() => showVariant(variants[position + 1])}
+                >
+                  <ChevronRight aria-hidden="true" />
+                </Button>
+              </div>
+            )}
             {text && (
               <Tooltip>
                 <TooltipTrigger asChild>
@@ -452,24 +549,26 @@ function AssistantPanelInstance({ resourceId, ownerId, integration, onClose }: P
                 <TooltipContent>Copy response</TooltipContent>
               </Tooltip>
             )}
-            <Tooltip>
-              <TooltipTrigger asChild>
-                <Button
-                  size="icon-xs"
-                  variant="ghost"
-                  className="size-6"
-                  aria-label="Retry response"
-                  disabled={busy || !ready || uploading || !integration.enabled}
-                  onClick={() => void send(run.operation, run)}
-                >
-                  <RotateCcw aria-hidden="true" />
-                </Button>
-              </TooltipTrigger>
-              <TooltipContent>Retry response</TooltipContent>
-            </Tooltip>
+            {retryable && (
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <Button
+                    size="icon-xs"
+                    variant="ghost"
+                    className="size-6"
+                    aria-label="Retry response"
+                    disabled={busy || !ready || uploading || !integration.enabled}
+                    onClick={() => void send(run.operation, run)}
+                  >
+                    <RotateCcw aria-hidden="true" />
+                  </Button>
+                </TooltipTrigger>
+                <TooltipContent>Retry response</TooltipContent>
+              </Tooltip>
+            )}
           </div>
         )}
-        {["failed", "cancelled"].includes(run.status) && (
+        {retryable && ["failed", "cancelled"].includes(run.status) && (
           <Button size="sm" variant="outline" disabled={busy || !ready} onClick={() => void send(run.operation, run)}>
             Try again
           </Button>
@@ -526,7 +625,7 @@ function AssistantPanelInstance({ resourceId, ownerId, integration, onClose }: P
       }}
     >
       <AssistantHeader
-        title={showHistory ? "Conversations" : showSettings ? "Settings" : "Assistant"}
+        title={showHistory ? "Conversations" : showSettings ? "Settings" : typedTitle}
         onClose={onClose}
         closeLabel="Close assistant"
       >
@@ -815,11 +914,6 @@ function AssistantPanelInstance({ resourceId, ownerId, integration, onClose }: P
             />
           ) : (
             <>
-              {assistant.selected && (
-                <p className="truncate text-[11px] leading-[1.45] text-muted-foreground">
-                  {detail?.thread.title || "Conversation"} · This thread
-                </p>
-              )}
               <div
                 ref={messages}
                 className={`min-h-0 flex-1 overflow-y-auto ${showLaunch || showConversationError || assistant.loading ? "flex flex-col" : "space-y-3.5"}`}
@@ -860,8 +954,8 @@ function AssistantPanelInstance({ resourceId, ownerId, integration, onClose }: P
                               className="h-auto min-h-10 w-full justify-start gap-2.5 whitespace-normal px-2.5 py-1 text-left font-normal"
                               disabled={!ready || busy}
                               onClick={() =>
-                                action.instruction
-                                  ? prepareAgentRequest(action.agentId, [], action.instruction)
+                                action.instruction || !action.agentId
+                                  ? prepareAgentRequest(action.agentId, [], action.instruction ?? "")
                                   : selectAgent(action.agentId)
                               }
                             >
@@ -932,6 +1026,13 @@ function AssistantPanelInstance({ resourceId, ownerId, integration, onClose }: P
                         );
                       const message = entry.message;
                       const run = runs.find((entry) => entry.id === message.runId);
+                      if (
+                        message.role === "assistant" &&
+                        run?.inputMessageId &&
+                        run.executionMode === "conversational" &&
+                        variantsOf(run.inputMessageId).shown?.id !== run.id
+                      )
+                        return null;
                       if (message.role === "assistant" && run) return result(run, message);
                       return (
                         <article key={message.id} className={styles.assistantUserMessage}>
@@ -1024,15 +1125,16 @@ function AssistantPanelInstance({ resourceId, ownerId, integration, onClose }: P
                     assistant.stream.run.executionMode !== "standalone" &&
                     !visibleMessages.some((message) => message.runId === assistant.stream?.run.id) && (
                       <div className="py-4">
-                        {tab === "assistant" && generatingStatus}
-                        <MarkdownPreview
+                        {tab === "assistant" && thinking}
+                        <TypedMarkdown
+                          typingKey={assistant.stream.run.id}
                           markdown={assistant.stream.text}
                           {...integration.markdown}
                           className={styles.assistantMarkdown}
                         />
                       </div>
                     )}
-                  {assistant.submitting && !assistant.stream && generatingStatus}
+                  {assistant.submitting && !assistant.stream && <AssistantThinking answering={false} />}
                   {!assistant.loading && assistant.availability && !assistant.availability.enabled && (
                     <p className="text-caption text-muted-foreground">
                       {assistant.availability.reason ??
@@ -1069,20 +1171,27 @@ function AssistantPanelInstance({ resourceId, ownerId, integration, onClose }: P
                 </div>
               )}
               <div className={styles.agentComposerAnchor}>
-                {slashOpen && (
+                {menuOpen && (
                   <div className={styles.agentCommandMenu}>
-                    <div role="listbox" id={commandsId} aria-label="Agents" className={styles.agentCommandOptions}>
+                    <div
+                      role="listbox"
+                      id={commandsId}
+                      aria-label={slashOpen ? "Agents" : "Fields"}
+                      className={styles.agentCommandOptions}
+                    >
                       <p role="presentation" className={styles.agentCommandHeading}>
-                        Agents · who helps
+                        {slashOpen ? "Agents · who helps" : "Fields · what to work on"}
                       </p>
-                      {!commands.length && (
-                        <p className="px-2 py-3 text-center text-caption text-muted-foreground">No matching agents</p>
+                      {!menuItems.length && (
+                        <p className="px-2 py-3 text-center text-caption text-muted-foreground">
+                          {slashOpen ? "No matching agents" : "No matching fields"}
+                        </p>
                       )}
-                      {commands.map((command, index) => {
-                        const Icon = command.icon ?? Sparkles;
+                      {menuItems.map((item, index) => {
+                        const Icon = item.icon;
                         return (
                           <Button
-                            key={command.id}
+                            key={item.id}
                             id={commandId(index)}
                             role="option"
                             aria-selected={index === slashIndex}
@@ -1090,12 +1199,12 @@ function AssistantPanelInstance({ resourceId, ownerId, integration, onClose }: P
                             className={styles.agentCommandOption}
                             onMouseDown={(event) => event.preventDefault()}
                             onPointerMove={() => setSlashIndex(index)}
-                            onClick={() => chooseCommand(index)}
+                            onClick={() => chooseMenuItem(index)}
                           >
                             <Icon aria-hidden="true" />
                             <span>
-                              <span className={styles.agentCommandName}>{command.name}</span>
-                              <span className={styles.agentCommandDescription}>{command.description}</span>
+                              <span className={styles.agentCommandName}>{item.name}</span>
+                              <span className={styles.agentCommandDescription}>{item.description}</span>
                             </span>
                           </Button>
                         );
@@ -1224,10 +1333,10 @@ function AssistantPanelInstance({ resourceId, ownerId, integration, onClose }: P
                     content={assistant.composerSelection.content}
                     agentId={selectedAgentId}
                     agentOffset={assistant.composerSelection.agentOffset}
-                    expanded={slashOpen}
+                    expanded={menuOpen}
                     describedBy={contextProblem ? contextErrorId : undefined}
                     activeDescendant={
-                      slashOpen && commands.length ? commandId(Math.min(slashIndex, commands.length - 1)) : undefined
+                      menuOpen && menuItems.length ? commandId(Math.min(slashIndex, menuItems.length - 1)) : undefined
                     }
                     onCaret={setCaret}
                     onChange={({ text, agentId, agentOffset, content }) => {
@@ -1244,12 +1353,12 @@ function AssistantPanelInstance({ resourceId, ownerId, integration, onClose }: P
                     }
                     onKeyDown={(event) => {
                       if (event.isComposing) return;
-                      if (slashOpen) {
+                      if (menuOpen) {
                         if (event.key === "ArrowDown" || event.key === "ArrowUp") {
                           event.preventDefault();
                           setSlashIndex((index) =>
-                            commands.length
-                              ? (index + (event.key === "ArrowDown" ? 1 : -1) + commands.length) % commands.length
+                            menuItems.length
+                              ? (index + (event.key === "ArrowDown" ? 1 : -1) + menuItems.length) % menuItems.length
                               : 0,
                           );
                           return;
@@ -1257,12 +1366,12 @@ function AssistantPanelInstance({ resourceId, ownerId, integration, onClose }: P
                         if (event.key === "Escape") {
                           event.preventDefault();
                           event.stopPropagation();
-                          setDismissedSlash(slashKey);
+                          setDismissedSlash(slashOpen ? slashKey : mentionKey);
                           return;
                         }
                         if (event.key === "Enter" && !event.shiftKey) {
                           event.preventDefault();
-                          chooseCommand(slashIndex);
+                          chooseMenuItem(slashIndex);
                           return;
                         }
                       }
@@ -1285,129 +1394,140 @@ function AssistantPanelInstance({ resourceId, ownerId, integration, onClose }: P
                       hidden
                       onChange={(event) => void upload(event.target.files?.[0])}
                     />
-                    <Popover.Root
-                      open={attachmentMenu}
-                      onOpenChange={(open) => {
-                        setAttachmentMenu(open);
-                        if (!open) setShowReferences(false);
-                      }}
-                    >
-                      <Tooltip>
-                        <TooltipTrigger asChild>
-                          <Popover.Trigger asChild>
-                            <Button
-                              size="icon-sm"
-                              variant="ghost"
-                              className="text-muted-foreground"
-                              aria-label="Attach files or links"
-                            >
-                              <Paperclip aria-hidden="true" />
-                            </Button>
-                          </Popover.Trigger>
-                        </TooltipTrigger>
-                        <TooltipContent>Attach files or links</TooltipContent>
-                      </Tooltip>
-                      <Popover.Portal>
-                        <Popover.Content
-                          side="top"
-                          align="start"
-                          sideOffset={8}
-                          collisionPadding={16}
-                          className={`z-50 flex max-w-[calc(100vw-2rem)] flex-col rounded-xl border border-border bg-card shadow-md ${showReferences ? "w-80 gap-3 p-4" : "w-56 p-1"}`}
-                          onEscapeKeyDown={(event) => event.stopPropagation()}
-                        >
-                          {showReferences ? (
-                            <AssistantLinkForm
-                              title="Add a reference link"
-                              inputRef={linkInput}
-                              url={linkDraft}
-                              error={linkError}
-                              help="Attach a public HTTPS page as a reference."
-                              onUrlChange={(value) => {
-                                setLinkDraft(value);
-                                setLinkError("");
-                              }}
-                              onSubmit={addReferenceLink}
-                              onCancel={() => {
-                                setAttachmentMenu(false);
-                                setShowReferences(false);
-                              }}
-                            />
-                          ) : (
-                            <>
+                    {integration.attachments !== false && (
+                      <Popover.Root
+                        open={attachmentMenu}
+                        onOpenChange={(open) => {
+                          setAttachmentMenu(open);
+                          if (!open) setShowReferences(false);
+                        }}
+                      >
+                        <Tooltip>
+                          <TooltipTrigger asChild>
+                            <Popover.Trigger asChild>
                               <Button
-                                size="sm"
+                                size="icon-sm"
                                 variant="ghost"
-                                className="justify-start"
-                                disabled={
-                                  !ready ||
-                                  uploading ||
-                                  !assistant.availability?.capabilities.images ||
-                                  attachmentIds.length >= 3
-                                }
-                                onClick={() => {
-                                  setAttachmentMenu(false);
-                                  fileInput.current?.click();
-                                }}
+                                className="text-muted-foreground"
+                                aria-label="Attach files or links"
                               >
-                                <ImagePlus />
-                                Upload image
+                                <Paperclip aria-hidden="true" />
                               </Button>
-                              <Button
-                                size="sm"
-                                variant="ghost"
-                                className="justify-start"
-                                onClick={() => {
-                                  setShowReferences(true);
+                            </Popover.Trigger>
+                          </TooltipTrigger>
+                          <TooltipContent>Attach files or links</TooltipContent>
+                        </Tooltip>
+                        <Popover.Portal>
+                          <Popover.Content
+                            side="top"
+                            align="start"
+                            sideOffset={8}
+                            collisionPadding={16}
+                            className={`z-50 flex max-w-[calc(100vw-2rem)] flex-col rounded-xl border border-border bg-card shadow-md ${showReferences ? "w-80 gap-3 p-4" : "w-56 p-1"}`}
+                            onEscapeKeyDown={(event) => event.stopPropagation()}
+                          >
+                            {showReferences ? (
+                              <AssistantLinkForm
+                                title="Add a reference link"
+                                inputRef={linkInput}
+                                url={linkDraft}
+                                error={linkError}
+                                help="Attach a public HTTPS page as a reference."
+                                onUrlChange={(value) => {
+                                  setLinkDraft(value);
                                   setLinkError("");
-                                  requestAnimationFrame(() => linkInput.current?.focus());
                                 }}
-                              >
-                                <Link2 />
-                                Add link
-                              </Button>
-                              {(detail?.attachments ?? [])
-                                .filter(
-                                  (file) =>
-                                    file.status === "ready" &&
-                                    (selectedAgent || !file.messageId || file.type === "artifact"),
-                                )
-                                .map((file) => (
-                                  <Button
-                                    key={file.id}
-                                    size="sm"
-                                    variant="ghost"
-                                    className="justify-start truncate"
-                                    aria-pressed={attachmentIds.includes(file.id)}
-                                    disabled={
-                                      !attachmentIds.includes(file.id) &&
-                                      attachmentIds.length >= (selectedAgent ? 5 : 3)
-                                    }
-                                    onClick={() => {
-                                      assistant.composerState({
-                                        ...assistant.getComposerSelection(),
-                                        attachmentIds: attachmentIds.includes(file.id)
-                                          ? attachmentIds.filter((id) => id !== file.id)
-                                          : [...attachmentIds, file.id],
-                                      });
-                                      setAttachmentMenu(false);
-                                    }}
-                                  >
-                                    <FileText />
-                                    <span className="truncate">{file.label}</span>
-                                  </Button>
-                                ))}
-                              <p className="px-3 py-2 text-caption text-muted-foreground">
-                                {attachmentIds.length >= 3
-                                  ? "Three images selected. Remove one to upload another."
-                                  : "JPEG, PNG, WebP · up to 5 MiB · three per request"}
-                              </p>
-                            </>
-                          )}
-                        </Popover.Content>
-                      </Popover.Portal>
-                    </Popover.Root>
+                                onSubmit={addReferenceLink}
+                                onCancel={() => {
+                                  setAttachmentMenu(false);
+                                  setShowReferences(false);
+                                }}
+                              />
+                            ) : (
+                              <>
+                                <Button
+                                  size="sm"
+                                  variant="ghost"
+                                  className="justify-start"
+                                  disabled={
+                                    !ready ||
+                                    uploading ||
+                                    !assistant.availability?.capabilities.images ||
+                                    attachmentIds.length >= 3
+                                  }
+                                  onClick={() => {
+                                    setAttachmentMenu(false);
+                                    fileInput.current?.click();
+                                  }}
+                                >
+                                  <ImagePlus />
+                                  Upload image
+                                </Button>
+                                <Button
+                                  size="sm"
+                                  variant="ghost"
+                                  className="justify-start"
+                                  onClick={() => {
+                                    setShowReferences(true);
+                                    setLinkError("");
+                                    requestAnimationFrame(() => linkInput.current?.focus());
+                                  }}
+                                >
+                                  <Link2 />
+                                  Add link
+                                </Button>
+                                {(detail?.attachments ?? [])
+                                  .filter(
+                                    (file) =>
+                                      file.status === "ready" &&
+                                      (selectedAgent || !file.messageId || file.type === "artifact"),
+                                  )
+                                  .map((file) => (
+                                    <Button
+                                      key={file.id}
+                                      size="sm"
+                                      variant="ghost"
+                                      className="justify-start truncate"
+                                      aria-pressed={attachmentIds.includes(file.id)}
+                                      disabled={
+                                        !attachmentIds.includes(file.id) &&
+                                        attachmentIds.length >= (selectedAgent ? 5 : 3)
+                                      }
+                                      onClick={() => {
+                                        assistant.composerState({
+                                          ...assistant.getComposerSelection(),
+                                          attachmentIds: attachmentIds.includes(file.id)
+                                            ? attachmentIds.filter((id) => id !== file.id)
+                                            : [...attachmentIds, file.id],
+                                        });
+                                        setAttachmentMenu(false);
+                                      }}
+                                    >
+                                      <FileText />
+                                      <span className="truncate">{file.label}</span>
+                                    </Button>
+                                  ))}
+                                <p className="px-3 py-2 text-caption text-muted-foreground">
+                                  {attachmentIds.length >= 3
+                                    ? "Three images selected. Remove one to upload another."
+                                    : "JPEG, PNG, WebP · up to 5 MiB · three per request"}
+                                </p>
+                              </>
+                            )}
+                          </Popover.Content>
+                        </Popover.Portal>
+                      </Popover.Root>
+                    )}
                     <span className="flex-1" />
+                    {assistant.models && assistant.models.models.length > 0 && (
+                      <AssistantModelPicker
+                        models={assistant.models}
+                        choice={assistant.modelChoice}
+                        defaultEffort={selectedAgent?.effort ?? "medium"}
+                        disabled={busy}
+                        onChange={assistant.setModelChoice}
+                      />
+                    )}
                     {assistant.message.length > 7600 && (
                       <span className="text-caption text-muted-foreground">{assistant.message.length}/8,000</span>
                     )}
@@ -1447,4 +1567,13 @@ function AssistantPanelInstance({ resourceId, ownerId, integration, onClose }: P
       </Tabs>
     </div>
   );
+}
+
+/** Assistant reply text that types itself out when it arrives live; history shows at once. */
+function TypedMarkdown({
+  typingKey,
+  markdown,
+  ...props
+}: { typingKey: string | null; markdown: string } & Omit<ComponentProps<typeof MarkdownPreview>, "markdown">) {
+  return <MarkdownPreview markdown={useTypedText(markdown, typingKey)} {...props} />;
 }

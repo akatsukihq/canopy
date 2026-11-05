@@ -18,9 +18,13 @@ export type AIRequest = {
   tools?: Record<string, AITool>;
   webSearch?: boolean;
   model?: string;
+  /** Reasoning depth; providers or models without reasoning support ignore it. */
+  effort?: AIEffort;
   metadata?: Record<string, string>;
   signal?: AbortSignal;
 };
+export const AI_EFFORTS = ["low", "medium", "high", "xhigh", "max"] as const;
+export type AIEffort = (typeof AI_EFFORTS)[number];
 export type AIHandle = { id: string; provider: string; model: string; status: AIStatus };
 export type AIToolCall = { id: string; name: string; input: unknown; output?: unknown };
 export type AICitation = { url: string; title: string; startIndex?: number; endIndex?: number };
@@ -38,6 +42,7 @@ export type AIResult = AIHandle & {
 export type AIStreamEvent =
   | { type: "response"; response: AIHandle }
   | { type: "text-delta"; text: string }
+  | { type: "reasoning-delta"; text: string }
   | { type: "output"; output: unknown }
   | { type: "tool-call"; call: AIToolCall }
   | { type: "tool-result"; call: AIToolCall }

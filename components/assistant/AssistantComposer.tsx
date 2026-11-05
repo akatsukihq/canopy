@@ -8,7 +8,7 @@ import StarterKit from "@tiptap/starter-kit";
 import { Plugin, TextSelection } from "@tiptap/pm/state";
 import { closeHistory } from "@tiptap/pm/history";
 import type { Node as ProseMirrorNode } from "@tiptap/pm/model";
-import { Bold, Italic, Link2, List, ListOrdered, Sparkles, X } from "lucide-react";
+import { Bold, Bot, Italic, Link2, List, ListOrdered, TextCursorInput, X } from "lucide-react";
 import { Button, Popover, Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/index.tsx";
 import { parseComposerContent } from "@/lib/assistant/composerDocument";
 import type { AssistantAgent } from "./types";
@@ -19,10 +19,9 @@ const AgentCatalog = createContext<readonly AssistantAgent[]>([]);
 
 function AgentMention({ node, deleteNode, selected }: NodeViewProps) {
   const agent = useContext(AgentCatalog).find((entry) => entry.id === node.attrs.agentId);
-  const Icon = agent?.icon ?? Sparkles;
   return (
     <NodeViewWrapper as="span" contentEditable={false} className={styles.agentSelection} data-selected={selected}>
-      <Icon className="size-3.5" aria-hidden="true" />
+      <Bot className="size-3.5" aria-label="Agent" />
       <span>{agent?.name ?? "Unavailable agent"}</span>
       <Button variant="ghost" size="icon-xs" aria-label="Remove agent" onClick={deleteNode}>
         <X aria-hidden="true" />
@@ -31,9 +30,29 @@ function AgentMention({ node, deleteNode, selected }: NodeViewProps) {
   );
 }
 
+/** Same chip as an agent; the type icon (field vs bot) tells them apart. */
+function FieldMentionView({ node, deleteNode, selected }: NodeViewProps) {
+  return (
+    <NodeViewWrapper as="span" contentEditable={false} className={styles.agentSelection} data-selected={selected}>
+      <TextCursorInput className="size-3.5" aria-label="Field" />
+      <span>{node.attrs.label}</span>
+      <Button variant="ghost" size="icon-xs" aria-label={`Remove field ${node.attrs.label}`} onClick={deleteNode}>
+        <X aria-hidden="true" />
+      </Button>
+    </NodeViewWrapper>
+  );
+}
+
+/** Agents add no text; a field mention reads as `@id` so the message names the field. */
+function leafText(node: ProseMirrorNode) {
+  if (node.type.name === "hardBreak") return "\n";
+  if (node.type.name === "fieldMention") return `@${node.attrs.id}`;
+  return "";
+}
+
 /** Agent labels are UI metadata, not part of the instruction sent to AI. */
 function readDocument(doc: ProseMirrorNode) {
-  const text = doc.textBetween(0, doc.content.size, "\n", (node) => (node.type.name === "hardBreak" ? "\n" : ""));
+  const text = doc.textBetween(0, doc.content.size, "\n", leafText);
   let agentId: string | undefined;
   let agentOffset: number | undefined;
   doc.descendants((node, position) => {
@@ -74,7 +93,7 @@ function documentContent(text: string, agentId?: string, agentOffset = 0): JSONC
 }
 
 function textOffset(doc: ProseMirrorNode, position: number) {
-  return doc.textBetween(0, position, "\n", (node) => (node.type.name === "hardBreak" ? "\n" : "")).length;
+  return doc.textBetween(0, position, "\n", leafText).length;
 }
 
 function documentPosition(doc: ProseMirrorNode, offset: number, afterAgent = true) {
@@ -85,6 +104,7 @@ function documentPosition(doc: ProseMirrorNode, offset: number, afterAgent = tru
       const start = textOffset(doc, position);
       if (start <= offset) result = position + Math.min(offset - start, node.nodeSize);
     } else if (node.type.name === "hardBreak" && textOffset(doc, position + 1) <= offset) result = position + 1;
+    else if (node.type.name === "fieldMention" && textOffset(doc, position) < offset) result = position + 1;
     else if (node.type.name === "agentMention" && textOffset(doc, position) <= offset)
       result = position + (afterAgent ? 1 : 0);
   });
@@ -125,10 +145,26 @@ const Agent = Node.create({
   addNodeView: () => ReactNodeViewRenderer(AgentMention),
 });
 
+/** A field named with `@`: shows its label, reads as `@id` in the message. Only our picker inserts it. */
+const FieldMention = Node.create({
+  name: "fieldMention",
+  group: "inline",
+  inline: true,
+  atom: true,
+  selectable: true,
+  addAttributes: () => ({ id: { default: null }, label: { default: null } }),
+  parseHTML: () => [],
+  renderHTML: ({ node }) => ["span", { "data-field": node.attrs.id }, node.attrs.label],
+  renderText: ({ node }) => `@${node.attrs.id}`,
+  addNodeView: () => ReactNodeViewRenderer(FieldMentionView),
+});
+
 export type AssistantComposerHandle = {
   focus: () => void;
   setSelectionRange: (start: number, end: number) => void;
   insertAgent: (id: string, start?: number, end?: number) => void;
+  /** Replaces the typed `@query` (text offsets) with a field chip followed by a space. */
+  insertMention: (id: string, label: string, start: number, end: number) => void;
   readonly value: string;
 };
 
@@ -175,6 +211,7 @@ export function AssistantComposer(props: Props) {
       }),
       ComposerDocument.configure({ onInvalid: () => setLimitError(true) }),
       Agent,
+      FieldMention,
     ],
     content: parseComposerContent(props.content) ?? documentContent(props.value, props.agentId, props.agentOffset),
     editorProps: {
@@ -333,6 +370,15 @@ export function AssistantComposer(props: Props) {
         const position = documentPosition(transaction.doc, offset);
         transaction.insert(position, editor.schema.nodes.agentMention.create({ agentId: id }));
         transaction.setSelection(TextSelection.create(transaction.doc, position + 1));
+        editor.view.dispatch(transaction);
+        editor.commands.focus();
+      },
+      insertMention: (id, label, start, end) => {
+        if (!editor) return;
+        const from = documentPosition(editor.state.doc, start);
+        const transaction = closeHistory(editor.state.tr).delete(from, documentPosition(editor.state.doc, end));
+        transaction.insert(from, [editor.schema.nodes.fieldMention.create({ id, label }), editor.schema.text(" ")]);
+        transaction.setSelection(TextSelection.create(transaction.doc, from + 2));
         editor.view.dispatch(transaction);
         editor.commands.focus();
       },

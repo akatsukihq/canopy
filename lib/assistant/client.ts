@@ -73,15 +73,19 @@ export async function streamAssistantRun(
     if (!line.trim()) return;
     signal.throwIfAborted();
     const event = JSON.parse(line) as import("@/lib/assistant/types").AssistantEvent;
-    if (!event || !["run", "text", "text-delta", "proposal", "completed", "error"].includes(event.type))
+    if (!event || !["run", "text", "text-delta", "reasoning-delta", "proposal", "completed", "title", "error"].includes(event.type))
       throw new Error("The server sent an unreadable update. Refresh history before retrying.");
-    if ((event.type === "text-delta" || event.type === "text") && typeof event.text !== "string")
+    if (
+      (event.type === "text-delta" || event.type === "reasoning-delta" || event.type === "text") &&
+      typeof event.text !== "string"
+    )
       throw new Error("Invalid text update.");
     if (
       (event.type === "run" || event.type === "completed") &&
       (!event.run || typeof event.run.id !== "string" || typeof event.run.status !== "string")
     )
       throw new Error("The server sent an invalid request update.");
+    if (event.type === "title" && typeof event.title !== "string") throw new Error("Invalid title update.");
     if (event.type === "error" && typeof event.message !== "string")
       throw new Error("The server sent an invalid error update.");
     onEvent(event);

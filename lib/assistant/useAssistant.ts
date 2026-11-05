@@ -13,7 +13,9 @@ import type {
   AssistantExecutionSummary,
   AssistantComposerSelection,
   AssistantExecutionMode,
+  AssistantModels,
 } from "@/lib/assistant/types";
+import { AI_EFFORTS, type AIEffort } from "@/lib/ai/types";
 import {
   assistantApiBase,
   assistantCacheKey,
@@ -22,10 +24,26 @@ import {
   AssistantRequestError,
   streamAssistantRun,
 } from "./client";
+import { NEW_THREAD_TITLE } from "@/lib/assistant/types";
 import { parseComposerContent } from "@/lib/assistant/composerDocument.ts";
 import { sameComposerSelection } from "./composer.ts";
 
 type AssistantSettings = Record<string, unknown>;
+/** The picker's choice; unset fields fall back to the admin model and the agent's effort. */
+export type AssistantModelChoice = { model?: string; effort?: AIEffort };
+const MODEL_CHOICE_KEY = "smarttools.assistant.model";
+
+function storedModelChoice(): AssistantModelChoice {
+  try {
+    const value = JSON.parse(localStorage.getItem(MODEL_CHOICE_KEY) ?? "{}") as Record<string, unknown>;
+    return {
+      ...(typeof value.model === "string" && value.model ? { model: value.model } : {}),
+      ...(AI_EFFORTS.includes(value.effort as AIEffort) ? { effort: value.effort as AIEffort } : {}),
+    };
+  } catch {
+    return {};
+  }
+}
 
 function restoredAgentOffset(value: unknown): { agentOffset?: number } {
   return typeof value === "number" && Number.isInteger(value) && value >= 0 && value <= 8000
@@ -65,12 +83,29 @@ export function useAssistant(integrationKey: string, resourceId: string | undefi
   const composerStatesRef = useRef(composerStates);
   composerStatesRef.current = composerStates;
   const [availability, setAvailability] = useState<AssistantAvailability | null>(null);
+  const [models, setModels] = useState<AssistantModels | null>(null);
+  const [modelChoice, setModelChoiceState] = useState<AssistantModelChoice>({});
+  const modelChoiceRef = useRef(modelChoice);
+  modelChoiceRef.current = modelChoice;
+  useEffect(() => {
+    setModelChoiceState(storedModelChoice());
+  }, []);
+  const setModelChoice = useCallback((next: AssistantModelChoice) => {
+    setModelChoiceState(next);
+    try {
+      localStorage.setItem(MODEL_CHOICE_KEY, JSON.stringify(next));
+    } catch {
+      // The choice still applies for this page.
+    }
+  }, []);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [submitting, setSubmitting] = useState<Record<string, boolean>>({});
   const alive = useRef(true);
   const controllers = useRef(new Map<string, AbortController>());
-  const [streams, setStreams] = useState<Record<string, { run: AssistantRun; text: string }>>({});
+  const [streams, setStreams] = useState<Record<string, { run: AssistantRun; text: string; reasoning?: string }>>(
+    {},
+  );
   const [freshRunIds, setFreshRunIds] = useState<string[]>([]);
   const detailsRef = useRef(details);
   detailsRef.current = details;
@@ -207,11 +242,19 @@ export function useAssistant(integrationKey: string, resourceId: string | undefi
     setError("");
     try {
       const [config, history] = await Promise.allSettled([
-        assistantRequest<AssistantAvailability>(`${apiBase}/config`),
+        assistantRequest<AssistantAvailability & Partial<AssistantModels>>(`${apiBase}/config`),
         assistantRequest<{ threads: AssistantThread[] }>(listUrl),
       ]);
       if (!alive.current || refreshVersion.current !== version) return;
-      if (config.status === "fulfilled") setAvailability(config.value);
+      if (config.status === "fulfilled") {
+        const { defaultModel, models: list, ...value } = config.value;
+        setAvailability(value);
+        setModels(
+          defaultModel !== undefined && list
+            ? { provider: value.provider, defaultModel, models: list.map((model) => ({ ...model, name: model.name || model.id })) }
+            : null,
+        );
+      }
       if (history.status === "rejected") {
         const message =
           history.reason instanceof Error ? history.reason.message : "Could not load private conversations.";
@@ -314,16 +357,6 @@ export function useAssistant(integrationKey: string, resourceId: string | undefi
   function updateRun(run: AssistantRun, localMessageId?: string, streamedText = "") {
     if (!run.threadId) return;
     const id = run.threadId;
-    const previousDetail = detailsRef.current[id];
-    const title =
-      previousDetail?.thread.title === "New thread" &&
-      !previousDetail.runs.length &&
-      !previousDetail.executions?.length &&
-      !previousDetail.messages.some(
-        (message) => message.role === "user" && !message.meta.pending && !message.meta.failed,
-      )
-        ? run.request.message.replace(/\s+/g, " ").slice(0, 80)
-        : undefined;
     setDetails((value) => {
       const detail = value[id];
       if (!detail) return value;
@@ -414,7 +447,7 @@ export function useAssistant(integrationKey: string, resourceId: string | undefi
         ...value,
         [id]: {
           ...detail,
-          thread: { ...detail.thread, ...(title ? { title } : {}), updatedAt: run.updatedAt },
+          thread: { ...detail.thread, updatedAt: run.updatedAt },
           runs,
           executions,
           messages: [...messages].sort((a, b) => a.createdAt.localeCompare(b.createdAt)),
@@ -433,7 +466,7 @@ export function useAssistant(integrationKey: string, resourceId: string | undefi
       value
         .map((thread) =>
           thread.id === id && thread.updatedAt <= run.updatedAt
-            ? { ...thread, ...(title ? { title } : {}), updatedAt: run.updatedAt }
+            ? { ...thread, updatedAt: run.updatedAt }
             : thread,
         )
         .sort((a, b) => b.updatedAt.localeCompare(a.updatedAt)),
@@ -522,7 +555,6 @@ export function useAssistant(integrationKey: string, resourceId: string | undefi
     const creation = (async () => {
       const { thread } = await assistantRequest<{ thread: AssistantThread }>(listUrl, {
         settings: newSettingsRef.current[targetScope] ?? {},
-        ...(message ? { title: message.trim().replace(/\s+/g, " ").slice(0, 80) } : {}),
       });
       if (!alive.current || scopeVersion.current !== scope)
         throw new DOMException("Assistant context changed.", "AbortError");
@@ -625,6 +657,36 @@ export function useAssistant(integrationKey: string, resourceId: string | undefi
     settingsQueue.current[id] = save;
     await save;
   }
+  function pinVariant(threadId: string, messageId: string, runId: string | undefined) {
+    setDetails((value) => {
+      const detail = value[threadId];
+      if (!detail) return value;
+      return {
+        ...value,
+        [threadId]: {
+          ...detail,
+          messages: detail.messages.map((message) => {
+            if (message.id !== messageId) return message;
+            const { activeRunId: _, ...meta } = message.meta;
+            return { ...message, meta: runId ? { ...meta, activeRunId: runId } : meta };
+          }),
+        },
+      };
+    });
+  }
+  /** Shows another answer to the same question and makes it the one sent as context. */
+  async function selectVariant(messageId: string, runId: string) {
+    const id = selectedRef.current;
+    if (!id) return;
+    const previous = detailsRef.current[id]?.messages.find((message) => message.id === messageId)?.meta.activeRunId;
+    pinVariant(id, messageId, runId);
+    try {
+      await assistantRequest(`${base}/${id}`, { activeVariant: { messageId, runId } }, "PATCH");
+    } catch (cause) {
+      pinVariant(id, messageId, typeof previous === "string" ? previous : undefined);
+      throw cause;
+    }
+  }
   async function saveDraft(composerDraft: string, id: string) {
     const scope = scopeVersion.current;
     if (clearing.current.has(id)) return;
@@ -662,6 +724,8 @@ export function useAssistant(integrationKey: string, resourceId: string | undefi
     let id = resolvedScope(targetScope);
     if (locks.current.has(id)) return;
     locks.current.add(id);
+    // The server unpins on retry too, so the new answer shows as soon as it streams.
+    if (input.inputMessageId) pinVariant(id, input.inputMessageId, undefined);
     if (resolvedScope(currentScope()) === id) setError("");
     setSubmitting((value) => ({ ...value, [id]: true }));
     const lockId = id;
@@ -675,6 +739,7 @@ export function useAssistant(integrationKey: string, resourceId: string | undefi
     const controller = new AbortController();
     let observedRun: AssistantRun | undefined;
     let streamedText = "";
+    let streamedReasoning = "";
     let completed = false;
     controllers.current.set(id, controller);
     try {
@@ -688,7 +753,7 @@ export function useAssistant(integrationKey: string, resourceId: string | undefi
               integrationKey,
               resourceId: resourceId ?? null,
               type: "chat",
-              title: input.message.trim().replace(/\s+/g, " ").slice(0, 80),
+              title: NEW_THREAD_TITLE,
               settings: newSettingsRef.current[id] ?? {},
               composerDraft: "",
               createdAt: now,
@@ -747,6 +812,15 @@ export function useAssistant(integrationKey: string, resourceId: string | undefi
         },
         ...(links.length ? { references: [...new Set([...(input.references ?? []), ...links])] } : {}),
       };
+      // A model the provider no longer lists falls back to the admin default.
+      const choice = modelChoiceRef.current;
+      const pickedModel = models?.models.find((entry) => entry.id === (input.model ?? choice.model));
+      if (pickedModel && pickedModel.id !== models?.defaultModel) input = { ...input, model: pickedModel.id };
+      else {
+        const { model: _unlisted, ...rest } = input;
+        input = rest;
+      }
+      if (!input.effort && choice.effort) input = { ...input, effort: choice.effort };
       const previous = pending.current[id];
       const threadId = isDraftScope(id) ? (previous?.threadId ?? crypto.randomUUID()) : id;
       const { clientRequestId: _previousKey, ...previousInput } = previous ?? {};
@@ -764,7 +838,7 @@ export function useAssistant(integrationKey: string, resourceId: string | undefi
               id: next.threadId,
               integrationKey,
               resourceId: next.resourceId,
-              title: next.request.message.trim().replace(/\s+/g, " ").slice(0, 80),
+              title: NEW_THREAD_TITLE,
               type: next.operation === "rewrite" ? "inline" : "chat",
               settings: next.request.settings ?? {},
               composerDraft: draftsRef.current[id] ?? "",
@@ -829,9 +903,27 @@ export function useAssistant(integrationKey: string, resourceId: string | undefi
             onCreated?.(next);
             if (links.length) options.onReferenceAdded?.(id, []);
           }
+        } else if (event.type === "reasoning-delta") {
+          streamedReasoning += event.text;
+          setStreams((value) =>
+            value[id] ? { ...value, [id]: { ...value[id], reasoning: streamedReasoning } } : value,
+          );
         } else if (event.type === "text-delta" || event.type === "text") {
           streamedText = event.type === "text" ? event.text : streamedText + event.text;
           setStreams((value) => (value[id] ? { ...value, [id]: { ...value[id], text: streamedText } } : value));
+        } else if (event.type === "title") {
+          const threadId = observedRun?.threadId ?? id;
+          setThreads((value) =>
+            value.map((thread) => (thread.id === threadId ? { ...thread, title: event.title } : thread)),
+          );
+          setDetails((value) =>
+            value[threadId]
+              ? {
+                  ...value,
+                  [threadId]: { ...value[threadId], thread: { ...value[threadId].thread, title: event.title } },
+                }
+              : value,
+          );
         }
       });
       if (!alive.current || scopeVersion.current !== scope) return null;
@@ -1011,6 +1103,9 @@ export function useAssistant(integrationKey: string, resourceId: string | undefi
     detail: details[selected ?? draftScope],
     message: drafts[selected ?? draftScope] ?? "",
     availability,
+    models,
+    modelChoice,
+    setModelChoice,
     loading,
     historyStatus,
     error,
@@ -1042,6 +1137,7 @@ export function useAssistant(integrationKey: string, resourceId: string | undefi
     requestSettings: selected ? (details[selected]?.thread.settings ?? {}) : (newSettings[draftScope] ?? {}),
     settings,
     saveDraft,
+    selectVariant,
     send,
     stop,
     remove,

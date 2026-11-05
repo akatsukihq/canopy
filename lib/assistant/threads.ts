@@ -39,6 +39,7 @@ import type {
 
 import type { AssistantIntegration, AssistantTransaction, StoredRun } from "./integration.ts";
 import { attachmentProvider, deleteRunResponses } from "./resources.ts";
+import { NEW_THREAD_TITLE } from "./types.ts";
 export const ACTIVE_RUN_STATUSES = ["queued", "running", "unknown"] as const;
 export const privateExpiry = () => new Date(Date.now() + 30 * 24 * 60 * 60 * 1000);
 
@@ -412,7 +413,7 @@ export function createAssistantThreads(integration: AssistantIntegration) {
           ownerId: actor,
           resourceId: resourceId ?? null,
           integrationKey: integration.key,
-          title: value.title ?? "New thread",
+          title: value.title ?? NEW_THREAD_TITLE,
           settings: { ...integration.defaultSettings, ...integration.validateSettings(value.settings ?? {}) },
         })
         .returning();
@@ -511,6 +512,26 @@ export function createAssistantThreads(integration: AssistantIntegration) {
     const value = threadPatchSchema.parse(input);
     return db.transaction(async (tx) => {
       const thread = await requireThread(tx, actor, resourceId, threadId, { edit: true, forUpdate: true });
+      if (value.activeVariant) {
+        const { messageId, runId } = value.activeVariant;
+        const [variant] = await tx
+          .select({ id: runs.id })
+          .from(runs)
+          .where(
+            and(
+              eq(runs.id, runId),
+              eq(runs.threadId, threadId),
+              eq(runs.inputMessageId, messageId),
+              eq(runs.status, "completed"),
+              sql`${runs.expiresAt} > now()`,
+            ),
+          );
+        if (!variant) throw new AssistantError("NOT_FOUND", "That response is no longer available.", 404);
+        await tx
+          .update(messages)
+          .set({ meta: sql`${messages.meta} || ${JSON.stringify({ activeRunId: runId })}::jsonb` })
+          .where(and(eq(messages.id, messageId), eq(messages.threadId, threadId)));
+      }
       const [updated] = await tx
         .update(threads)
         .set({

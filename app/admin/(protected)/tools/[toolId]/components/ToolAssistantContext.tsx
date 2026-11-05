@@ -128,7 +128,7 @@ export function ToolAssistantDock({ children }: { children: ReactNode }) {
     if (open) setMounted(true);
   }, [open]);
   return (
-    <div className="relative flex min-h-0 flex-1 flex-col overflow-hidden">
+    <div className="relative flex min-h-0 flex-1 flex-col overflow-clip">
       <div
         className={cn(
           "flex min-h-0 flex-1 flex-col gap-3 transition-[padding] duration-300 motion-reduce:transition-none",
@@ -142,7 +142,7 @@ export function ToolAssistantDock({ children }: { children: ReactNode }) {
           aria-hidden={!open}
           aria-label="Assistant"
           className={cn(
-            "absolute inset-y-0 right-0 z-20 flex w-full min-h-0 flex-col overflow-hidden rounded-xl border border-border bg-muted transition-[transform,visibility] duration-300 ease-out motion-reduce:transition-none sm:w-[350px]",
+            "absolute inset-y-0 right-0 z-20 flex w-full min-h-0 flex-col overflow-clip rounded-xl border border-border bg-muted transition-[transform,visibility] duration-300 ease-out motion-reduce:transition-none sm:w-[350px]",
             open ? "visible translate-x-0" : "invisible translate-x-[105%]",
           )}
           id="tool-assistant"

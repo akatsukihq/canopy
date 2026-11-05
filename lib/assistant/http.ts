@@ -4,6 +4,7 @@ import { AuthorizationError } from "../admin/index.ts";
 import { AIError } from "../ai/errors.ts";
 import { isSameOriginRequest } from "../routing/requestOrigin.ts";
 import { AssistantError } from "./validation.ts";
+import { log } from "../observability/logger.ts";
 
 const headers = { "Cache-Control": "private, no-store" };
 export async function readAssistantJson(request: Request): Promise<unknown> {
@@ -47,11 +48,18 @@ async function boundedRequestBytes(request: Request, maximum: number): Promise<B
   }
 }
 export function assistantErrorResponse(error: unknown): Response {
-  if (error instanceof z.ZodError)
+  if (error instanceof z.ZodError) {
+    const issues = error.issues.map(({ code, path, message }) => ({ code, path: path.join("."), message }));
+    log("warn", "assistant.validation", { issues });
     return Response.json(
-      { code: "VALIDATION", error: "Check the request fields and supported input lengths." },
+      {
+        code: "VALIDATION",
+        error: "Check the request fields and supported input lengths.",
+        ...(process.env.NODE_ENV === "development" ? { issues } : {}),
+      },
       { status: 400, headers },
     );
+  }
   if (error instanceof AssistantError || error instanceof AIError)
     return Response.json({ code: error.code, error: error.message }, { status: error.status, headers });
   if (error instanceof AuthorizationError)

@@ -85,6 +85,19 @@ test("the browser sends only its position; tool data comes from the database", a
   await expect(loadToolAssistantData("devtools.missing")).rejects.toThrow(/not found/i);
 });
 
+test("listed agents and @-named fields steer the prompt; unknown agents are refused", async () => {
+  const data = await load();
+  const plain = toolAssistantInstructions(integration.validateRequest(base), data);
+  const steered = toolAssistantInstructions(
+    integration.validateRequest({ ...base, agentId: "translator", context: { ...base.context, mentions: ["name"] } }),
+    data,
+  );
+  expect(plain).not.toContain("professional software localizer");
+  expect(steered).toContain("professional software localizer");
+  expect(steered).toContain('"mentionedFields":["name"]');
+  expect(() => integration.validateRequest({ ...base, agentId: "planner" })).toThrow(/listed agents/);
+});
+
 test("content suggestions are checked like the save path; bad ones cannot be applied", async () => {
   const data = await load();
   const ok = proposeContent("a", { field: "seoTitle", value: "A clear title" }, data, []);

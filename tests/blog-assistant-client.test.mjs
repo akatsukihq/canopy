@@ -214,7 +214,7 @@ afterAll(() => {
   else globalThis.sessionStorage = oldStorage;
 });
 
-test("new conversation stays local until its first send and uses that message as its title", async () => {
+test("new conversation stays local until its first send and stays unnamed until the server titles it", async () => {
   let hook = await mounted(["thread-1"]);
   hook.draft("Keep the old conversation draft");
   hook.startNewThread();
@@ -234,7 +234,7 @@ test("new conversation stays local until its first send and uses that message as
   await render().send(request("My first question"));
   hook = render();
   expect(hook.threads.length).toBe(2);
-  expect(hook.detail.thread.title).toBe("My first question");
+  expect(hook.detail.thread.title).toBe("New thread");
   expect(hook.requestSettings.tone).toBe("Formal");
   expect(
     state.calls.filter((call) => call.url.endsWith("/threads?resourceId=post") && call.method === "POST").length,
@@ -337,19 +337,23 @@ test("a server-replaced thread keeps the pending query and draft without carryin
   expect(render().detail.messages.some((message) => message.id === "old-user")).toBe(false);
 });
 
-test("the first accepted request titles an existing empty conversation without fetching history", async () => {
+test("the server's generated title names an empty conversation once, without fetching history", async () => {
   await mounted(["thread-1"]);
   let finish;
+  let titled;
   state.stream = (input, _signal, onEvent) =>
     new Promise((resolve) => {
       const accepted = run(input, "running", { inputMessageId: "user", assistantMessageId: "assistant" });
       onEvent({ type: "run", run: accepted });
+      titled = () => onEvent({ type: "title", title: "Section explained" });
       finish = () => resolve({ ...accepted, status: "completed" });
     });
   const callsBeforeSend = state.calls.length;
   const sending = render().send(request("Explain this section"));
-  expect(render().threads[0].title).toBe("Explain this section");
-  expect(render().detail.thread.title).toBe("Explain this section");
+  expect(render().detail.thread.title).toBe("New thread");
+  titled();
+  expect(render().threads[0].title).toBe("Section explained");
+  expect(render().detail.thread.title).toBe("Section explained");
   expect(state.calls.slice(callsBeforeSend).filter((call) => call.method === "GET")).toEqual([]);
   finish();
   await sending;
@@ -382,7 +386,7 @@ test("an unavailable configuration response does not prevent local new-thread in
   const result = await render().send(request("Draft"));
   expect(result.status).toBe("failed");
   expect(render().selected).toBe("thread-1");
-  expect(render().detail.thread.title).toBe("Draft");
+  expect(render().detail.thread.title).toBe("New thread");
   expect(render().message).toBe("Draft");
 });
 
@@ -1620,4 +1624,82 @@ test("settings already in flight cannot overwrite another scope or dispatch its 
   await Promise.all([first, queued]);
   expect(render().requestSettings).toEqual({ priority: "Current setting" });
   expect(state.calls.filter((call) => call.method === "PATCH").length).toBe(1);
+});
+
+test("picking an earlier answer pins it on the server; a retry unpins so the new answer shows", async () => {
+  serverThreads = [thread("thread-1")];
+  const question = {
+    id: "q",
+    threadId: "thread-1",
+    runId: null,
+    role: "user",
+    parts: [{ type: "text", text: "Who are you?" }],
+    meta: {},
+    createdAt: "2026-01-01T00:00:00.000Z",
+    updatedAt: "2026-01-01T00:00:00.000Z",
+  };
+  serverDetails = {
+    "thread-1": { thread: serverThreads[0], runs: [], messages: [question], attachments: [], ...config },
+  };
+  render();
+  await setImmediate();
+  await render().selectVariant("q", "run-a");
+  expect(render().detail.messages.find((message) => message.id === "q").meta.activeRunId).toBe("run-a");
+  expect(state.calls.at(-1)).toMatchObject({
+    method: "PATCH",
+    body: { activeVariant: { messageId: "q", runId: "run-a" } },
+  });
+
+  state.stream = async (input) => run(input, "failed");
+  await render().send({ ...request("Who are you?"), inputMessageId: "q" });
+  expect(render().detail.messages.find((message) => message.id === "q").meta.activeRunId).toBeUndefined();
+});
+
+test("streamed reasoning shows beside the answer and the picked model and effort travel with the run", async () => {
+  onRequest = (url) =>
+    url.endsWith("/config")
+      ? {
+          ...config,
+          defaultModel: "claude-sonnet-5-5",
+          models: [
+            { id: "claude-sonnet-5-5", name: "Claude Sonnet 5.5", efforts: ["low", "medium", "high", "xhigh", "max"] },
+            { id: "claude-opus-5-5", name: "Claude Opus 5.5", efforts: ["low", "medium", "high", "xhigh", "max"] },
+          ],
+        }
+      : undefined;
+  await mounted(["thread-1"]);
+  render().setModelChoice({ model: "claude-opus-5-5", effort: "high" });
+  let emit;
+  let sent;
+  state.stream = (input, _signal, onEvent) =>
+    new Promise(() => {
+      sent = input;
+      emit = onEvent;
+      onEvent({ type: "run", run: run(input, "running", { inputMessageId: "user", assistantMessageId: "assistant" }) });
+    });
+  void render().send(request("Ask"));
+  await setImmediate();
+  expect(sent).toMatchObject({ model: "claude-opus-5-5", effort: "high" });
+  emit({ type: "reasoning-delta", text: "Reading the draft. " });
+  emit({ type: "reasoning-delta", text: "Checking headings." });
+  expect(render().stream.reasoning).toBe("Reading the draft. Checking headings.");
+  expect(render().stream.text).toBe("");
+});
+
+test("an unlisted or default model is not sent, so the server uses the admin model", async () => {
+  onRequest = (url) =>
+    url.endsWith("/config")
+      ? { ...config, defaultModel: "claude-sonnet-5-5", models: [{ id: "claude-sonnet-5-5", name: "Claude Sonnet 5.5", efforts: ["low", "medium", "high", "xhigh", "max"] }] }
+      : undefined;
+  await mounted(["thread-1"]);
+  render().setModelChoice({ model: "claude-retired-1" });
+  let sent;
+  state.stream = (input) =>
+    new Promise(() => {
+      sent = input;
+    });
+  void render().send(request("Ask"));
+  await setImmediate();
+  expect(sent.model).toBeUndefined();
+  expect(sent.effort).toBeUndefined();
 });

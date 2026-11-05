@@ -9,9 +9,9 @@
   padding: calc(var(--spacing) * 2.5);
 }
 .card[data-detailed="true"] {
-  gap: calc(var(--spacing) * 2.5);
+  gap: calc(var(--spacing) * 1.5);
   border-color: var(--input);
-  padding: calc(var(--spacing) * 3);
+  padding: calc(var(--spacing) * 2.5) calc(var(--spacing) * 3);
 }
 .header,
 .actions,
@@ -84,16 +84,15 @@
   min-width: 0;
   flex: 1;
 }
+.footer .toggle {
+  margin-left: auto;
+}
 .excerpt {
-  display: -webkit-box;
   margin: 0;
-  overflow: hidden;
   color: var(--muted-foreground);
   font-size: var(--text-xs);
   line-height: 1.45;
   overflow-wrap: anywhere;
-  -webkit-line-clamp: 2;
-  -webkit-box-orient: vertical;
 }
 .diff {
   display: flex;
@@ -137,26 +136,28 @@
   color: var(--destructive);
 }
 .toggle {
-  margin-left: auto;
-  min-height: calc(var(--spacing) * 6);
+  display: inline-flex;
+  min-height: 0;
   height: auto;
   flex-shrink: 0;
+  vertical-align: baseline;
   justify-content: flex-start;
   gap: var(--spacing);
   padding: 0;
   color: var(--color-accent-text);
+  font: inherit;
+  font-weight: 600;
+}
+.footer .toggle {
   font-family: var(--font-caption);
   font-size: var(--text-overline);
-}
-.card[data-detailed="true"] .footer {
-  padding-top: calc(var(--spacing) * 1.5);
 }
 @media (pointer: coarse) {
   .actions :global(button) {
     min-width: 44px;
     min-height: 44px;
   }
-  .toggle {
+  .footer .toggle {
     min-height: 44px;
   }
   .footer {

@@ -259,22 +259,22 @@ function KeywordTagInput({
   }
 
   return (
-    <div className="flex min-h-9 flex-wrap items-center gap-1.5 rounded-lg border border-input bg-background px-2 py-1 focus-within:border-ring focus-within:ring-2 focus-within:ring-ring/25">
+    <div className="flex max-h-32 min-h-9 flex-wrap items-center gap-1 overflow-y-auto rounded-lg border border-input bg-background px-2 py-1 focus-within:border-ring focus-within:ring-2 focus-within:ring-ring/25">
       {values.map((keyword) => (
         <Caption
-          className="inline-flex min-h-6 max-w-full items-center gap-1 rounded-full bg-accent pr-0.5 pl-2.5 text-primary"
+          className="inline-flex min-h-5 max-w-full items-center gap-0.5 rounded-full bg-accent pr-0.5 pl-2 text-xs text-primary"
           key={keyword}
         >
           <span className="min-w-0 [overflow-wrap:anywhere]">{keyword}</span>
           <Button
             aria-label={`Remove ${keyword}`}
-            className="size-6 rounded-full text-muted-foreground"
+            className="size-5 rounded-full text-muted-foreground"
             onClick={() => onChange(values.filter((value) => value !== keyword))}
             size="icon-xs"
             type="button"
             variant="ghost"
           >
-            <X aria-hidden="true" className="size-3" />
+            <X aria-hidden="true" className="size-2.5" />
           </Button>
         </Caption>
       ))}
@@ -370,7 +370,7 @@ function CatalogForm({
               </Muted>
             </div>
 
-            <div className="grid gap-x-5 gap-y-3 sm:grid-cols-2">
+            <div className="grid gap-x-5 gap-y-3 sm:grid-cols-[minmax(0,2fr)_minmax(0,3fr)]">
               <div className="grid min-w-0 content-start gap-1.5">
                 <FieldHeader
                   defaultValue={inheritedCategory}
@@ -397,6 +397,25 @@ function CatalogForm({
 
               <div className="grid min-w-0 content-start gap-1.5">
                 <FieldHeader
+                  count={`${seoTitle.length} / 160`}
+                  defaultValue={inherited.seoTitle}
+                  htmlFor={`${formId}-seo-title`}
+                  label="SEO title"
+                  onRevert={() => setSeoTitle("")}
+                  overridden={Boolean(seoTitle.trim())}
+                />
+                <Input
+                  aria-describedby={`${formId}-guidance`}
+                  id={`${formId}-seo-title`}
+                  maxLength={160}
+                  name="seoTitle"
+                  onChange={(event) => setSeoTitle(event.target.value)}
+                  placeholder={inherited.seoTitle || "Page title in search results"}
+                  value={seoTitle}
+                />
+              </div>
+              <div className="grid min-w-0 content-start gap-1.5 sm:col-span-2">
+                <FieldHeader
                   count={`${keywords.length} / 24`}
                   defaultValue={inherited.keywords.join(", ")}
                   htmlFor={`${formId}-keywords`}
@@ -419,45 +438,26 @@ function CatalogForm({
 
               <div className="grid min-w-0 content-start gap-1.5 sm:col-span-2">
                 <FieldHeader
-                  count={`${seoTitle.length} / 160`}
-                  defaultValue={inherited.seoTitle}
-                  htmlFor={`${formId}-seo-title`}
-                  label="SEO title"
-                  onRevert={() => setSeoTitle("")}
-                  overridden={Boolean(seoTitle.trim())}
+                  count={`${seoDescription.length} / 320`}
+                  defaultValue={inherited.seoDescription}
+                  htmlFor={`${formId}-seo-description`}
+                  label="SEO description"
+                  onRevert={() => setSeoDescription("")}
+                  overridden={Boolean(seoDescription.trim())}
                 />
-                <Input
+                <Textarea
                   aria-describedby={`${formId}-guidance`}
-                  id={`${formId}-seo-title`}
-                  maxLength={160}
-                  name="seoTitle"
-                  onChange={(event) => setSeoTitle(event.target.value)}
-                  placeholder={inherited.seoTitle || "Page title in search results"}
-                  value={seoTitle}
+                  className="min-h-[76px] resize-y py-2 [field-sizing:fixed]"
+                  id={`${formId}-seo-description`}
+                  maxLength={320}
+                  name="seoDescription"
+                  onChange={(event) => setSeoDescription(event.target.value)}
+                  placeholder={inherited.seoDescription || "Summary shown in search results"}
+                  rows={3}
+                  value={seoDescription}
                 />
               </div>
             </div>
-          </div>
-          <div className="grid min-w-0 content-start gap-1.5 md:col-span-2">
-            <FieldHeader
-              count={`${seoDescription.length} / 320`}
-              defaultValue={inherited.seoDescription}
-              htmlFor={`${formId}-seo-description`}
-              label="SEO description"
-              onRevert={() => setSeoDescription("")}
-              overridden={Boolean(seoDescription.trim())}
-            />
-            <Textarea
-              aria-describedby={`${formId}-guidance`}
-              className="min-h-[76px] resize-y py-2 [field-sizing:fixed]"
-              id={`${formId}-seo-description`}
-              maxLength={320}
-              name="seoDescription"
-              onChange={(event) => setSeoDescription(event.target.value)}
-              placeholder={inherited.seoDescription || "Summary shown in search results"}
-              rows={3}
-              value={seoDescription}
-            />
           </div>
         </form>
         <HeaderActions>

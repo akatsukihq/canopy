@@ -64,7 +64,10 @@ export class AnthropicProvider implements AIProvider {
       name: "anthropic",
       model: provider(request.model ?? this.model),
       webSearch: () => provider.tools.webSearch_20260318({ maxUses: 5 }),
-      providerOptions: {},
+      providerOptions:
+        request.effort === "max"
+          ? { anthropic: { effort: "max", thinking: { type: "adaptive", display: "summarized" } } }
+          : {},
     });
   }
 

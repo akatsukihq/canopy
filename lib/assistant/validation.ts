@@ -3,6 +3,7 @@ import { isIP } from "node:net";
 import { parseComposerContent } from "./composerDocument.ts";
 import type { JSONContent } from "@tiptap/core";
 import type { AssistantRunRequest, AssistantResult } from "./types.ts";
+import { AI_EFFORTS } from "../ai/types.ts";
 
 export class AssistantError extends Error {
   readonly code: string;
@@ -40,6 +41,8 @@ export const threadPatchSchema = z
       })
       .strict()
       .optional(),
+    /** Which retried answer to a question is shown and sent as context. */
+    activeVariant: z.object({ messageId: assistantId, runId: assistantId }).strict().optional(),
   })
   .strict();
 const runRequestSchema = z
@@ -56,6 +59,9 @@ const runRequestSchema = z
     settings: settingsSchema.optional(),
     references: z.array(z.string().max(2048)).max(5).optional(),
     attachmentIds: z.array(assistantId).max(5).optional(),
+    /** Picker choice; checked against the provider's model list when the run starts. */
+    model: z.string().trim().min(1).max(200).optional(),
+    effort: z.enum(AI_EFFORTS).optional(),
   })
   .strict();
 export function validateRunRequest(value: unknown): AssistantRunRequest {

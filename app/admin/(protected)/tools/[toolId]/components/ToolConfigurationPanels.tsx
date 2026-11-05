@@ -32,8 +32,8 @@ export function ToolIdentifier({ toolId }: { toolId: string }) {
   }
 
   return (
-    <div className="min-w-0 text-left">
-      <Overline className="block text-muted-foreground">Stable tool ID</Overline>
+    <div className="flex min-w-0 items-center gap-1.5 text-left">
+      <Overline className="shrink-0 text-muted-foreground">Tool ID</Overline>
       <div className="flex min-w-0 items-center gap-1">
         <InlineCode className="min-w-0 break-all select-all text-foreground">{toolId}</InlineCode>
         <TooltipProvider>

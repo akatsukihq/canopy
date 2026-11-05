@@ -203,6 +203,7 @@ export const blogAssistantIntegration: AssistantIntegration = {
       structuredOutput: request.operation === "agent",
     };
   },
+  agentEffort: (agentId) => getBlogAgent(agentId)?.effort,
   operationLabel(_operation, agentId) {
     return getBlogAgent(agentId)?.name ?? _operation;
   },

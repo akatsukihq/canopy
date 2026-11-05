@@ -2,15 +2,10 @@ import { appHref } from "@/lib/routing/subdomains.ts";
 import config from "@/lib/config/config.ts";
 import { db, eq, managedToolsTable, getToolContentRow, isDatabaseConfigured, type ToolContentRow } from "@/db/index.ts";
 import {
-  Accordion,
-  AccordionContent,
-  AccordionItem,
-  AccordionTrigger,
   BackButton,
   Button,
   Caption,
   H1,
-  Overline,
   StatusBadge,
   Toaster,
   Tooltip,
@@ -128,9 +123,15 @@ export default async function ToolContentPage({
                   </TooltipProvider>
                 ) : null}
               </div>
-              <Caption className="mt-1 block break-words text-muted-foreground">
-                {tool.app} / {tool.slug ?? "No public URL assigned"}
-              </Caption>
+              <div className="mt-1 flex flex-wrap items-center gap-x-3 gap-y-1">
+                <Caption className="break-words text-muted-foreground">
+                  {tool.app} / {tool.slug ?? "No public URL assigned"}
+                </Caption>
+                <StatusBadge variant={spec ? "success" : "warning"}>
+                  {spec ? "Definition deployed" : "Definition missing"}
+                </StatusBadge>
+                <ToolIdentifier toolId={tool.id} />
+              </div>
             </div>
           </div>
           {/* Slot for the definition editor draft actions; keep the id in sync with ToolDefinitionEditor. */}
@@ -188,23 +189,7 @@ export default async function ToolContentPage({
                   stored={stored}
                   toolId={tool.id}
                 />
-                <Accordion className="mt-5 border-t border-border" collapsible type="single">
-                  <AccordionItem value="technical-details">
-                    <AccordionTrigger>Technical details</AccordionTrigger>
-                    <AccordionContent className="space-y-5">
-                      <div className="flex flex-wrap items-start gap-x-12 gap-y-4">
-                        <ToolIdentifier toolId={tool.id} />
-                        <div>
-                          <Overline className="mb-1 block text-muted-foreground">Code definition</Overline>
-                          <StatusBadge variant={spec ? "success" : "warning"}>
-                            {spec ? "Deployed" : "Missing"}
-                          </StatusBadge>
-                        </div>
-                      </div>
-                      {!spec ? <DeveloperHandoff command={scaffoldCommand} /> : null}
-                    </AccordionContent>
-                  </AccordionItem>
-                </Accordion>
+                {!spec ? <DeveloperHandoff command={scaffoldCommand} /> : null}
               </div>
             ) : null}
 

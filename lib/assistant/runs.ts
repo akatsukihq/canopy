@@ -14,7 +14,8 @@ import {
   assistantAttachmentsTable as attachments,
 } from "../../db/index.ts";
 import { AIClient } from "../ai/client.ts";
-import { createAIClient } from "../config/integrations.ts";
+import { assistantModels, createAIClient } from "../config/integrations.ts";
+import { effortLevels } from "../ai/models.ts";
 import { AIError } from "../ai/errors.ts";
 import type { AIResult, AIToolCall } from "../ai/types.ts";
 import { ACTIVE_RUN_STATUSES, privateExpiry, type AssistantThreads } from "./threads.ts";
@@ -28,6 +29,7 @@ import {
   parseMessageParts,
 } from "./validation.ts";
 import type { AssistantIntegration, AssistantTransaction, StoredRun, AuxiliaryResult } from "./integration.ts";
+import { NEW_THREAD_TITLE } from "./types.ts";
 import type { AssistantMessagePart, AssistantProposal, AssistantRunRequest, AssistantEvent } from "./types.ts";
 
 export function createAssistantRuns(integration: AssistantIntegration, storage: AssistantThreads) {
@@ -87,6 +89,11 @@ export function createAssistantRuns(integration: AssistantIntegration, storage: 
     const submissionHash = digest(request);
     const client = await requireAssistantClient();
     const caps = client.getCapabilities();
+    if (request.model && request.model !== caps.model) {
+      const { models } = await assistantModels();
+      if (!models.some((model) => model.id === request.model))
+        throw new AssistantError("VALIDATION", "That model is not available. Choose another model.");
+    }
     return db.transaction(async (tx) => {
       await tx.execute(
         sql`SELECT pg_advisory_xact_lock(hashtextextended(${JSON.stringify([actor, integration.key, request.clientRequestId])},0))`,
@@ -150,21 +157,20 @@ export function createAssistantRuns(integration: AssistantIntegration, storage: 
       const existingThread = thread?.resourceId === resourceId ? thread : undefined;
       const threadId = existingThread?.id ?? randomUUID();
       let settings = request.settings ?? {};
-      const messageTitle = request.message.replace(/\s+/g, " ").slice(0, 80);
-      let titleFromFirstMessage = false;
+      let firstMessage = !existingThread;
       if (existingThread) {
         const { composerDraft: _, composerState: __, ...saved } = existingThread.settings;
         settings = { ...integration.validateSettings(saved), ...settings };
         if (!request.inputMessageId) {
-          const [firstMessage] = await tx
+          const [priorMessage] = await tx
             .select({ id: messages.id })
             .from(messages)
             .where(and(eq(messages.threadId, threadId), eq(messages.role, "user")))
             .limit(1);
-          const [firstRun] = firstMessage
+          const [firstRun] = priorMessage
             ? []
             : await tx.select({ id: runs.id }).from(runs).where(eq(runs.threadId, threadId)).limit(1);
-          titleFromFirstMessage = !firstMessage && !firstRun;
+          firstMessage = !priorMessage && !firstRun;
         }
       } else {
         settings = { ...integration.defaultSettings, ...integration.validateSettings(settings) };
@@ -174,7 +180,7 @@ export function createAssistantRuns(integration: AssistantIntegration, storage: 
           integrationKey: integration.key,
           ownerId: actor,
           type: operation.threadType,
-          title: messageTitle,
+          title: NEW_THREAD_TITLE,
           settings,
         });
       }
@@ -201,13 +207,24 @@ export function createAssistantRuns(integration: AssistantIntegration, storage: 
           .limit(1);
         if (!original || !originalRun || originalRun.operation !== request.operation)
           throw new AssistantError("NOT_FOUND", "The original message is not in this thread.", 404);
-        effective = integration.retryRequest(parseStoredRequest(originalRun.request), { ...request, settings });
+        // A retry keeps its question but runs on the model and effort picked now.
+        const { model: _model, effort: _effort, ...asked } = parseStoredRequest(originalRun.request);
+        effective = {
+          ...integration.retryRequest(asked, { ...request, settings }),
+          ...(request.model ? { model: request.model } : {}),
+          ...(request.effort ? { effort: request.effort } : {}),
+        };
         effective = integration.validateRequest({
           ...effective,
           schemaVersion: 1,
           resourceId: resourceId ?? undefined,
           threadId,
         });
+        // A retry becomes the shown answer: the newest variant wins once no choice is pinned.
+        await tx
+          .update(messages)
+          .set({ meta: sql`${messages.meta} - 'activeRunId'` })
+          .where(eq(messages.id, inputMessageId));
       }
       const selected = await attachmentsForRun(
         tx,
@@ -286,7 +303,7 @@ export function createAssistantRuns(integration: AssistantIntegration, storage: 
           operation: request.operation,
           executionMode: operation.executionMode,
           provider: client.provider,
-          model: caps.model,
+          model: effective.model ?? caps.model,
           status: "queued",
           request: effective,
           expiresAt: privateExpiry(),
@@ -300,13 +317,14 @@ export function createAssistantRuns(integration: AssistantIntegration, storage: 
       await tx
         .update(threads)
         .set({
-          ...(titleFromFirstMessage ? { title: messageTitle } : {}),
           updatedAt: new Date(),
         })
         .where(eq(threads.id, threadId));
       return {
         run,
         fresh: true,
+        // An unnamed thread gets its title from the fast title model on its first message.
+        needsTitle: firstMessage && (existingThread?.title ?? NEW_THREAD_TITLE) === NEW_THREAD_TITLE,
         attachments: referenceAttachments.map((file) => attachmentView({ ...file, messageId: inputMessageId ?? null })),
       };
     });
@@ -327,6 +345,8 @@ export function createAssistantRuns(integration: AssistantIntegration, storage: 
                   sql`${messages.id} <> ${run.inputMessageId}`,
                   sql`(${messages.runId} IS NULL OR (${messages.runId} <> ${run.id} AND EXISTS (SELECT 1 FROM assistant_runs complete WHERE complete.id = ${messages.runId} AND complete.status = 'completed' AND complete.expires_at > now())))`,
                   sql`NOT EXISTS (SELECT 1 FROM assistant_runs excluded WHERE excluded.thread_id = ${run.threadId} AND excluded.execution_mode = 'standalone' AND (excluded.id = ${messages.runId} OR excluded.input_message_id = ${messages.id}))`,
+                  // Only the shown answer to each question is context; a retry never sees its earlier variants.
+                  sql`NOT EXISTS (SELECT 1 FROM assistant_runs variant WHERE variant.id = ${messages.runId} AND variant.input_message_id IS NOT NULL AND (variant.input_message_id = ${run.inputMessageId} OR variant.id::text <> coalesce((SELECT chosen.meta->>'activeRunId' FROM assistant_messages chosen WHERE chosen.id = variant.input_message_id), (SELECT latest.id::text FROM assistant_runs latest WHERE latest.input_message_id = variant.input_message_id AND latest.status = 'completed' AND latest.expires_at > now() ORDER BY latest.created_at DESC LIMIT 1))))`,
                   sql`NOT EXISTS (SELECT 1 FROM assistant_runs expired WHERE expired.thread_id = ${run.threadId} AND expired.input_message_id = ${messages.id} AND expired.expires_at <= now() AND NOT EXISTS (SELECT 1 FROM assistant_runs fresh WHERE fresh.input_message_id = expired.input_message_id AND fresh.expires_at > now()))`,
                 ),
               )
@@ -483,7 +503,9 @@ export function createAssistantRuns(integration: AssistantIntegration, storage: 
 
   /** NDJSON keeps SDK/provider details behind the shared AI client. */
   async function streamRun(actor: string, input: unknown, requestSignal: AbortSignal): Promise<Response> {
-    const { run, fresh, attachments: inputAttachments } = await startRun(actor, input);
+    const started = await startRun(actor, input);
+    const { run, fresh, attachments: inputAttachments } = started;
+    const needsTitle = "needsTitle" in started && started.needsTitle;
     const abort = new AbortController();
     let providerComplete = false;
     const onAbort = () => {
@@ -504,6 +526,7 @@ export function createAssistantRuns(integration: AssistantIntegration, storage: 
           }
         };
         let auxiliaryWork: Promise<AuxiliaryResult | undefined> | undefined;
+        let titleWork: Promise<{ title?: string; usage?: AIResult["usage"] }> | undefined;
         const auxiliaryAbort = new AbortController();
         const cancelAuxiliary = () => auxiliaryAbort.abort();
         abort.signal.addEventListener("abort", cancelAuxiliary, { once: true });
@@ -538,12 +561,24 @@ export function createAssistantRuns(integration: AssistantIntegration, storage: 
               integration.auxiliary?.(run, auxiliaryAbort.signal, (tx) => authorizeRun(tx, run.ownerId, run.id)),
             )
             .catch(() => undefined);
+          // The title runs beside the reply on the fast model; it never fails or delays the run beyond its cap.
+          titleWork =
+            needsTitle && run.threadId
+              ? threadTitle(run, run.threadId, AbortSignal.any([abort.signal, AbortSignal.timeout(10_000)]))
+              : undefined;
           const proposals: AssistantProposal[] = [];
           const providerRequest = await integration.buildRequest({ run, ...context, proposals, signal: abort.signal });
           providerRequest.metadata = { ...providerRequest.metadata, feature: integration.key, runId: run.id };
+          providerRequest.model ??= run.model;
+          const levels = effortLevels(run.provider, providerRequest.model);
+          const wanted = run.request.effort ?? integration.agentEffort?.(run.request.agentId) ?? "medium";
+          // A level the model lacks (Max on Haiku) falls back to its highest one.
+          if (levels.length) providerRequest.effort ??= levels.includes(wanted) ? wanted : levels.at(-1);
           for await (const event of (await createAIClient(run.provider)).stream(providerRequest)) {
             if (event.type === "text-delta") {
               if (!providerRequest.schema) emit(event);
+            } else if (event.type === "reasoning-delta") {
+              emit(event);
             } else if (event.type === "output") {
               const text = integration.partialText?.(event.output, run.request);
               if (text !== undefined) emit({ type: "text", text });
@@ -573,8 +608,12 @@ export function createAssistantRuns(integration: AssistantIntegration, storage: 
                 .set({ continuation: sql`${runs.continuation} || '{"resultReceived":true}'::jsonb` })
                 .where(eq(runs.id, run.id));
               auxiliaryAbort.abort();
-              const auxiliaryResult = await auxiliaryWork;
-              completedRun = await finishRun(run.id, event.result, proposals, auxiliaryResult);
+              const [auxiliaryResult, titled] = await Promise.all([auxiliaryWork, titleWork]);
+              if (titled?.title) emit({ type: "title", title: titled.title });
+              completedRun = await finishRun(run.id, event.result, proposals, {
+                ...auxiliaryResult,
+                usage: combinedUsage(auxiliaryResult?.usage, titled?.usage),
+              });
               for (const proposal of completedRun.response?.proposals ?? []) emit({ type: "proposal", proposal });
               emit({ type: "completed", run: runView(completedRun) });
             }
@@ -582,7 +621,8 @@ export function createAssistantRuns(integration: AssistantIntegration, storage: 
           if (!providerComplete) throw new Error("The provider stream ended without a final result.");
         } catch (error) {
           auxiliaryAbort.abort();
-          const auxiliaryResult = await auxiliaryWork;
+          const [auxiliaryResult, titled] = await Promise.all([auxiliaryWork, titleWork]);
+          if (titled?.title) emit({ type: "title", title: titled.title });
           const message =
             abort.signal.aborted && !providerComplete
               ? "Request cancelled."
@@ -592,6 +632,7 @@ export function createAssistantRuns(integration: AssistantIntegration, storage: 
           const usage = combinedUsage(
             receivedResult?.usage ?? (error instanceof AIError ? error.usage : undefined),
             auxiliaryResult?.usage,
+            titled?.usage,
           );
           const [failed] = await db
             .update(runs)
@@ -660,6 +701,37 @@ export function createAssistantRuns(integration: AssistantIntegration, storage: 
         "X-Accel-Buffering": "no",
       },
     });
+  }
+
+  /** Names the thread with the fast title model; leaves it unnamed on failure and never overwrites a rename. */
+  async function threadTitle(run: StoredRun, threadId: string, signal: AbortSignal) {
+    let result: AIResult | undefined;
+    try {
+      const client = await createAIClient(run.provider, "title");
+      result = await client.generate({
+        model: client.model,
+        signal,
+        messages: [
+          {
+            role: "system",
+            content:
+              "Write a short title, at most six words, for a conversation that starts with the user's message. Return only the title, without quotes or a final full stop.",
+          },
+          { role: "user", content: run.request.message.slice(0, 2000) },
+        ],
+        metadata: { feature: `${integration.key}-thread-title`, runId: run.id },
+      });
+      const title = result.text.trim().replace(/^["'“]+|["'”.]+$/g, "").replace(/\s+/g, " ").slice(0, 80);
+      if (!title || signal.aborted || result.status !== "completed") return { usage: result.usage };
+      const [saved] = await db
+        .update(threads)
+        .set({ title })
+        .where(and(eq(threads.id, threadId), eq(threads.title, NEW_THREAD_TITLE)))
+        .returning({ id: threads.id });
+      return { title: saved ? title : undefined, usage: result.usage };
+    } catch (error) {
+      return { usage: result?.usage ?? (error instanceof AIError ? error.usage : undefined) };
+    }
   }
 
   async function cleanupCompletedResponses(run: StoredRun) {

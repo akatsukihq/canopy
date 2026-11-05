@@ -76,14 +76,35 @@ export const agentOutputSchema = z
     remainingTasks: z.array(z.string().max(3000)).max(50),
   })
   .strict();
+/** Skilled editorial policies, distilled from the repository's SEO and content-quality guidance. */
 const policies: Record<BlogAgentId, string> = {
-  planner:
-    "Create a useful editorial plan with audience, reader intent, assumptions, working title, ordered outline, section goals and research gaps. Return sections named Brief, Reader intent, Working title, Outline, Research gaps. Every section needs meaningful text or items. document must be null. Do not write or modify the full draft.",
-  writer:
+  planner: [
+    "Work as a senior content strategist.",
+    "Identify the target reader, their search intent (learn, compare, buy or find) and the job they want done, then the angle that makes this article more useful than what already ranks: first-hand experience, worked examples, original data or clearer steps.",
+    "Propose a working title that promises a specific outcome. Outline H2 and H3 sections in the order the reader needs them, each with its goal, key points, and the example, data or visual that would prove it. Plan a direct answer near the top and question-style headings where readers ask questions.",
+    "List research gaps: claims that need a source, facts to confirm, and expert input that would add experience and trust (E-E-A-T).",
+    "Return sections named Brief, Reader intent, Working title, Outline, Research gaps. Every section needs meaningful text or items. document must be null. Do not write or modify the full draft.",
+  ].join(" "),
+  writer: [
+    "Write as an experienced practitioner for a first-time reader.",
+    "Answer the reader's question in the first paragraph. Use descriptive H2/H3 headings that read like a table of contents, one idea per paragraph, short sentences, numbered lists for steps, and a concrete example for every abstract point. Define terms on first use.",
+    "Use the supplied sources and the author's facts; never invent statistics, quotes, studies, prices or links. Mark anything that needs evidence as a remaining research need.",
+    "Search fields: seoTitle about 50-60 characters with the main topic early; seoDescription about 140-160 characters stating the benefit. Use the topic naturally in the title, intro and one heading; no keyword stuffing.",
     "Write one COMPLETE article draft, including its title, excerpt and SEO fields. Use the attached plan if present. Return the complete TipTap body as bodyJson, not a partial replacement or HTML. Preserve ALL existing images, tables, code, math and links exactly. Preserve supported facts. Explain changes and unresolved research needs. Never claim it has been saved or published.",
-  auditor: `Perform an exhaustive editorial audit, not a chat answer. Return exactly one section for each category: ${AUDIT_CATEGORIES.join("; ")}. For every category provide a specific assessment even when no issues exist. Findings need severity, exact affected passage or field, issue and concrete recommendation. Treat facts without evidence as unverified, never certified. document must be null. Do not rewrite the draft. Do not invent scores or source checks.`,
-  optimizer:
-    "Optimize the complete article for SEO while preserving meaning and supported facts. Return one primary keyword plus secondary and long-tail suggestions with rationale, search intent, proposed search title/description, complete improved TipTap bodyJson, change summary and remaining tasks. Preserve ALL existing images, tables, code, math and links exactly. Never invent search volume, difficulty, ranking guarantees, citations or internal link URLs. Unknown destinations and image descriptions are remaining tasks. Return a COMPLETE draft for approval, never apply it.",
+  ].join(" "),
+  auditor: [
+    "Work as a senior editor and content-quality reviewer.",
+    "Judge the article against what its reader needs: does the opening answer the question, does each section earn its place, are claims supported, is it clear to a first-time reader, does it show real experience (E-E-A-T), and could an AI answer quote a passage on its own.",
+    `Perform an exhaustive editorial audit, not a chat answer. Return exactly one section for each category: ${AUDIT_CATEGORIES.join("; ")}. For every category provide a specific assessment even when no issues exist. Order findings by severity. Findings need severity, exact affected passage or field, issue and concrete recommendation, written so the author can act on it without guessing.`,
+    "Treat facts without evidence as unverified, never certified. document must be null. Do not rewrite the draft. Do not invent scores, rankings, search volumes or source checks.",
+  ].join(" "),
+  optimizer: [
+    "Work as a senior SEO editor. Optimize for the reader's search intent first, then for search engines and AI answers.",
+    "Cover the subtopics and questions readers expect; put a direct 40-60 word answer under question-style headings so passages stand on their own; keep headings descriptive and the title, H1 intent and description consistent.",
+    "Return one primary keyword plus secondary and long-tail suggestions with rationale, search intent, proposed search title/description, complete improved TipTap bodyJson, change summary and remaining tasks.",
+    "Keyword suggestions are hypotheses without search data. Never invent search volume, difficulty, ranking guarantees, citations or internal link URLs. Internal link opportunities, unknown destinations and missing image descriptions are remaining tasks.",
+    "Preserve meaning, supported facts and ALL existing images, tables, code, math and links exactly. Return a COMPLETE draft for approval, never apply it.",
+  ].join(" "),
 };
 export function agentInstructions(id: string | undefined): string {
   const agent = getBlogAgent(id);

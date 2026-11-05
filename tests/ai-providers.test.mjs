@@ -4,7 +4,7 @@ vi.mock("server-only", () => ({}));
 
 import { AIClient } from "@/lib/ai/client.ts";
 import { AIError } from "@/lib/ai/errors.ts";
-import { AI_PROVIDERS, listModels } from "@/lib/ai/models.ts";
+import { AI_PROVIDERS, effortLevels, listModels, pickerModels } from "@/lib/ai/models.ts";
 
 const KEY = "sk-secret-fixture-key";
 const ENV = ["OPENAI_API_KEY", "ANTHROPIC_API_KEY", "ANTHROPIC_MODEL"];
@@ -171,4 +171,114 @@ test("OpenAI-compatible generate posts chat completions to the base URL", async 
   expect(result.text).toBe("Hi");
   expect(calls[0].url).toBe("http://localhost:11434/v1/chat/completions");
   expect(JSON.parse(calls[0].options.body).model).toBe("llama-3");
+});
+
+test("each model offers only the efforts it accepts", () => {
+  expect(effortLevels("anthropic", "claude-opus-5-5")).toEqual(["low", "medium", "high", "xhigh", "max"]);
+  expect(effortLevels("anthropic", "claude-haiku-5-5")).toEqual(["low", "medium", "high"]);
+  expect(effortLevels("anthropic", "claude-3-5-haiku-latest")).toEqual([]);
+  expect(effortLevels("openai", "gpt-5.6-terra")).toEqual(["low", "medium", "high"]);
+  expect(effortLevels("openai", "gpt-4.1")).toEqual([]);
+  expect(effortLevels("openai", "gpt-6.1-sol")).toEqual(["low", "medium", "high"]);
+  expect(effortLevels("openai", "gpt-5-chat-latest")).toEqual([]);
+  expect(effortLevels("compatible", "o4-mini")).toEqual([]);
+});
+
+test("the assistant picker offers a short, readable model list", () => {
+  const anthropic = pickerModels(
+    "anthropic",
+    [
+      { id: "claude-3-5-haiku-20241022", name: "Claude Haiku 3.5" },
+      { id: "claude-opus-4-8", name: "Claude Opus 4.8" },
+      { id: "claude-opus-5", name: "Claude Opus 5" },
+      { id: "claude-opus-5-5", name: "Claude Opus 5.5" },
+      { id: "claude-sonnet-5-5", name: "Claude Sonnet 5.5" },
+      { id: "claude-sonnet-5-5-20260901", name: "Claude Sonnet 5.5" },
+    ],
+    "claude-opus-4-8",
+  );
+  // Newest Opus versions, snapshots and Claude 3 dropped.
+  expect(anthropic.map((model) => model.name)).toEqual([
+    "Claude Opus 5.5",
+    "Claude Opus 5",
+    "Claude Opus 4.8",
+    "Claude Sonnet 5.5",
+  ]);
+  const openai = pickerModels("openai", [{ id: "gpt-4.1" }, { id: "gpt-5.6-terra" }, { id: "o3" }], "gpt-5.6-terra");
+  expect(openai).toEqual([{ id: "gpt-5.6-terra", name: "GPT-5.6 Terra", efforts: ["low", "medium", "high"] }]);
+  expect(pickerModels("compatible", [{ id: "llama-3" }], "llama-3")).toEqual([{ id: "llama-3", name: "llama-3", efforts: [] }]);
+});
+
+test("Anthropic effort turns on readable thinking and streams it as reasoning", async () => {
+  const sse = [
+    ["message_start", { type: "message_start", message: { id: "msg_t", type: "message", role: "assistant", model: "claude-sonnet-5", content: [], stop_reason: null, usage: { input_tokens: 1, output_tokens: 0 } } }],
+    ["content_block_start", { type: "content_block_start", index: 0, content_block: { type: "thinking", thinking: "", signature: "" } }],
+    ["content_block_delta", { type: "content_block_delta", index: 0, delta: { type: "thinking_delta", thinking: "Checking the title length." } }],
+    ["content_block_delta", { type: "content_block_delta", index: 0, delta: { type: "signature_delta", signature: "sig" } }],
+    ["content_block_stop", { type: "content_block_stop", index: 0 }],
+    ["content_block_start", { type: "content_block_start", index: 1, content_block: { type: "text", text: "" } }],
+    ["content_block_delta", { type: "content_block_delta", index: 1, delta: { type: "text_delta", text: "Done." } }],
+    ["content_block_stop", { type: "content_block_stop", index: 1 }],
+    ["message_delta", { type: "message_delta", delta: { stop_reason: "end_turn", stop_sequence: null }, usage: { output_tokens: 5 } }],
+    ["message_stop", { type: "message_stop" }],
+  ]
+    .map(([event, data]) => `event: ${event}\ndata: ${JSON.stringify(data)}\n\n`)
+    .join("");
+  mockFetch(() => new Response(sse, { headers: { "content-type": "text/event-stream" } }));
+  const events = [];
+  for await (const event of new AIClient("anthropic", { apiKey: KEY, model: "claude-sonnet-5" }).stream({
+    messages: [{ role: "user", content: "Hi" }],
+    effort: "high",
+  }))
+    events.push(event);
+  const body = JSON.parse(calls[0].options.body);
+  expect(body.thinking).toMatchObject({ type: "adaptive", display: "summarized" });
+  expect(body.output_config).toMatchObject({ effort: "high" });
+  expect(events.filter((event) => event.type === "reasoning-delta").map((event) => event.text)).toEqual([
+    "Checking the title length.",
+  ]);
+  expect(events.at(-1)).toMatchObject({ type: "completed", result: { text: "Done." } });
+});
+
+test("requests without effort leave the provider's reasoning settings alone", async () => {
+  mockFetch(() =>
+    json({
+      id: "msg_fixture",
+      type: "message",
+      role: "assistant",
+      model: "claude-sonnet-5",
+      content: [{ type: "text", text: "Hi" }],
+      stop_reason: "end_turn",
+      stop_sequence: null,
+      usage: { input_tokens: 1, output_tokens: 1 },
+    }),
+  );
+  await new AIClient("anthropic", { apiKey: KEY, model: "claude-sonnet-5" }).generate({
+    messages: [{ role: "user", content: "Hi" }],
+  });
+  const body = JSON.parse(calls[0].options.body);
+  expect(body.thinking).toBeUndefined();
+  expect(body.output_config?.effort).toBeUndefined();
+});
+
+test("Max effort reaches Anthropic as its own effort with readable thinking", async () => {
+  mockFetch(() =>
+    json({
+      id: "msg_fixture",
+      type: "message",
+      role: "assistant",
+      model: "claude-opus-5",
+      content: [{ type: "text", text: "Hi" }],
+      stop_reason: "end_turn",
+      stop_sequence: null,
+      usage: { input_tokens: 1, output_tokens: 1 },
+    }),
+  );
+  await new AIClient("anthropic", { apiKey: KEY, model: "claude-opus-5" }).generate({
+    messages: [{ role: "user", content: "Hi" }],
+    effort: "max",
+  });
+  const body = JSON.parse(calls[0].options.body);
+  expect(body.thinking).toMatchObject({ type: "adaptive", display: "summarized" });
+  expect(body.output_config).toMatchObject({ effort: "max" });
 });

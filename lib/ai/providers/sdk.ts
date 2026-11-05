@@ -204,6 +204,9 @@ export function sdkOptions(
     ...(request.schema ? { output: Output.object({ schema: request.schema }) } : {}),
     stopWhen: stepCountIs(5),
     maxRetries: 0,
+    // The SDK maps this per provider: Anthropic adaptive thinking, OpenAI reasoning effort + summary.
+    // It has no generic "max"; providers that offer it set it in providerOptions.
+    ...(request.effort && request.effort !== "max" ? { reasoning: request.effort } : {}),
     abortSignal: request.signal,
     providerOptions: provider.providerOptions,
   };
@@ -265,6 +268,7 @@ export async function* streamEvents(
         handleSent = true;
       }
       if (part.type === "text-delta") yield { type: "text-delta", text: part.text };
+      else if (part.type === "reasoning-delta" && part.text) yield { type: "reasoning-delta", text: part.text };
       else if (part.type === "tool-call")
         yield { type: "tool-call", call: { id: part.toolCallId, name: part.toolName, input: part.input } };
       else if (part.type === "tool-result")

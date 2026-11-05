@@ -2,6 +2,8 @@
 export const BLOG_AGENTS = [
   {
     id: "planner",
+    /** Default reasoning effort when the picker is left on its default. */
+    effort: "medium",
     name: "Planner",
     command: "/plan",
     description: "Plan the topic, structure and outline.",
@@ -10,6 +12,7 @@ export const BLOG_AGENTS = [
   },
   {
     id: "writer",
+    effort: "medium",
     name: "Writer",
     command: "/write",
     description: "Preview a complete draft before applying.",
@@ -18,6 +21,7 @@ export const BLOG_AGENTS = [
   },
   {
     id: "auditor",
+    effort: "high",
     name: "Auditor",
     command: "/audit",
     description: "Find issues and suggest improvements.",
@@ -26,6 +30,7 @@ export const BLOG_AGENTS = [
   },
   {
     id: "optimizer",
+    effort: "high",
     name: "Optimizer",
     command: "/optimize",
     description: "Suggest keywords and preview SEO edits.",

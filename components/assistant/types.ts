@@ -1,3 +1,4 @@
+import type { AIEffort } from "@/lib/ai/types";
 import type { LucideIcon } from "lucide-react";
 import type {
   AssistantAttachment,
@@ -15,6 +16,8 @@ export type AssistantAgent = {
   description: string;
   requiresContext?: boolean;
   icon?: LucideIcon;
+  /** Reasoning effort the server uses for this agent unless the user picks one. */
+  effort?: AIEffort;
 };
 export type ReportSection = {
   heading: string;
@@ -79,7 +82,18 @@ export type AssistantIntegrationUI = {
   launchTitle: string;
   placeholder: string;
   enabled: boolean;
-  launchActions: Array<{ agentId: string; label: string; description: string; instruction?: string; icon: LucideIcon }>;
+  /** Without an agent, a launch action only drafts its instruction into the composer. */
+  launchActions: Array<{
+    agentId?: string;
+    label: string;
+    description: string;
+    instruction?: string;
+    icon: LucideIcon;
+  }>;
+  /** False hides the attach menu for integrations that read only their own data. */
+  attachments?: boolean;
+  /** Things the admin can name with `@`; picking one inserts `@id` into the message. */
+  mentions?: readonly { id: string; label: string; description?: string }[];
   markdown?: { minimumHeadingLevel?: 1 | 2; breaks?: boolean };
   contextProblem: (agentId: string | undefined, message: string, includeContext: boolean) => string;
   prepareRequest: (input: {

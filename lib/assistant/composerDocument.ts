@@ -2,7 +2,7 @@ import type { JSONContent } from "@tiptap/core";
 import { safeLink } from "../content/links.ts";
 
 const BLOCKS = new Set(["paragraph", "bulletList", "orderedList"]);
-const INLINE = new Set(["text", "hardBreak", "agentMention"]);
+const INLINE = new Set(["text", "hardBreak", "agentMention", "fieldMention"]);
 const MARKS = new Set(["bold", "italic", "strike", "code", "link"]);
 const object = (value: unknown): value is Record<string, unknown> =>
   typeof value === "object" && value !== null && !Array.isArray(value);
@@ -36,6 +36,10 @@ export function parseComposerContent(input: unknown): JSONContent | undefined {
       if (type === "agentMention") {
         if (++agents > 1 || !attrs || typeof attrs.agentId !== "string" || attrs.agentId.length > 100) return false;
         if (Object.keys(attrs).some((key) => key !== "agentId")) return false;
+      } else if (type === "fieldMention") {
+        if (!attrs || Object.keys(attrs).some((key) => key !== "id" && key !== "label")) return false;
+        if (typeof attrs.id !== "string" || !/^[\w.-]{1,500}$/.test(attrs.id)) return false;
+        if (typeof attrs.label !== "string" || !attrs.label || attrs.label.length > 500) return false;
       } else if (type === "orderedList") {
         if (attrs && Object.keys(attrs).some((key) => key !== "start" && key !== "type")) return false;
         if (attrs?.start !== undefined && (!Number.isSafeInteger(attrs.start) || Number(attrs.start) < 1)) return false;
