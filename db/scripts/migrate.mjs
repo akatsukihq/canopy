@@ -2,12 +2,15 @@ import config from "../../lib/config/config.ts";
 import publicConfig from "../../lib/config/public.ts";
 import { readFile, readdir } from "node:fs/promises";
 import { config as loadEnv } from "dotenv";
+import { existsSync } from "node:fs";
+import { parseArgs } from "node:util";
 import pg from "pg";
 
-const [folder, ...extra] = process.argv.slice(2);
-if (!folder || extra.length || !/^[a-zA-Z0-9][a-zA-Z0-9_-]*$/.test(folder)) {
-  throw new Error("Usage: pnpm db:migrate <folder>");
-}
+const usage = "Usage: pnpm db:migrate <folder> [--env local|<name>]  (<name> loads .env.<name>)";
+const { values, positionals } = parseArgs({ allowPositionals: true, options: { env: { type: "string", default: "local" } } });
+const [folder, ...extra] = positionals;
+if (!folder || extra.length || !/^[a-zA-Z0-9][a-zA-Z0-9_-]*$/.test(folder)) throw new Error(usage);
+if (!/^[a-z][a-z0-9-]*$/.test(values.env)) throw new Error(usage);
 const root = new URL("../migration/", import.meta.url);
 const folders = await readdir(root, { withFileTypes: true });
 if (!folders.some((entry) => entry.name === folder && entry.isDirectory())) {
@@ -23,12 +26,22 @@ const migrations = await Promise.all(
   names.map(async (name) => [name, await readFile(new URL(encodeURIComponent(name), directory), "utf8")]),
 );
 
-// Plain Node needs dotenv; shell variables take precedence over local files.
-for (const file of [".env.local", ".env"]) {
-  loadEnv({ path: new URL(`../../${file}`, import.meta.url), override: false });
+// Plain Node needs dotenv. Local: shell variables win over .env.local/.env.
+// A named env loads only .env.<name> and wins over the shell, so a DATABASE_URL
+// exported for local work can never redirect a prod run.
+if (values.env === "local") {
+  for (const file of [".env.local", ".env"]) {
+    loadEnv({ path: new URL(`../../${file}`, import.meta.url), override: false, quiet: true });
+  }
+} else {
+  const path = new URL(`../../.env.${values.env}`, import.meta.url);
+  if (!existsSync(path)) throw new Error(`Missing env file: .env.${values.env}`);
+  loadEnv({ path, override: true, quiet: true });
 }
 const databaseUrl = config.databaseUrl;
-if (!databaseUrl) throw new Error("DATABASE_URL is required");
+if (!databaseUrl) throw new Error(`DATABASE_URL is required (env: ${values.env})`);
+const target = URL.canParse(databaseUrl) ? new URL(databaseUrl) : null;
+console.log(`Env ${values.env}: migrating ${target ? `${target.hostname}${target.pathname}` : "database"}`);
 const client = new pg.Client({ connectionString: databaseUrl, connectionTimeoutMillis: 30_000 });
 
 try {
