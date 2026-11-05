@@ -9,6 +9,8 @@ WORKDIR /app
 
 FROM base AS dependencies
 COPY package.json pnpm-lock.yaml pnpm-workspace.yaml ./
+# Every workspace manifest must be here, or `pnpm build` sees stale deps and reinstalls.
+COPY --parents packages/*/package.json ./
 RUN --mount=type=cache,id=pnpm,target=/pnpm/store \
     pnpm install --store-dir /pnpm/store --frozen-lockfile
 
