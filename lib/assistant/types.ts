@@ -135,7 +135,13 @@ export type AssistantEvent =
 export type AssistantAvailability = {
   enabled: boolean;
   provider: string;
-  capabilities: { images: boolean; structuredOutput: boolean; webSearch: boolean; urlRetrieval: boolean };
+  capabilities: {
+    images: boolean;
+    structuredOutput: boolean;
+    webSearch: boolean;
+    urlRetrieval: boolean;
+    imageGeneration?: boolean;
+  };
   reason?: string;
 };
 /** Models the composer picker offers; `effort` marks models that accept a reasoning effort. */

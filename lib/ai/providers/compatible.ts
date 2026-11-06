@@ -34,6 +34,7 @@ export class CompatibleProvider implements AIProvider {
       webSearch: false,
       urlRetrieval: false,
       tools: true,
+      imageGeneration: false,
     };
   }
 

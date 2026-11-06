@@ -13,6 +13,7 @@ import {
   type TextStreamPart,
 } from "ai";
 import { AIError, normalizeAIError } from "../errors.ts";
+import { logError } from "../../observability/logger.ts";
 import type { AICitation, AIHandle, AIMessage, AIRequest, AIResult, AIStreamEvent } from "../types.ts";
 
 /** Shared Vercel AI SDK adapter code for providers that run through `generateText`/`streamText`. */
@@ -91,7 +92,12 @@ export function resultFromSteps(
     },
   };
   // A failed hosted search is reported through searchStatus, not as a failed caller tool.
-  if (steps.some((step) => step.content.some((part) => part.type === "tool-error" && part.toolName !== "web_search"))) {
+  const toolErrors = steps.flatMap((step) =>
+    step.content.flatMap((part) => (part.type === "tool-error" && part.toolName !== "web_search" ? [part] : [])),
+  );
+  for (const part of toolErrors)
+    logError("ai.tool_failed", part.error, { provider, toolName: part.toolName, ...(request.metadata ?? {}) });
+  if (toolErrors.length) {
     result.status = "failed";
     result.error = { code: "TOOL_FAILED", message: "An AI tool could not complete. Try again." };
   } else if (["length", "error", "content-filter"].includes(final.finishReason)) {

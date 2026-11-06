@@ -17,6 +17,7 @@ import { AIClient } from "../ai/client.ts";
 import { assistantModels, createAIClient } from "../config/integrations.ts";
 import { effortLevels } from "../ai/models.ts";
 import { AIError } from "../ai/errors.ts";
+import { log, logError } from "../observability/logger.ts";
 import type { AIResult, AIToolCall } from "../ai/types.ts";
 import type { AssistantStageRequest } from "./integration.ts";
 import { ACTIVE_RUN_STATUSES, privateExpiry, type AssistantThreads } from "./threads.ts";
@@ -187,6 +188,8 @@ export function createAssistantRuns(integration: AssistantIntegration, storage: 
       }
       if (settings.webSearch && !caps.webSearch)
         throw new AssistantError("CAPABILITY", "The selected provider does not support source searches.");
+      if (settings.images && !caps.imageGeneration)
+        throw new AssistantError("CAPABILITY", "The selected provider cannot generate images.");
       let effective: AssistantRunRequest = {
         ...request,
         schemaVersion: 1,
@@ -532,6 +535,9 @@ export function createAssistantRuns(integration: AssistantIntegration, storage: 
         let receivedResult: AIResult | undefined;
         /** Usage of earlier completed stages of a multi-stage run. */
         let stageUsage: AIResult["usage"];
+        /** Sources and search outcome of earlier stages (e.g. a researching planner). */
+        let stageCitations: AIResult["citations"] = [];
+        let stageSearch: AIResult["searchStatus"];
         try {
           emit({
             type: "run",
@@ -574,15 +580,17 @@ export function createAssistantRuns(integration: AssistantIntegration, storage: 
             signal: abort.signal,
           });
           const client = await createAIClient(run.provider);
+          /** A user cancel flips the stored status; later stages check it before starting. */
+          const stopIfCancelled = async () => {
+            const [current] = await db.select({ status: runs.status }).from(runs).where(eq(runs.id, run.id));
+            if (!current || !ACTIVE_RUN_STATUSES.some((status) => status === current.status)) abort.abort();
+            abort.signal.throwIfAborted();
+          };
           // Multi-stage integrations chain agents; each stage's result builds the next, the last one finishes the run.
           for (let index = 0; providerRequest; index++) {
             const stage: AssistantStageRequest = providerRequest;
             providerRequest = undefined;
-            if (index > 0) {
-              const [current] = await db.select({ status: runs.status }).from(runs).where(eq(runs.id, run.id));
-              if (!current || !ACTIVE_RUN_STATUSES.some((status) => status === current.status)) abort.abort();
-              abort.signal.throwIfAborted();
-            }
+            if (index > 0) await stopIfCancelled();
             stage.metadata = { ...stage.metadata, feature: integration.key, runId: run.id };
             stage.model ??= run.model;
             stage.signal ??= abort.signal;
@@ -623,8 +631,19 @@ export function createAssistantRuns(integration: AssistantIntegration, storage: 
                 providerRequest = stage.next?.(event.result);
                 if (providerRequest) {
                   stageUsage = combinedUsage(stageUsage, event.result.usage);
+                  stageCitations = [...stageCitations, ...event.result.citations];
+                  if (event.result.searchStatus && event.result.searchStatus !== "not_requested")
+                    stageSearch = event.result.searchStatus;
                   receivedResult = undefined;
                   continue;
+                }
+                let finalResult = event.result;
+                if (stage.finalize) {
+                  await stopIfCancelled();
+                  emit({ type: "step", index: index + 1, label: stage.finalize.stage });
+                  await db.update(runs).set({ updatedAt: new Date() }).where(eq(runs.id, run.id));
+                  finalResult = await stage.finalize.run(event.result, abort.signal);
+                  abort.signal.throwIfAborted();
                 }
                 providerComplete = true;
                 await db
@@ -636,7 +655,15 @@ export function createAssistantRuns(integration: AssistantIntegration, storage: 
                 if (titled?.title) emit({ type: "title", title: titled.title });
                 completedRun = await finishRun(
                   run.id,
-                  { ...event.result, usage: combinedUsage(stageUsage, event.result.usage) },
+                  {
+                    ...finalResult,
+                    usage: combinedUsage(stageUsage, finalResult.usage),
+                    citations: [...stageCitations, ...finalResult.citations],
+                    searchStatus:
+                      finalResult.searchStatus && finalResult.searchStatus !== "not_requested"
+                        ? finalResult.searchStatus
+                        : (stageSearch ?? finalResult.searchStatus),
+                  },
                   proposals,
                   {
                     ...auxiliaryResult,
@@ -653,6 +680,22 @@ export function createAssistantRuns(integration: AssistantIntegration, storage: 
           auxiliaryAbort.abort();
           const [auxiliaryResult, titled] = await Promise.all([auxiliaryWork, titleWork]);
           if (titled?.title) emit({ type: "title", title: titled.title });
+          const cancelled =
+            (abort.signal.aborted && !providerComplete) || (error instanceof AIError && error.code === "CANCELLED");
+          const failure = {
+            runId: run.id,
+            integration: integration.key,
+            operation: run.operation,
+            provider: run.provider,
+            model: receivedResult?.model ?? run.model,
+            providerResponseId: receivedResult?.id,
+          };
+          if (cancelled) log("info", "assistant.run_cancelled", failure);
+          else
+            logError("assistant.run_failed", error, {
+              ...failure,
+              aiCode: error instanceof AIError ? error.code : undefined,
+            });
           const message =
             abort.signal.aborted && !providerComplete
               ? "Request cancelled."
@@ -668,10 +711,7 @@ export function createAssistantRuns(integration: AssistantIntegration, storage: 
           const [failed] = await db
             .update(runs)
             .set({
-              status:
-                (abort.signal.aborted && !providerComplete) || (error instanceof AIError && error.code === "CANCELLED")
-                  ? "cancelled"
-                  : "failed",
+              status: cancelled ? "cancelled" : "failed",
               ...(usage ? { usage } : {}),
               errorMessage: message,
               completedAt: new Date(),

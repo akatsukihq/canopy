@@ -4,7 +4,7 @@ import { appHref } from "@/lib/routing/subdomains.ts";
 import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { ChevronDown, Sparkles } from "lucide-react";
-import { Button, H1, Input, Label, Select, Textarea, toast } from "@/components/ui/index.tsx";
+import { Button, Checkbox, H1, Input, Label, Select, Textarea, toast } from "@/components/ui/index.tsx";
 import type { AssistantAvailability, AssistantRun, AssistantRunRequest } from "@/lib/assistant/types";
 import {
   activeRun,
@@ -88,7 +88,7 @@ function restoreRequest(value: unknown): AssistantRunRequest | null {
   if (
     request.settings &&
     Object.entries(request.settings).some(([key, value]) =>
-      key === "webSearch"
+      key === "webSearch" || key === "images"
         ? typeof value !== "boolean"
         : !["language", "tone", "length", "keyword", "audience"].includes(key) || typeof value !== "string",
     )
@@ -110,6 +110,8 @@ export function BlogGenerationForm({
   const router = useRouter();
   const [brief, setBrief] = useState(EMPTY);
   const [customize, setCustomize] = useState(false);
+  const [webSearch, setWebSearch] = useState(false);
+  const [images, setImages] = useState(true);
   const [availability, setAvailability] = useState<AssistantAvailability | null>(null);
   const [availabilityAttempt, setAvailabilityAttempt] = useState(0);
   const [availabilityError, setAvailabilityError] = useState("");
@@ -172,6 +174,8 @@ export function BlogGenerationForm({
     clearSubmission();
     setRun(next);
     setBrief(briefFromRequest(next.request));
+    setWebSearch(next.request.settings?.webSearch === true);
+    setImages(next.request.settings?.images === true);
     setConnectionError("");
   }
 
@@ -213,6 +217,8 @@ export function BlogGenerationForm({
       if (!submission.current) sessionStorage.removeItem(`${storagePrefix}request`);
       if (submission.current) {
         setBrief(briefFromRequest(submission.current));
+        setWebSearch(submission.current.settings?.webSearch === true);
+        setImages(submission.current.settings?.images === true);
         setRecovering(true);
         setConnectionError("An earlier submission needs a status check. Retry checks that same request.");
       }
@@ -324,7 +330,8 @@ export function BlogGenerationForm({
         length: brief.length,
         keyword: brief.keyword,
         audience: brief.audience,
-        webSearch: false,
+        webSearch: webSearch && !!availability?.capabilities.webSearch,
+        images: images && !!availability?.capabilities.imageGeneration,
       },
       references,
       ...(run?.resourceId
@@ -563,9 +570,27 @@ export function BlogGenerationForm({
               className={`text-caption ${referenceError ? "text-destructive" : "text-muted-foreground"}`}
             >
               {referenceError ||
-                "Up to five public HTTPS links, one per line. Web access is off; these references have not been read."}
+                (webSearch
+                  ? "Up to five public HTTPS links, one per line. The planner reads them during research."
+                  : "Up to five public HTTPS links, one per line. Web research is off; these references have not been read.")}
             </p>
           </div>
+          {availability?.capabilities.webSearch && (
+            <Checkbox
+              checked={webSearch}
+              onCheckedChange={(checked) => setWebSearch(checked === true)}
+              label="Research the web before writing"
+              description="The planner searches for current facts and sources, and the article cites only what it read. Takes longer."
+            />
+          )}
+          {availability?.capabilities.imageGeneration && (
+            <Checkbox
+              checked={images}
+              onCheckedChange={(checked) => setImages(checked === true)}
+              label="Generate images"
+              description="A media agent creates a cover image and up to three section images. Each image is a paid AI call and adds about 20 seconds."
+            />
+          )}
         </div>
       </fieldset>
       {connectionError && (

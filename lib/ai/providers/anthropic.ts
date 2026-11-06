@@ -55,6 +55,7 @@ export class AnthropicProvider implements AIProvider {
       // ponytail: web fetch tool not wired; add anthropic.tools.webFetch_20260318 when a caller needs URL retrieval.
       urlRetrieval: false,
       tools: true,
+      imageGeneration: false,
     };
   }
 

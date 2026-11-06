@@ -459,3 +459,46 @@ test("run requests accept a picked model and a supported effort only", () => {
   expect(() => validateSharedRequest({ ...base, effort: "extreme" })).toThrow();
   expect(() => validateSharedRequest({ ...base, model: "" })).toThrow();
 });
+test("generated media becomes the cover and section images; malformed media is dropped", () => {
+  const image = (id) => ({
+    media: {
+      v: 1,
+      provider: "cloudinary",
+      format: "webp",
+      width: 1536,
+      height: 1024,
+      uploadedAt: "2026-11-05T00:00:00.000Z",
+      entry: { cloudName: "demo", publicId: `smarttools/blog/${id}`, version: 1 },
+    },
+    alt: "A developer reviewing a deployment checklist",
+    caption: "",
+  });
+  const article = {
+    title: "Deploy safely",
+    excerpt: "How to ship.",
+    blocks: [
+      { type: "paragraph", text: "Intro.", level: null, items: [] },
+      { type: "heading", text: "Plan the release", level: 2, items: [] },
+      { type: "paragraph", text: "Write the plan.", level: null, items: [] },
+    ],
+    seoTitle: "Deploy safely",
+    seoDescription: "How to ship.",
+    keywords: ["deploy"],
+  };
+  const media = [
+    { placement: "cover", heading: "", image: image("11111111-1111-4111-8111-111111111111") },
+    { placement: "section", heading: "Plan the release", image: image("22222222-2222-4222-8222-222222222222") },
+    { placement: "section", heading: "Missing heading", image: image("33333333-3333-4333-8333-333333333333") },
+    { placement: "section", heading: "Plan the release", image: { media: { publicId: "../escape" } } },
+  ];
+  const generate = { ...request, operation: "generate" };
+  const { document, response } = validateAssistantResult(result({ ...article, media, mediaRequested: 3 }), generate);
+  expect(document.coverImage.media.entry.publicId).toContain("11111111");
+  const types = document.body.content.map((node) => node.type);
+  expect(types).toEqual(["paragraph", "heading", "image", "paragraph"]);
+  expect(response.text).toMatch(/3 AI-generated images|of 3 planned/);
+  // Without media the article is unchanged and no image note is added.
+  const plain = validateAssistantResult(result(article), generate);
+  expect(plain.document.coverImage ?? null).toBeNull();
+  expect(plain.response.text).not.toMatch(/image/i);
+});

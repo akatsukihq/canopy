@@ -4,6 +4,7 @@ import { createHmac, randomUUID, timingSafeEqual } from "node:crypto";
 import { v2 as cloudinary } from "cloudinary";
 import { db } from "../../db/index.ts";
 import { AuthorizationError } from "../admin/index.ts";
+import { logError } from "../observability/logger.ts";
 import { cloudinaryFolder } from "../cloudinary/paths.ts";
 import { requireTransactionPermission, writeAudit } from "../admin/adminMutations.ts";
 import { BlogValidationError, validateBlogImage, type BlogImage } from "./document.ts";
@@ -236,4 +237,64 @@ export async function completeBlogImageUpload(actorUserId: string, input: unknow
       "The image reached storage but could not be recorded. Wait a moment, then retry the image upload.",
     );
   }
+}
+
+/** Stores an AI-generated image (server-side upload; no browser round trip) and records it in the audit log. */
+export async function storeGeneratedBlogImage(
+  actorUserId: string,
+  input: { data: Uint8Array; mimeType: string; alt: string; caption: string },
+): Promise<BlogImage> {
+  const format = { "image/jpeg": "jpg", "image/png": "png", "image/webp": "webp" }[input.mimeType];
+  if (!format || input.data.byteLength < 1 || input.data.byteLength > MAX_IMAGE_BYTES)
+    throw new BlogImageUploadError("UPLOAD_REJECTED", "The generated image is not a JPEG, PNG or WebP under 5 MiB.");
+  await authorizeUpload(actorUserId);
+  const { cloudName, apiKey, apiSecret } = await credentials();
+  const folder = cloudinaryFolder("blog");
+  const publicId = `${folder}/${randomUUID()}`;
+  let uploaded: { public_id: string; version: number; format: string; width: number; height: number; bytes: number };
+  try {
+    uploaded = await cloudinary.uploader.upload(
+      `data:${input.mimeType};base64,${Buffer.from(input.data).toString("base64")}`,
+      {
+        public_id: publicId,
+        asset_folder: folder,
+        type: "upload",
+        overwrite: false,
+        allowed_formats: ["jpg", "jpeg", "png", "webp"],
+        cloud_name: cloudName,
+        api_key: apiKey,
+        api_secret: apiSecret,
+      },
+    );
+  } catch (error) {
+    logError("blog.image_generated_upload_failed", error, { actorUserId, publicId });
+    throw new BlogImageUploadError("UPLOAD_TEMPORARY_FAILURE", "Image storage did not accept the generated image.");
+  }
+  const image = validateBlogImage({
+    media: {
+      v: 1,
+      provider: "cloudinary",
+      format: uploaded.format,
+      width: uploaded.width,
+      height: uploaded.height,
+      bytes: uploaded.bytes,
+      uploadedAt: new Date().toISOString(),
+      entry: { cloudName, publicId: uploaded.public_id, version: uploaded.version },
+    },
+    alt: input.alt.trim().slice(0, 500),
+    caption: input.caption.trim().slice(0, 1000),
+  });
+  await db.transaction(async (transaction) => {
+    await requireTransactionPermission(transaction, actorUserId, "blog", "edit");
+    const { entry, width, height } = image.media;
+    await writeAudit(transaction, actorUserId, "blog.image.generate", "blog-image", entry.publicId, {
+      cloudName: entry.cloudName,
+      publicId: entry.publicId,
+      version: entry.version,
+      format: image.media.format,
+      width,
+      height,
+    });
+  });
+  return image;
 }

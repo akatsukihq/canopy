@@ -9,6 +9,7 @@ export type BlogRequestSettings = {
   keyword?: string;
   audience?: string;
   webSearch?: boolean;
+  images?: boolean;
 };
 export type BlogAssistantContext = {
   selectedText?: string;

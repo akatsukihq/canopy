@@ -25,6 +25,8 @@ export type AssistantStageRequest = AIRequest & {
   /** Plain-language step label shown while this agent works. */
   stage?: string;
   next?: (result: AIResult) => AssistantStageRequest | undefined;
+  /** Server work after the last agent (e.g. generating media); returns the result that completes the run. */
+  finalize?: { stage: string; run: (result: AIResult, signal: AbortSignal) => Promise<AIResult> };
 };
 
 export interface AssistantIntegration {

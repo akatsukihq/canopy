@@ -1,12 +1,19 @@
 "use client";
 
-import { Check, Circle, LoaderCircle } from "lucide-react";
+import { Check, ChevronRight, Circle, LoaderCircle } from "lucide-react";
 import { Button, H1 } from "@/components/ui/index.tsx";
 import type { AssistantRun } from "@/lib/assistant/types";
 import { activeRun } from "@/lib/assistant/client";
 
-/** Matches the server agent chain in lib/blog/generationAgents.ts. */
-const AGENT_STEPS = ["Planning the article", "Writing the complete article", "Removing AI writing patterns"];
+/** Matches the server agent chain in lib/blog/generationAgents.ts and generationMedia.ts. */
+function agentSteps(settings: Record<string, unknown> = {}) {
+  return [
+    settings.webSearch ? "Researching and planning the article" : "Planning the article",
+    "Writing the complete article",
+    "Removing AI writing patterns",
+    ...(settings.images ? ["Planning images for the article", "Generating images"] : []),
+  ];
+}
 
 export function BlogGenerationProgress({
   run,
@@ -75,7 +82,7 @@ export function BlogGenerationProgress({
       <ol className="mt-6 divide-y divide-border">
         {[
           { label: "Draft created", ready: !!run?.resourceId, working: streaming && !run?.resourceId, reasoning: "" },
-          ...AGENT_STEPS.map((label) => {
+          ...agentSteps(run?.request.settings).map((label) => {
             const started = steps.findIndex((step) => step.label === label);
             const later = steps.some((step, position) => position > started && started >= 0);
             return {
@@ -111,8 +118,14 @@ export function BlogGenerationProgress({
               </span>
             </div>
             {stage.reasoning && (
-              <details className="mt-2 ml-7" open={stage.working}>
-                <summary className="cursor-pointer text-caption text-muted-foreground">Agent thinking</summary>
+              <details className="group/think mt-2 ml-7" open={stage.working}>
+                <summary className="flex w-fit cursor-pointer list-none items-center gap-1 text-caption text-muted-foreground [&::-webkit-details-marker]:hidden">
+                  <ChevronRight
+                    className="size-3.5 shrink-0 transition-transform group-open/think:rotate-90 motion-reduce:transition-none"
+                    aria-hidden="true"
+                  />
+                  Agent thinking
+                </summary>
                 <p className="mt-2 max-h-48 overflow-y-auto whitespace-pre-wrap break-words text-caption text-muted-foreground">
                   {stage.reasoning}
                 </p>

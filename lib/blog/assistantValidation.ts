@@ -4,7 +4,9 @@ import {
   validateBlogDocument,
   createBlogDocument,
   blogDocumentText,
+  validateBlogImage,
   type BlogDocument,
+  type BlogImage,
   type BlogNode,
 } from "./document.ts";
 import type { BlogAssistantRequest, BlogProposal, BlogResultData } from "./assistantTypes.ts";
@@ -24,6 +26,8 @@ export const settingsSchema = z
     keyword: z.string().trim().max(200).optional(),
     audience: z.string().trim().max(300).optional(),
     webSearch: z.boolean().optional(),
+    /** Generate a cover and inline images with the media agent (provider must support image generation). */
+    images: z.boolean().optional(),
   })
   .strict();
 const contextSchema = z
@@ -120,6 +124,16 @@ export const sectionEditToolSchema = z
     placement: z.string().trim().min(1).max(200),
     originalText: z.string().max(12000),
     blocks: z.array(blockSchema).max(300),
+  })
+  .strict();
+export const imageToolSchema = z
+  .object({
+    title: z.string().trim().min(1).max(160),
+    placement: z.string().trim().min(1).max(200),
+    originalText: z.string().max(12000),
+    prompt: z.string().trim().min(1).max(2000),
+    alt: z.string().trim().min(1).max(200),
+    caption: z.string().max(300),
   })
   .strict();
 export const seoToolSchema = z.object({ seoTitle: z.string().max(160), seoDescription: z.string().max(320) }).strict();
@@ -244,6 +258,19 @@ export function validatedProposal(
     },
   };
 }
+/** Generated images attached by the media agent; anything malformed is dropped rather than failing the draft. */
+function generatedMedia(input: unknown): Array<{ placement: "cover" | "section"; heading: string; image: BlogImage }> {
+  if (!Array.isArray(input)) return [];
+  return input.flatMap((entry) => {
+    try {
+      const { placement, heading, image } = entry as Record<string, unknown>;
+      if ((placement !== "cover" && placement !== "section") || typeof heading !== "string") return [];
+      return [{ placement, heading, image: validateBlogImage(image) }];
+    } catch {
+      return [];
+    }
+  });
+}
 export function validateAssistantResult(
   result: AIResult,
   request: BlogAssistantRequest,
@@ -283,17 +310,39 @@ export function validateAssistantResult(
     }
   }
   if (request.operation === "generate") {
-    const article = generationSchema.parse(value);
+    // The media agent's server step appends stored images; they are not model output.
+    const { media, mediaRequested, ...rest } =
+      value && typeof value === "object" ? (value as Record<string, unknown>) : ({} as Record<string, unknown>);
+    const article = generationSchema.parse(value && typeof value === "object" ? rest : value);
+    const generated = generatedMedia(media);
+    const nodes = blocksToNodes(article.blocks);
+    // Insert from the end so earlier indexes stay valid; each image goes right after its H2.
+    for (const item of generated.filter((entry) => entry.placement === "section").reverse()) {
+      const index = article.blocks.findIndex(
+        (block) => block.type === "heading" && (block.level ?? 2) === 2 && block.text === item.heading,
+      );
+      if (index >= 0)
+        nodes.splice(index + 1, 0, { type: "image", attrs: { ...item.image, displayWidth: 100, alignment: "center" } });
+    }
+    const cover = generated.find((entry) => entry.placement === "cover");
     const document = validateBlogDocument({
       ...createBlogDocument(article.title),
       excerpt: article.excerpt,
-      body: { type: "doc", content: blocksToNodes(article.blocks) },
+      body: { type: "doc", content: nodes },
       seoTitle: article.seoTitle,
       seoDescription: article.seoDescription,
+      ...(cover ? { coverImage: cover.image } : {}),
     });
     if (!blogDocumentText(document))
       throw new AssistantError("INVALID_OUTPUT", "Generated article was empty. Try again.", 422);
-    response.text = "Draft generated. Review the article before publishing.";
+    const requested = typeof mediaRequested === "number" ? mediaRequested : 0;
+    response.text =
+      "Draft generated. Review the article before publishing." +
+      (requested
+        ? generated.length === requested
+          ? ` ${generated.length} AI-generated image${generated.length === 1 ? "" : "s"} added; review them too.`
+          : ` ${generated.length} of ${requested} planned images were generated; add the rest in the editor if needed.`
+        : "");
     response.data.keywords = article.keywords;
     return { response, document };
   }

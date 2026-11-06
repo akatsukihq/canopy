@@ -23,8 +23,12 @@
   font-size: var(--text-heading-4);
   line-height: var(--text-heading-4--line-height);
   font-weight: 400;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 .assistantHeaderActions {
+  flex-shrink: 0;
   display: flex;
   align-items: center;
   gap: 0;

@@ -50,6 +50,7 @@ function plain(nodes: JSONContent[]): string {
     .map((node) => {
       if (node.type === "text") return node.text ?? "";
       if (node.type === "hardBreak") return "\n";
+      if (node.type === "image") return `[Image: ${String(node.attrs?.alt ?? "")}]\n`;
       const text = plain(node.content ?? []);
       return ["paragraph", "heading", "codeBlock", "listItem"].includes(node.type ?? "") ? `${text}\n` : text;
     })

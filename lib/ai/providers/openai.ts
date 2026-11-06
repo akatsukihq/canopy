@@ -1,12 +1,22 @@
 import "server-only";
 import { createOpenAI } from "@ai-sdk/openai";
-import { generateText } from "ai";
+import { generateImage, generateText } from "ai";
 import OpenAI, { toFile } from "openai";
 import { z } from "zod";
 import config from "@/lib/config/config.ts";
 import { AIError } from "../errors.ts";
-import type { AICapabilities, AIFileInput, AIProvider, AIRequest, AIResult, AIStreamEvent } from "../types.ts";
+import type {
+  AICapabilities,
+  AIFileInput,
+  AIImageInput,
+  AIProvider,
+  AIRequest,
+  AIResult,
+  AIStreamEvent,
+} from "../types.ts";
 import { fileId, resultFromSteps, sdkOptions, streamEvents, type SearchEvidence } from "./sdk.ts";
+
+const IMAGE_MODEL = "gpt-image-2";
 
 function responseId(id: string) {
   if (!/^resp_[A-Za-z0-9_-]+$/.test(id)) throw new AIError("VALIDATION", "Invalid AI response reference.", 400);
@@ -66,6 +76,7 @@ export class OpenAIProvider implements AIProvider {
       webSearch: true,
       urlRetrieval: true,
       tools: true,
+      imageGeneration: true,
     };
   }
 
@@ -133,6 +144,18 @@ export class OpenAIProvider implements AIProvider {
     if (typeof file.id !== "string" || typeof file.bytes !== "number")
       throw new AIError("INVALID_OUTPUT", "The AI provider did not return a valid file reference.");
     return { id: fileId(file.id), provider: "openai", filename: file.filename, sizeBytes: file.bytes };
+  }
+  async generateImage(input: AIImageInput) {
+    const { image } = await generateImage({
+      model: createOpenAI({ apiKey: this.key() }).image(IMAGE_MODEL),
+      prompt: input.prompt,
+      size: input.size,
+      abortSignal: input.signal,
+      maxRetries: 1,
+      // WebP keeps generated images well under the 5 MiB blog image limit.
+      providerOptions: { openai: { quality: "medium", outputFormat: "webp", outputCompression: 85 } },
+    });
+    return { data: image.uint8Array, mimeType: image.mediaType || "image/webp" };
   }
   async deleteFile(id: string) {
     try {

@@ -5,7 +5,7 @@ import type { AIProviderName } from "./models.ts";
 import { AnthropicProvider } from "./providers/anthropic.ts";
 import { CompatibleProvider } from "./providers/compatible.ts";
 import { OpenAIProvider } from "./providers/openai.ts";
-import type { AIFileInput, AIProvider, AIRequest, AIStreamEvent } from "./types.ts";
+import type { AIFileInput, AIImageInput, AIProvider, AIRequest, AIStreamEvent } from "./types.ts";
 
 const providers: Record<AIProviderName, (options: AIClientOptions) => AIProvider> = {
   openai: (options) => new OpenAIProvider(options.model, options.apiKey),
@@ -107,5 +107,12 @@ export class AIClient {
   }
   deleteFile(id: string) {
     return this.operation(() => this.adapter.deleteFile(id));
+  }
+  generateImage(input: AIImageInput) {
+    const generate = this.adapter.generateImage?.bind(this.adapter);
+    if (!generate || !this.getCapabilities().imageGeneration)
+      throw new AIError("CAPABILITY", "The selected AI provider cannot generate images.", 400);
+    if (!input.prompt.trim()) throw new AIError("VALIDATION", "Provide an image prompt.", 400);
+    return this.operation(() => generate(input));
   }
 }

@@ -57,8 +57,12 @@ export type AICapabilities = {
   webSearch: boolean;
   urlRetrieval: boolean;
   tools: boolean;
+  /** Can create images from a text prompt (generateImage). */
+  imageGeneration: boolean;
 };
 export type AIFileInput = { data: Uint8Array; filename: string; mimeType: string };
+export type AIImageInput = { prompt: string; size: `${number}x${number}`; signal?: AbortSignal };
+export type AIImage = { data: Uint8Array; mimeType: string };
 export type AIFile = { id: string; provider: string; filename: string; sizeBytes: number };
 
 /** Internal provider contract. Feature callers use AIClient instead. */
@@ -70,4 +74,5 @@ export interface AIProvider {
   deleteResponse(id: string): Promise<void>;
   uploadFile(input: AIFileInput): Promise<AIFile>;
   deleteFile(id: string): Promise<void>;
+  generateImage?(input: AIImageInput): Promise<AIImage>;
 }
