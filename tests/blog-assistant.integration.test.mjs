@@ -540,7 +540,17 @@ test.skipIf(!url)("streamed blog conversations persist messages and preserve req
     "agents save one immutable thread artifact, isolate chat, and enforce private attachment scope",
     async () => {
       const thread = await assistant.createThread("a", post.id, {});
-      const { AUDIT_CATEGORIES } = await import("../lib/blog/agentRegistry.ts");
+      // The seeded Auditor's schema requires exactly these categories, in order.
+      const AUDIT_CATEGORIES = [
+        "Structure",
+        "Clarity and readability",
+        "Depth and completeness",
+        "Evidence and accuracy",
+        "Tone and audience",
+        "Grammar and style",
+        "Accessibility",
+        "On-page SEO",
+      ];
       const document = {
         ...post.draftDocument,
         body: { type: "doc", content: [{ type: "paragraph", content: [{ type: "text", text: "Article content" }] }] },
@@ -554,7 +564,6 @@ test.skipIf(!url)("streamed blog conversations persist messages and preserve req
           items: [],
           findings: [],
         })),
-        document: null,
         keywords: [],
         searchIntent: "",
         changes: [],
@@ -614,7 +623,7 @@ test.skipIf(!url)("streamed blog conversations persist messages and preserve req
       assert.equal(run.inputMessageId, null);
       assert.equal(run.assistantMessageId, null);
       assert.equal(run.response.text, "");
-      assert.equal(run.response.artifact.agentId, "auditor");
+      assert.equal(run.response.artifact.agentId, "agent-auditor");
       assert.equal(JSON.stringify(providerRequests.at(-1).messages).includes("Private ordinary chat context"), false);
       const stored = (await pool.query("SELECT * FROM assistant_attachments WHERE run_id=$1", [run.id])).rows;
       assert.equal(stored.length, 1);
@@ -680,7 +689,7 @@ test.skipIf(!url)("streamed blog conversations persist messages and preserve req
       assert.equal(detail.messages.length, 2);
       const library = await assistant.listThreadAttachments("a", post.id, thread.id, "artifacts");
       assert.equal(library.attachments[0].data.artifact, undefined);
-      assert.equal(library.attachments[0].data.artifactSummary.agentId, "auditor");
+      assert.equal(library.attachments[0].data.artifactSummary.agentId, "agent-auditor");
       assert.equal((await assistant.listThreadAttachments("a", post.id, thread.id, "sources")).attachments.length, 1);
       assert.equal(
         (await assistant.getThreadAttachment("a", post.id, thread.id, stored[0].id)).attachment.data.artifact.content
@@ -722,7 +731,7 @@ test.skipIf(!url)("streamed blog conversations persist messages and preserve req
       assert.deepEqual(restored.thread.composerState.content, richDraft);
       assert.equal(
         restored.attachments.find((item) => item.id === stored[0].id).data.artifactSummary.agentId,
-        "auditor",
+        "agent-auditor",
       );
       assert.equal(restored.attachments.find((item) => item.id === stored[0].id).data.artifact, undefined);
       await complete(request({ threadId: thread.id, attachmentIds: [stored[0].id] }));

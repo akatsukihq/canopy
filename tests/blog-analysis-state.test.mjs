@@ -43,8 +43,10 @@ test("approved replacement preserves unrelated fields and rejects stale or unsup
   expect(replacement.tags).toEqual([]);
   expect(document.title).toBe("Original");
   expect(() => agentReplacement(artifact, { ...document, seoTitle: "Changed" })).toThrow(/changed/);
-  expect(() => agentReplacement({ ...artifact, agentId: "auditor" }, current)).toThrow(/no supported draft/);
-  expect(supportedArtifact({ ...artifact, agentVersion: 2 })).toBe(false);
+  const { document: _draft, ...report } = artifact.content;
+  expect(() => agentReplacement({ ...artifact, content: report }, current)).toThrow(/no supported draft/);
+  expect(supportedArtifact({ ...artifact, agentVersion: 1.5 })).toBe(false);
+  expect(supportedArtifact({ ...artifact, schemaVersion: 2 })).toBe(false);
 });
 
 test("TipTap default attributes and normalized server JSON have identical freshness and undo comparisons", async () => {

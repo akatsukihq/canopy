@@ -5,16 +5,6 @@ import { Button, H1 } from "@/components/ui/index.tsx";
 import type { AssistantRun } from "@/lib/assistant/types";
 import { activeRun } from "@/lib/assistant/client";
 
-/** Matches the server agent chain in lib/blog/generationAgents.ts and generationMedia.ts. */
-function agentSteps(settings: Record<string, unknown> = {}) {
-  return [
-    settings.webSearch ? "Researching and planning the article" : "Planning the article",
-    "Writing the complete article",
-    "Removing AI writing patterns",
-    ...(settings.images ? ["Planning images for the article", "Generating images"] : []),
-  ];
-}
-
 export function BlogGenerationProgress({
   run,
   brief,
@@ -82,18 +72,18 @@ export function BlogGenerationProgress({
       <ol className="mt-6 divide-y divide-border">
         {[
           { label: "Draft created", ready: !!run?.resourceId, working: streaming && !run?.resourceId, reasoning: "" },
-          ...agentSteps(run?.request.settings).map((label) => {
-            const started = steps.findIndex((step) => step.label === label);
-            const later = steps.some((step, position) => position > started && started >= 0);
+          // The configured generation agent decides its steps; each appears as the server starts it.
+          ...steps.map((step, index) => {
+            const later = index < steps.length - 1;
             return {
-              label,
-              ready: completed || (started >= 0 && later),
-              working: streaming && started >= 0 && !later,
-              reasoning: steps[started]?.reasoning ?? "",
+              label: step.label,
+              ready: completed || later,
+              working: streaming && !later,
+              reasoning: step.reasoning,
             };
           }),
-        ].map((stage) => (
-          <li key={stage.label} className="py-4">
+        ].map((stage, index) => (
+          <li key={index} className="py-4">
             <div
               className={`flex items-center gap-3 text-sm ${stage.ready ? "text-foreground" : stage.working ? "text-primary" : "text-muted-foreground"}`}
             >

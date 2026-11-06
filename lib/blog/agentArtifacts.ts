@@ -1,7 +1,6 @@
 import { z } from "zod";
 import { safeLink } from "../content/links.ts";
 import type { BlogNode, BlogDocument } from "./document.ts";
-import { getBlogAgent } from "./agentCatalog.ts";
 
 export type BlogArtifactContent = {
   sections?: Array<{
@@ -16,11 +15,14 @@ export type BlogArtifactContent = {
   changes?: string[];
   remainingTasks?: string[];
   citations?: Array<{ url: string; title: string }>;
+  /** Output fields without a dedicated view (custom agent schemas), shown as labelled values. */
+  fields?: Record<string, unknown>;
 };
 export type BlogArtifact = {
   schemaVersion: 1;
+  /** The configured agent's id and the version that produced this result. */
   agentId: string;
-  agentVersion: 1;
+  agentVersion: number;
   summary: string;
   content: BlogArtifactContent;
   inputArtifactIds: string[];
@@ -175,13 +177,29 @@ const artifactContent = z
     changes: z.array(z.string()).optional(),
     remainingTasks: z.array(z.string()).optional(),
     citations: z.array(z.object({ url: z.string(), title: z.string() }).strict()).optional(),
+    fields: z.record(z.string(), z.unknown()).optional(),
   })
   .strict();
+const KNOWN_FIELDS = ["sections", "keywords", "searchIntent", "changes", "remainingTasks"] as const;
+
+/** Splits structured output into fields with a dedicated view and everything else (kept as `fields`). */
+export function agentArtifactContent(output: Record<string, unknown>): BlogArtifactContent {
+  const content: BlogArtifactContent = {};
+  const fields: Record<string, unknown> = {};
+  for (const [key, value] of Object.entries(output)) {
+    const known = (KNOWN_FIELDS as readonly string[]).includes(key)
+      ? artifactContent.safeParse({ [key]: value })
+      : undefined;
+    if (known?.success) Object.assign(content, known.data);
+    else if (value !== undefined) fields[key] = value;
+  }
+  return Object.keys(fields).length ? { ...content, fields } : content;
+}
 const artifactEnvelope = z
   .object({
     schemaVersion: z.literal(1),
     agentId: z.string(),
-    agentVersion: z.literal(1),
+    agentVersion: z.number().int().positive(),
     summary: z.string(),
     content: artifactContent,
     inputArtifactIds: z.array(z.string()),
@@ -189,12 +207,11 @@ const artifactEnvelope = z
   })
   .strict();
 export function supportedArtifact(value: unknown): value is BlogArtifact {
-  const parsed = artifactEnvelope.safeParse(value);
-  return parsed.success && !!getBlogAgent(parsed.data.agentId);
+  return artifactEnvelope.safeParse(value).success;
 }
 
 export function agentReplacement(artifact: BlogArtifact, current: BlogDocument): BlogDocument {
-  if (!supportedArtifact(artifact) || !artifact.content.document || !["writer", "optimizer"].includes(artifact.agentId))
+  if (!supportedArtifact(artifact) || !artifact.content.document)
     throw new Error("This result has no supported draft to apply.");
   if (!artifact.baseDocumentFingerprint || agentDocumentFingerprint(current) !== artifact.baseDocumentFingerprint)
     throw new Error("The draft changed since this result was created. Run the agent again against the current draft.");

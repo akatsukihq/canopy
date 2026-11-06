@@ -1,13 +1,13 @@
 "use client";
 import { useEffect, useRef, useReducer } from "react";
 import type { Editor, JSONContent } from "@tiptap/core";
-import { NotebookPen, ListChecks, ScanSearch, ScanText, Sparkles, SquarePen } from "lucide-react";
+import { Bot, NotebookPen, ListChecks, ScanSearch, ScanText, Sparkles, SquarePen, type LucideIcon } from "lucide-react";
 import { toast } from "@/components/ui/index.tsx";
 import type { BlogDocument, BlogNode } from "@/lib/blog/document";
 import type { AssistantRun, AssistantProposal, AssistantRunRequest } from "@/lib/assistant/types";
 import type { BlogAssistantContext, BlogProposalData, BlogResultData } from "@/lib/blog/assistantTypes";
-import type { AssistantIntegrationUI, ReportModel, ChangeModel } from "@/components/assistant/types";
-import { BLOG_AGENTS } from "@/lib/blog/agentCatalog";
+import type { AssistantIntegrationUI, ReportModel, ReportSection, ChangeModel } from "@/components/assistant/types";
+import type { AgentSummary } from "@/lib/agents/types";
 import {
   supportedArtifact,
   agentDocumentFingerprint,
@@ -22,6 +22,7 @@ import {
   findAssistantPassage,
   assistantBodyMatches,
 } from "./assistantSelection";
+/** Starting points; each names an agent by key and is shown only while that agent is enabled. */
 const LAUNCH_ACTIONS = [
   { agentId: "planner", label: "Plan & write", description: "Turn an idea into a first draft", icon: NotebookPen },
   {
@@ -45,6 +46,61 @@ const LAUNCH_ACTIONS = [
       "Review this draft for originality and source attribution using the attached references. Flag matching passages, missing citations, and claims that need verification. Clearly state what could not be checked; do not claim a comprehensive plagiarism scan.",
   },
 ];
+const AGENT_ICONS: Record<string, LucideIcon> = {
+  planner: NotebookPen,
+  writer: SquarePen,
+  auditor: ScanSearch,
+  optimizer: Sparkles,
+};
+/** The usual next agent for a result, by agent key. */
+const HANDOFF: Record<string, { key: string; instruction: string }> = {
+  planner: { key: "writer", instruction: "Write a complete article using this plan." },
+  auditor: { key: "optimizer", instruction: "Optimize this blog using the attached audit." },
+};
+const LABELS: Record<string, string> = { searchIntent: "Search intent", remainingTasks: "Remaining tasks" };
+/** A readable label for an output field name such as `readingLevel` → "Reading level". */
+function fieldLabel(key: string): string {
+  const words = key
+    .replace(/[_-]+/g, " ")
+    .replace(/([a-z0-9])([A-Z])/g, "$1 $2")
+    .trim()
+    .toLowerCase();
+  return LABELS[key] ?? (words ? words[0].toUpperCase() + words.slice(1) : key);
+}
+const scalar = (value: unknown) =>
+  typeof value === "boolean" ? (value ? "Yes" : "No") : value === null || value === undefined ? "None" : String(value);
+/** One output field without a dedicated view, rendered as plain labelled values. */
+function fieldSection(key: string, value: unknown): ReportSection {
+  const heading = fieldLabel(key);
+  if (!Array.isArray(value)) {
+    if (value && typeof value === "object")
+      return {
+        heading,
+        entries: Object.entries(value).map(([name, entry]) => ({
+          title: fieldLabel(name),
+          text: entry && typeof entry === "object" ? JSON.stringify(entry) : scalar(entry),
+        })),
+      };
+    return { heading, text: scalar(value) };
+  }
+  if (value.every((item) => !item || typeof item !== "object")) return { heading, items: value.map(scalar) };
+  return {
+    heading,
+    entries: value.map((item, index) => {
+      const fields = item && typeof item === "object" ? Object.entries(item as Record<string, unknown>) : [];
+      const [first, ...rest] = fields;
+      return {
+        title: first && typeof first[1] !== "object" ? scalar(first[1]) : `Item ${index + 1}`,
+        text: (first && typeof first[1] !== "object" ? rest : fields)
+          .map(
+            ([name, entry]) =>
+              `${fieldLabel(name)}: ${entry && typeof entry === "object" ? JSON.stringify(entry) : scalar(entry)}`,
+          )
+          .join("\n"),
+      };
+    }),
+  };
+}
 function plain(nodes: JSONContent[]): string {
   return nodes
     .map((node) => {
@@ -94,6 +150,7 @@ export function readableArtifact(artifact: BlogArtifact) {
     ...(content.changes ?? []),
     ...(content.remainingTasks ?? []),
     ...(content.citations ?? []).map((citation) => `${citation.title}: ${citation.url}`),
+    ...Object.entries(content.fields ?? {}).map(([key, value]) => `${fieldLabel(key)}: ${JSON.stringify(value)}`),
   ]
     .filter(Boolean)
     .join("\n\n");
@@ -120,19 +177,30 @@ function report(artifact: BlogArtifact): ReportModel {
         : []),
       ...(content.changes?.length ? [{ heading: "Proposed changes", items: content.changes }] : []),
       ...(content.remainingTasks?.length ? [{ heading: "Remaining tasks", items: content.remainingTasks }] : []),
+      ...Object.entries(content.fields ?? {}).map(([key, value]) => fieldSection(key, value)),
       ...(content.citations?.length ? [{ heading: "Evidence", links: content.citations }] : []),
+      ...(content.fields
+        ? [
+            {
+              heading: "Raw result",
+              code: { language: "json", value: JSON.stringify({ ...content, document: undefined }, null, 2) },
+            },
+          ]
+        : []),
     ],
   };
 }
 export function useBlogAssistantIntegration({
   editor,
   document,
+  agents,
   onReplaceDocument,
   onMetadata,
   initialReview,
 }: {
   editor: Editor | null;
   document: BlogDocument;
+  agents: AgentSummary[];
   onReplaceDocument: (document: BlogDocument) => void | Promise<void>;
   onMetadata: (field: "seoTitle" | "seoDescription", value: string) => void;
   initialReview?: boolean;
@@ -145,6 +213,7 @@ export function useBlogAssistantIntegration({
   const current = useRef(document);
   current.current = document;
   const replacements = useRef(new Map<string, { before: BlogDocument; after: BlogDocument }>());
+  const byKey = (key: string) => agents.find((agent) => agent.key === key);
   const contextFor = (run: AssistantRun): BlogAssistantContext => (run.request.context ?? {}) as BlogAssistantContext;
   const bodyChanged = (run: AssistantRun) => !editor || !assistantBodyMatches(editor, contextFor(run).editorJson);
   const reportChanged = bodyChanged;
@@ -287,12 +356,17 @@ export function useBlogAssistantIntegration({
     selectSettings: [
       { key: "tone", label: "Tone", options: ["From your idea", "Professional", "Conversational", "Educational"] },
     ],
-    agents: BLOG_AGENTS.map((agent) => ({
-      ...agent,
+    agents: agents.map((agent) => ({
+      id: agent.id,
+      name: agent.name,
+      command: agent.command ? `/${agent.command}` : "",
+      aliases: agent.aliases,
+      description: agent.description,
+      effort: agent.effort,
       requiresContext: agent.requiresDocument,
-      icon: { planner: NotebookPen, writer: SquarePen, auditor: ScanSearch, optimizer: Sparkles }[agent.id],
+      icon: AGENT_ICONS[agent.key] ?? Bot,
     })),
-    initialAgentId: initialReview ? "auditor" : undefined,
+    initialAgentId: initialReview ? byKey("auditor")?.id : undefined,
     resourceLabel: "This blog",
     resourceTitle: document.title || "Untitled blog",
     contextLabel: "Current blog",
@@ -300,14 +374,15 @@ export function useBlogAssistantIntegration({
     launchTitle: "Make your next draft better.",
     placeholder: "Ask about this blog…",
     enabled: !!editor,
-    launchActions: LAUNCH_ACTIONS,
+    launchActions: LAUNCH_ACTIONS.flatMap((action) => {
+      const agent = byKey(action.agentId);
+      return agent ? [{ ...action, agentId: agent.id }] : [];
+    }),
     markdown: { minimumHeadingLevel: 2, breaks: true },
     contextProblem: (agentId, message, includeContext) =>
-      ["auditor", "optimizer"].includes(agentId ?? "") && !editor?.getText().trim()
-        ? "Write some article content before running this agent."
-        : agentId === "planner" && !message.trim() && (!includeContext || !editor?.getText().trim())
-          ? "Describe the topic you want to plan."
-          : "",
+      agentId && !message.trim() && (!includeContext || !editor?.getText().trim())
+        ? "Describe what you want this agent to do."
+        : "",
     observeRuns: (runs, ids) => {
       fresh.current = ids;
       if (!editor) return;
@@ -397,8 +472,8 @@ export function useBlogAssistantIntegration({
         return { supported: false, text: JSON.stringify(attachment.data, null, 2), report: { sections: [] } };
       const proposal = artifact.content.document;
       const content = report(artifact);
-      const nextAgent =
-        artifact.agentId === "planner" ? "writer" : artifact.agentId === "auditor" ? "optimizer" : undefined;
+      const handoff = HANDOFF[agents.find((agent) => agent.id === artifact.agentId)?.key ?? ""];
+      const nextAgent = handoff && byKey(handoff.key);
       return {
         supported: true,
         text: readableArtifact(artifact),
@@ -408,16 +483,9 @@ export function useBlogAssistantIntegration({
           artifact.baseDocumentFingerprint !== agentDocumentFingerprint(current.current),
         document: proposal ? { title: proposal.title, html, text: nodeText(proposal.body) } : undefined,
         handoff: {
-          agentId: nextAgent,
-          label: nextAgent
-            ? `Use with ${BLOG_AGENTS.find((agent) => agent.id === nextAgent)?.name}`
-            : "Attach to composer",
-          instruction:
-            nextAgent === "writer"
-              ? "Write a complete article using this plan."
-              : nextAgent === "optimizer"
-                ? "Optimize this blog using the attached audit."
-                : "Use the attached result to ",
+          agentId: nextAgent?.id,
+          label: nextAgent ? `Use with ${nextAgent.name}` : "Attach to composer",
+          instruction: nextAgent ? handoff.instruction : "Use the attached result to ",
         },
         changeset: proposal
           ? {

@@ -262,7 +262,7 @@ test("agent reuse accepts prior sources but artifacts remain immutable and expir
   );
   await assertRejects(
     attachmentsForRun(
-      transaction([{ ...artifact, data: { artifact: { ...artifact.data.artifact, agentVersion: 2 } } }]),
+      transaction([{ ...artifact, data: { artifact: { ...artifact.data.artifact, schemaVersion: 2 } } }]),
       "owner",
       "thread",
       "openai",

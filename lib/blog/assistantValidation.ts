@@ -1,5 +1,4 @@
 import { z } from "zod";
-import { getBlogAgent } from "./agentCatalog.ts";
 import {
   validateBlogDocument,
   createBlogDocument,
@@ -47,23 +46,20 @@ export function validateRunRequest(input: unknown, reserved = false): BlogAssist
   const parsed = { ...request, operation, settings: request.settings && settingsSchema.parse(request.settings) };
   const context = contextSchema.parse(request.context ?? {});
   if (parsed.operation === "agent") {
-    const agent = getBlogAgent(parsed.agentId);
-    if (!agent) throw new AssistantError("VALIDATION", "Choose an available agent.");
+    // The agent itself (enabled, in this section, requiresDocument) is checked against the store when the run starts.
+    const agentId = z.string().trim().min(1).max(100).safeParse(parsed.agentId);
+    if (!agentId.success) throw new AssistantError("VALIDATION", "Choose an available agent.");
     if (!parsed.resourceId || !parsed.threadId)
       throw new AssistantError("VALIDATION", "Choose an article and private thread first.");
     if (context.selectedText || context.editorJson || parsed.inputMessageId)
       throw new AssistantError("VALIDATION", "Agent requests use the current document and attached sources.");
     const document = context.document === undefined ? undefined : validateBlogDocument(context.document);
-    if (agent.requiresDocument && !document)
-      throw new AssistantError("VALIDATION", "Attach the current blog to this agent.");
-    if (["auditor", "optimizer"].includes(agent.id) && (!document || !blogDocumentText(document).trim()))
-      throw new AssistantError("VALIDATION", "Write some article content before running this agent.");
-    if (agent.id === "planner" && !parsed.message && (!document || !blogDocumentText(document).trim()))
-      throw new AssistantError("VALIDATION", "Describe the topic you want to plan.");
+    if (!parsed.message && (!document || !blogDocumentText(document).trim()))
+      throw new AssistantError("VALIDATION", "Describe what you want this agent to do.");
     return {
       ...parsed,
-      agentId: agent.id,
-      message: parsed.message || `Run ${agent.name} on the current blog.`,
+      agentId: agentId.data,
+      message: parsed.message || "Run this agent on the current blog.",
       context: { document },
       attachmentIds: [...new Set(parsed.attachmentIds ?? [])],
     } as BlogAssistantRequest;

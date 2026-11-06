@@ -4,8 +4,13 @@ import { validateRunRequest } from "../lib/blog/assistantValidation.ts";
 
 vi.mock("server-only", () => ({}));
 
-import { validateAgentOutput, AUDIT_CATEGORIES } from "../lib/blog/agentRegistry.ts";
-import { BLOG_AGENTS } from "../lib/blog/agentCatalog.ts";
+import { agentArtifact } from "../lib/blog/agentOutput.ts";
+import { BLOG_EDITOR_AGENTS, agent as configuredAgent } from "./helpers/agents.mjs";
+
+const AUDIT_CATEGORIES = ["Structure", "Depth and completeness", "Evidence and accuracy", "On-page SEO"];
+const agents = Object.fromEntries(BLOG_EDITOR_AGENTS.map((entry) => [entry.key, entry]));
+/** Same call as the section makes once the run's result arrives. */
+const validateAgentOutput = (value, input, ids) => agentArtifact(agents[input.agentId], value, input, ids);
 const paragraph = (text) => ({ type: "paragraph", content: [{ type: "text", text }] });
 const document = {
   ...createBlogDocument("Working title"),
@@ -40,7 +45,6 @@ const base = () => ({
   label: "Result",
   summary: "Useful result.",
   sections: [],
-  document: null,
   keywords: [],
   searchIntent: "",
   changes: [],
@@ -83,42 +87,39 @@ const optimization = (body = document.body) => ({
     bodyJson: JSON.stringify(body),
   },
 });
-test("all four agents share one validated operation and reject obsolete direct analysis requests", () => {
-  for (const { id } of BLOG_AGENTS) {
-    expect(validateRunRequest(request(id)).agentId).toBe(id);
+test("agent requests share one validated operation and reject obsolete direct analysis requests", () => {
+  for (const { key } of BLOG_EDITOR_AGENTS) {
+    expect(validateRunRequest(request(key)).agentId).toBe(key);
     for (const field of ["postId", "threadId"])
-      expect(() => validateRunRequest(request(id, { [field]: undefined }))).toThrow();
-    expect(() => validateRunRequest(request(id, { context: { selectedText: "partial" } }))).toThrow();
-    expect(() => validateRunRequest(request(id, { inputMessageId: "chat-message" }))).toThrow();
+      expect(() => validateRunRequest(request(key, { [field]: undefined }))).toThrow();
+    expect(() => validateRunRequest(request(key, { context: { selectedText: "partial" } }))).toThrow();
+    expect(() => validateRunRequest(request(key, { inputMessageId: "chat-message" }))).toThrow();
   }
   for (const operation of ["review", "optimize", "check_sources"])
     expect(() => validateRunRequest({ ...request("auditor"), operation })).toThrow();
-  expect(() => validateRunRequest(request("unknown"))).toThrow();
-  for (const agent of ["writer", "auditor", "optimizer"])
-    expect(() => validateRunRequest(request(agent, { context: { document: undefined } }))).toThrow();
+  expect(() => validateRunRequest(request(undefined))).toThrow(/available agent/);
   expect(validateRunRequest(request("planner", { context: { document: undefined } })).context.document).toBe(undefined);
-  expect(() => validateRunRequest(request("planner", { message: "", context: { document: undefined } }))).toThrow();
-  expect(
-    validateRunRequest(request("writer", { message: "", context: { document: createBlogDocument("Empty") } })).agentId,
-  ).toBe("writer");
+  expect(() => validateRunRequest(request("planner", { message: "", context: { document: undefined } }))).toThrow(
+    /Describe what you want/,
+  );
   expect(() =>
-    validateRunRequest(request("auditor", { context: { document: createBlogDocument("Empty") } })),
-  ).toThrow();
+    validateRunRequest(request("writer", { message: "", context: { document: createBlogDocument("Empty") } })),
+  ).toThrow(/Describe what you want/);
   expect(() =>
     validateRunRequest(request("optimizer", { context: { document: { ...document, unexpected: true } } })),
   ).toThrow();
 });
-test("audits cover all categories and contain no draft or ordinary chat output", () => {
+test("report agents return a report artifact without a draft", () => {
   const value = validateAgentOutput(result(audit()), request("auditor"), []);
-  expect(value.artifact.agentId).toBe("auditor");
-  expect(value.artifact.content.sections.length).toBe(8);
+  expect(value.label).toBe("Result");
+  expect(value.artifact.agentId).toBe("agent-auditor");
+  expect(value.artifact.agentVersion).toBe(1);
+  expect(value.artifact.content.sections.length).toBe(AUDIT_CATEGORIES.length);
   expect(value.artifact.content.document).toBe(undefined);
-  expect(value.response).toBe(undefined);
-  const output = audit();
-  output.sections.pop();
-  expect(() => validateAgentOutput(result(output), request("auditor"), [])).toThrow();
-  output.sections.push(output.sections[0]);
-  expect(() => validateAgentOutput(result(output), request("auditor"), [])).toThrow();
+  expect(value.artifact.content.fields).toBe(undefined);
+  // Completeness lives in the agent's own schema, so an output missing a required field is rejected.
+  const { sections: _sections, ...incomplete } = audit();
+  expect(() => validateAgentOutput(result(incomplete), request("auditor"), [])).toThrow();
 });
 test("optimizer produces complete immutable generic artifact preserving administrative metadata", () => {
   const value = validateAgentOutput(result(optimization()), request("optimizer"), ["plan"]);
@@ -127,7 +128,12 @@ test("optimizer produces complete immutable generic artifact preserving administ
     expect(value.artifact.content.document[field]).toEqual(document[field]);
   expect(value.artifact.inputArtifactIds).toEqual(["plan"]);
   expect(value.artifact.content.html).toBe(undefined);
-  expect(() => validateAgentOutput(result({ ...optimization(), keywords: [] }), request("optimizer"), [])).toThrow();
+  expect(() => validateAgentOutput(result({ ...optimization(), changes: [] }), request("optimizer"), [])).toThrow(
+    /explain its changes/,
+  );
+  expect(() => validateAgentOutput(result({ ...optimization(), document: null }), request("optimizer"), [])).toThrow(
+    /complete draft/,
+  );
   expect(() =>
     validateAgentOutput(result(optimization({ type: "doc", content: [paragraph("")] })), request("optimizer"), []),
   ).toThrow();
@@ -268,28 +274,50 @@ test("agent images keep their stored media record and reject a mismatched URL", 
   expect(() => validateRunRequest(request("auditor", { context: { document: other } }))).toThrow();
 });
 
-test("Planner validates complete planning sections and Writer accepts an empty draft base", () => {
+test("Planner reports need no draft base and Writer accepts an empty draft base", () => {
   const plan = {
     ...base(),
-    sections: ["Brief", "Reader intent", "Working title", "Outline", "Research gaps"].map((heading) => ({
-      heading,
-      text: heading === "Brief" ? "Assumption: the audience is new to the topic." : "Useful guidance",
-      items: heading === "Outline" ? ["Introduction: establish the problem", "Steps: show the method"] : [],
-      findings: [],
-    })),
+    sections: ["Brief", "Outline"].map((heading) => ({ heading, text: "Useful guidance", items: [], findings: [] })),
   };
   expect(
     validateAgentOutput(result(plan), request("planner", { context: { document: undefined } }), []).artifact.content
       .sections.length,
-  ).toBe(5);
-  expect(() =>
-    validateAgentOutput(result({ ...plan, sections: plan.sections.slice(1) }), request("planner"), []),
-  ).toThrow();
+  ).toBe(2);
   const empty = createBlogDocument("Empty draft");
   expect(
     validateAgentOutput(result(optimization()), request("writer", { context: { document: empty } }), []).artifact
       .content.document.title,
   ).toBe("Improved article");
+});
+
+test("an agent with a custom schema produces a generic report with its own fields", () => {
+  const schema = {
+    type: "object",
+    properties: {
+      summary: { type: "string" },
+      readingLevel: { type: "string" },
+      score: { type: "number" },
+      sections: { type: "array", items: { type: "string" } },
+    },
+    required: ["summary", "readingLevel", "score", "sections"],
+    additionalProperties: false,
+  };
+  const custom = configuredAgent("readability", { outputSchema: schema, version: 4 });
+  const output = { summary: "Easy to read.", readingLevel: "Grade 8", score: 72, sections: ["Intro", "Steps"] };
+  const value = agentArtifact(custom, result(output), request("readability"), []);
+  expect(value.label).toBe("Readability");
+  expect(value.artifact).toMatchObject({ agentId: "agent-readability", agentVersion: 4, summary: "Easy to read." });
+  // `sections` does not match the built-in view, so it is kept as a plain field rather than dropped.
+  expect(value.artifact.content.fields).toEqual({ readingLevel: "Grade 8", score: 72, sections: ["Intro", "Steps"] });
+  expect(value.artifact.content.sections).toBe(undefined);
+  expect(() => agentArtifact(custom, result({ ...output, score: "high" }), request("readability"), [])).toThrow();
+});
+
+test("a free-text agent's answer becomes the report summary", () => {
+  const plain = configuredAgent("helper");
+  const answer = { ...result(null), text: "Here is what I found." };
+  expect(agentArtifact(plain, answer, request("helper"), []).artifact.summary).toBe("Here is what I found.");
+  expect(() => agentArtifact(plain, { ...answer, text: "  " }, request("helper"), [])).toThrow(/empty answer/);
 });
 
 test("results reject invented metric fields, new internal destinations, unsafe URLs, malformed and oversized payloads", () => {

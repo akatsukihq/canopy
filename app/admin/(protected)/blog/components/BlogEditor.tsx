@@ -37,6 +37,7 @@ import {
 } from "@/components/ui/index.tsx";
 import { createToastManager } from "@/components/ui/components/toast";
 import type { BlogDocument, BlogImage } from "@/lib/blog/document";
+import type { AgentSummary } from "@/lib/agents/types";
 import { BLOG_TITLE_WORD_LIMIT, blogImageDelivery, blogTitleWordCount } from "@/lib/blog/utils";
 import { mutateBlogAction } from "../actions";
 import { uploadBlogImageDirect } from "../lib/imageUpload.ts";
@@ -124,6 +125,8 @@ interface Props {
   categories: TaxonomyOptions;
   tags: TaxonomyOptions;
   tools: { id: string; name: string }[];
+  /** Agents enabled for the blog editor (no prompts). */
+  agents: AgentSummary[];
   canEdit: boolean;
   canPublish: boolean;
   canCreate: boolean;
@@ -137,6 +140,7 @@ export function BlogEditor({
   categories: initialCategories,
   tags: initialTags,
   tools,
+  agents,
   canEdit,
   canPublish,
   canCreate,
@@ -819,6 +823,7 @@ export function BlogEditor({
               <BlogAssistantPanel
                 key={`${actorId}:${post.id}`}
                 initialReview={initialAssistantReview}
+                agents={agents}
                 postId={post.id}
                 ownerId={actorId}
                 onClose={onClose}

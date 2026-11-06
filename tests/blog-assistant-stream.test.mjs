@@ -50,7 +50,7 @@ test("truncated streams fail without polling or silently retrying", async () => 
     return new Response(encode({ type: "text-delta", text: "Partial" }));
   };
   await expect(streamAssistantRun("fixture", request, new AbortController().signal, () => {})).rejects.toThrow(
-    /Connection interrupted/,
+    /connection dropped before the reply finished/,
   );
   expect(calls).toBe(1);
 });

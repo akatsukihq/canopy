@@ -2,10 +2,10 @@
 import "server-only";
 import { z } from "zod";
 import type { AIResult } from "../ai/types.ts";
-import type { AssistantStageRequest } from "../assistant/integration.ts";
 import { createAIClient } from "../config/integrations.ts";
 import type { BlogImage } from "./document.ts";
 import { storeGeneratedBlogImage } from "./images.ts";
+import { generationSchema } from "./assistantValidation.ts";
 
 type Article = { title: string; blocks: Array<{ type: string; text?: string; level?: number | null }> };
 export type GeneratedMedia = { placement: "cover" | "section"; heading: string; image: BlogImage };
@@ -92,39 +92,81 @@ export async function generateArticleImage(
 export const CHAT_IMAGE_RULES =
   "To create an image, call generateImage once per image (at most 3 per reply). Write prompt as a self-contained narrative brief: subject, action, setting, composition, lighting and one consistent style (editorial photography or clean illustration). No text, letters, logos, real people or data charts in the image. alt is a 10-125 character sentence naming what the image shows; caption is one short sentence or ''. originalText is an exact, unique passage from editorJson; the image is inserted after the top-level block containing it. Never paste prompts for the user to run elsewhere when this tool is available.";
 
-/** The media agent stage: plan images with the model, then generate and store them before the run completes. */
-export function mediaStage(article: Article, actorUserId: string, provider: string): AssistantStageRequest {
+type MediaOptions = {
+  actorUserId: string;
+  provider: string;
+  /** The run's model, used to plan the images. */
+  model?: string;
+  metadata?: Record<string, string>;
+  reportFailure?: (toolName: string, error: unknown) => void;
+};
+
+function addUsage(a: AIResult["usage"], b: AIResult["usage"]): AIResult["usage"] {
+  if (!a || !b) return a ?? b;
   return {
-    stage: "Planning images for the article",
-    schema: mediaPlanSchema,
-    messages: [
-      { role: "system", content: MEDIA },
-      { role: "user", content: `Article:\n${JSON.stringify(article)}` },
-    ],
-    finalize: {
-      stage: "Generating images",
-      run: async (result: AIResult, signal: AbortSignal): Promise<AIResult> => {
-        const plan = mediaPlanSchema.safeParse(result.output);
-        const headings = sectionHeadings(article);
-        const wanted = plan.success
-          ? [
-              ...plan.data.images.filter((image) => image.placement === "cover").slice(0, 1),
-              ...plan.data.images
-                .filter((image) => image.placement === "section" && headings.has(image.heading))
-                .filter((image, index, all) => all.findIndex((other) => other.heading === image.heading) === index)
-                .slice(0, MAX_SECTION_IMAGES),
-            ]
-          : [];
-        // Images are an enhancement: one failed image never fails the article.
-        const settled = await Promise.allSettled(
-          wanted.map(async (item): Promise<GeneratedMedia> => {
-            const image = await generateArticleImage(actorUserId, provider, item, signal);
-            return { placement: item.placement, heading: item.placement === "cover" ? "" : item.heading, image };
-          }),
-        );
-        const media = settled.flatMap((entry) => (entry.status === "fulfilled" ? [entry.value] : []));
-        return { ...result, text: "", output: { ...article, media, mediaRequested: wanted.length } };
-      },
+    inputTokens: (a.inputTokens ?? 0) + (b.inputTokens ?? 0),
+    outputTokens: (a.outputTokens ?? 0) + (b.outputTokens ?? 0),
+    totalTokens: (a.totalTokens ?? 0) + (b.totalTokens ?? 0),
+  };
+}
+
+/**
+ * The media agent as the generation pipeline's finalize step: plans images for the finished article with
+ * the model, then generates and stores them before the run completes. Images are an enhancement: a failed
+ * plan or image never fails the article.
+ */
+export function mediaFinalize({ actorUserId, provider, model, metadata, reportFailure }: MediaOptions): {
+  stage: string;
+  run: (result: AIResult, signal: AbortSignal) => Promise<AIResult>;
+} {
+  return {
+    stage: "Adding images to the article",
+    run: async (result, signal) => {
+      const parsed = generationSchema.safeParse(result.output);
+      if (!parsed.success) return result; // The article itself is validated and reported as-is.
+      const article: Article = parsed.data;
+      let planned: AIResult | undefined;
+      try {
+        const client = await createAIClient(provider);
+        planned = await client.generate({
+          ...(model ? { model } : {}),
+          ...(metadata ? { metadata } : {}),
+          schema: mediaPlanSchema,
+          messages: [
+            { role: "system", content: MEDIA },
+            { role: "user", content: `Article:\n${JSON.stringify(article)}` },
+          ],
+          signal,
+        });
+      } catch (error) {
+        signal.throwIfAborted();
+        reportFailure?.("planImages", error);
+      }
+      const plan = mediaPlanSchema.safeParse(planned?.status === "completed" ? planned.output : undefined);
+      const headings = sectionHeadings(article);
+      const wanted = plan.success
+        ? [
+            ...plan.data.images.filter((image) => image.placement === "cover").slice(0, 1),
+            ...plan.data.images
+              .filter((image) => image.placement === "section" && headings.has(image.heading))
+              .filter((image, index, all) => all.findIndex((other) => other.heading === image.heading) === index)
+              .slice(0, MAX_SECTION_IMAGES),
+          ]
+        : [];
+      const settled = await Promise.allSettled(
+        wanted.map(async (item): Promise<GeneratedMedia> => {
+          const image = await generateArticleImage(actorUserId, provider, item, signal);
+          return { placement: item.placement, heading: item.placement === "cover" ? "" : item.heading, image };
+        }),
+      );
+      for (const entry of settled) if (entry.status === "rejected") reportFailure?.("generateImage", entry.reason);
+      const media = settled.flatMap((entry) => (entry.status === "fulfilled" ? [entry.value] : []));
+      return {
+        ...result,
+        text: "",
+        output: { ...article, media, mediaRequested: wanted.length },
+        usage: addUsage(result.usage, planned?.usage),
+      };
     },
   };
 }

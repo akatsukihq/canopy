@@ -77,6 +77,7 @@ vi.mock("@/lib/assistant/client.ts", () => {
   }
   return {
     AssistantRequestError,
+    AssistantStreamInterruptedError: class AssistantStreamInterruptedError extends Error {},
     activeRun: (status) => ["queued", "running", "unknown"].includes(status),
     assistantApiBase: (integration) => "/api/assistant/" + integration,
     assistantCacheKey: (owner, integration, resource) =>

@@ -8,6 +8,7 @@ import { hasPermission } from "@/lib/authorization/index.ts";
 import { getUserAuthorization } from "@/lib/admin/index.ts";
 import { requirePagePermission } from "@/lib/admin/access";
 import { getBlogPost } from "@/lib/blog/queries";
+import { listSectionAgents } from "@/lib/agents/store";
 import { getToolListings } from "@/lib/tool-framework/catalog";
 import { BlogEditor } from "../components/BlogEditor";
 import { loadBlogTaxonomyOptions } from "../lib/loadBlogTaxonomyOptions";
@@ -23,12 +24,13 @@ export default async function BlogEditorPage({
   const { id } = await params;
   const query = await searchParams;
   if (!/^[a-zA-Z0-9_-]{1,100}$/.test(id)) notFound();
-  const [post, categories, tags, authorization, tools] = await Promise.all([
+  const [post, categories, tags, authorization, tools, agents] = await Promise.all([
     getBlogPost(session.user.id, id),
     loadBlogTaxonomyOptions(session.user.id, "category"),
     loadBlogTaxonomyOptions(session.user.id, "tag"),
     getUserAuthorization(session.user.id),
     Promise.all([getToolListings("devtools"), getToolListings("media")]).then((groups) => groups.flat()),
+    listSectionAgents("blog-editor"),
   ]);
   if (!post) notFound();
   const generation =
@@ -47,6 +49,7 @@ export default async function BlogEditorPage({
       categories={categories}
       tags={tags}
       tools={tools.map((tool) => ({ id: tool.toolId, name: tool.name }))}
+      agents={agents}
       canEdit={hasPermission(authorization.access, "blog", "edit")}
       canPublish={hasPermission(authorization.access, "blog", "publish")}
       canCreate={hasPermission(authorization.access, "blog", "create")}
