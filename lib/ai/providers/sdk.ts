@@ -3,6 +3,7 @@ import {
   generateText,
   streamText,
   stepCountIs,
+  modelMessageSchema,
   Output,
   tool,
   type LanguageModel,
@@ -12,8 +13,9 @@ import {
   type LanguageModelUsage,
   type TextStreamPart,
 } from "ai";
+import { z } from "zod";
 import { AIError, normalizeAIError } from "../errors.ts";
-import { logError } from "../../observability/logger.ts";
+import { errorDetails, logError } from "../../observability/logger.ts";
 import type { AICitation, AIHandle, AIMessage, AIRequest, AIResult, AIStreamEvent } from "../types.ts";
 
 /** Shared Vercel AI SDK adapter code for providers that run through `generateText`/`streamText`. */
@@ -95,11 +97,35 @@ export function resultFromSteps(
   const toolErrors = steps.flatMap((step) =>
     step.content.flatMap((part) => (part.type === "tool-error" && part.toolName !== "web_search" ? [part] : [])),
   );
+  // The loop stops after the step whose tool calls need a person's approval.
+  const approvals = final.content.flatMap((part) =>
+    part.type === "tool-approval-request" && !part.isAutomatic
+      ? [
+          {
+            approvalId: part.approvalId,
+            toolCallId: part.toolCall.toolCallId,
+            toolName: part.toolCall.toolName,
+            input: part.toolCall.input,
+          },
+        ]
+      : [],
+  );
   for (const part of toolErrors)
     logError("ai.tool_failed", part.error, { provider, toolName: part.toolName, ...(request.metadata ?? {}) });
   if (toolErrors.length) {
+    result.details = {
+      ...result.details,
+      toolErrors: toolErrors.map((part) => ({ toolName: part.toolName, error: errorDetails(part.error) })),
+    };
     result.status = "failed";
     result.error = { code: "TOOL_FAILED", message: "An AI tool could not complete. Try again." };
+  } else if (approvals.length) {
+    result.status = "failed";
+    result.error = {
+      code: "APPROVAL_REQUIRED",
+      message: "A tool call needs a person's approval, which this agent cannot ask for.",
+    };
+    result.approval = { requests: approvals, messages: [] };
   } else if (["length", "error", "content-filter"].includes(final.finishReason)) {
     result.status = "failed";
     result.error = { code: "INCOMPLETE", message: "The AI response did not complete. Your input is preserved." };
@@ -173,6 +199,26 @@ function sdkMessages(messages: AIMessage[], fileProvider: string): ModelMessage[
   });
 }
 
+/** The saved messages of a loop paused for approval, followed by the person's decisions. */
+function resumeMessages({ resume }: AIRequest): ModelMessage[] {
+  if (!resume) return [];
+  const saved = z.array(modelMessageSchema).safeParse(resume.messages);
+  if (!saved.success || !resume.responses.length)
+    throw new AIError("VALIDATION", "The paused request can no longer continue. Run the agent again.", 400);
+  return [
+    ...saved.data,
+    {
+      role: "tool",
+      content: resume.responses.map(({ approvalId, approved, reason }) => ({
+        type: "tool-approval-response" as const,
+        approvalId,
+        approved,
+        ...(reason ? { reason } : {}),
+      })),
+    },
+  ];
+}
+
 type ProviderOptions = NonNullable<Parameters<typeof generateText>[0]["providerOptions"]>;
 
 export function sdkOptions(
@@ -193,6 +239,8 @@ export function sdkOptions(
       ? tool<unknown, unknown, Record<string, unknown>>({
           description: definition.description,
           inputSchema: definition.inputSchema,
+          ...(definition.outputSchema ? { outputSchema: definition.outputSchema } : {}),
+          ...(definition.needsApproval ? { needsApproval: true } : {}),
           execute: (input, options) => execute(input, { toolCallId: options.toolCallId, signal: options.abortSignal }),
         })
       : tool<unknown, Record<string, unknown>>({
@@ -205,7 +253,7 @@ export function sdkOptions(
   return {
     model: provider.model,
     instructions: messages.filter((message) => message.role === "system"),
-    messages: messages.filter((message) => message.role !== "system"),
+    messages: [...messages.filter((message) => message.role !== "system"), ...resumeMessages(request)],
     tools,
     ...(request.schema ? { output: Output.object({ schema: request.schema }) } : {}),
     stopWhen: stepCountIs(5),
@@ -289,6 +337,12 @@ export async function* streamEvents(
       else if (part.type === "abort") throw new AIError("CANCELLED", "The AI request was cancelled.", 409);
     }
     const result = hooks.result(await generated.steps, await generated.usage);
+    // Everything after the request's own messages, so the caller can resume this exact loop later.
+    if (result.approval)
+      result.approval = {
+        ...result.approval,
+        messages: [...resumeMessages(request), ...(await generated.responseMessages)],
+      };
     if (!handleSent) yield { type: "response", response: result };
     yield { type: "completed", result };
   } catch (error) {

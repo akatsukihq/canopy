@@ -1,8 +1,24 @@
 import { beforeEach, expect, test, vi } from "vitest";
+import { agent } from "./helpers/agents.mjs";
 import { toolSpec } from "./helpers/toolSpec.mjs";
 
 const permission = vi.hoisted(() => vi.fn(async () => {}));
+const sectionAgents = vi.hoisted(() => ({ list: [] }));
 vi.mock("server-only", () => ({}));
+vi.mock("../lib/config/integrations.ts", () => ({
+  createAIClient: async () => ({ model: "test-model", generate: vi.fn() }),
+}));
+vi.mock("../lib/agents/store.ts", async (original) => ({
+  ...(await original()),
+  getSectionAgent: async (_section, idOrCommand) =>
+    sectionAgents.list.find((entry) =>
+      idOrCommand ? [entry.id, entry.key, entry.command].includes(idOrCommand) : entry.defaultFor.length,
+    ) ?? null,
+  loadAgentRuntime: async (id) => {
+    const root = sectionAgents.list.find((entry) => entry.id === id);
+    return { agent: root, agents: { [id]: root }, skills: {}, mcpServers: {} };
+  },
+}));
 vi.mock("../lib/tool-framework/systemLimits.ts", async (original) => ({
   ...(await original()),
   loadSystemLimits: async () => ({}),
@@ -36,7 +52,10 @@ const row = {
   description: "A tool",
   spec: null,
   specDraft: spec,
-  translations: { en: { status: "published", messages: english }, fr: { status: "draft", messages: { name: "Salut {name}" } } },
+  translations: {
+    en: { status: "published", messages: english },
+    fr: { status: "draft", messages: { name: "Salut {name}" } },
+  },
 };
 const roster = [
   { id: spec.toolId, name: "Gradient" },
@@ -47,12 +66,21 @@ const roster = [
 function queueReads(...results) {
   db.select = () => {
     const result = results.shift();
-    const chain = { from: () => chain, where: () => chain, limit: () => chain, then: (ok, fail) => Promise.resolve(result).then(ok, fail) };
+    const chain = {
+      from: () => chain,
+      where: () => chain,
+      limit: () => chain,
+      then: (ok, fail) => Promise.resolve(result).then(ok, fail),
+    };
     return chain;
   };
 }
 const load = async () => {
-  queueReads([row], [{ seoTitle: "Stored title", category: null, keywords: null, seoDescription: null, contentDoc: null }], roster);
+  queueReads(
+    [row],
+    [{ seoTitle: "Stored title", category: null, keywords: null, seoDescription: null, contentDoc: null }],
+    roster,
+  );
   return loadToolAssistantData(spec.toolId);
 };
 
@@ -68,11 +96,35 @@ const base = {
 
 beforeEach(() => {
   permission.mockClear();
+  sectionAgents.list = [];
 });
+
+const translator = agent("tool-translator", {
+  name: "Translator",
+  persona: "You are a professional software localizer.",
+  sections: ["tool-content"],
+  defaultFor: ["tool-content"],
+});
+const run = (request) => ({
+  id: "run-1",
+  ownerId: "admin",
+  provider: "openai",
+  model: undefined,
+  request: integration.validateRequest(request),
+});
+const build = async (request) => {
+  const stage = await integration.buildRequest({
+    run: run(request),
+    proposals: [],
+    signal: new AbortController().signal,
+    reportToolFailure: () => {},
+  });
+  return { stage, system: stage.messages[0].content, user: stage.messages[1].content };
+};
 
 test("the browser sends only its position; tool data comes from the database", async () => {
   const request = integration.validateRequest(base);
-  const prompt = toolAssistantInstructions(request, await load());
+  const { context: prompt } = toolAssistantInstructions(request, await load());
   expect(prompt).toContain("Hello {name}");
   expect(prompt).toContain("Stored title");
   expect(prompt).toContain("Salut {name}");
@@ -85,17 +137,47 @@ test("the browser sends only its position; tool data comes from the database", a
   await expect(loadToolAssistantData("devtools.missing")).rejects.toThrow(/not found/i);
 });
 
-test("listed agents and @-named fields steer the prompt; unknown agents are refused", async () => {
+test("@-named fields reach the context and tool data is marked untrusted in the rules", async () => {
   const data = await load();
   const plain = toolAssistantInstructions(integration.validateRequest(base), data);
   const steered = toolAssistantInstructions(
-    integration.validateRequest({ ...base, agentId: "translator", context: { ...base.context, mentions: ["name"] } }),
+    integration.validateRequest({ ...base, context: { ...base.context, mentions: ["name"] } }),
     data,
   );
-  expect(plain).not.toContain("professional software localizer");
-  expect(steered).toContain("professional software localizer");
-  expect(steered).toContain('"mentionedFields":["name"]');
-  expect(() => integration.validateRequest({ ...base, agentId: "planner" })).toThrow(/listed agents/);
+  expect(plain.context).not.toContain("mentionedFields");
+  expect(steered.context).toContain('"mentionedFields":["name"]');
+  expect(steered.rules).toMatch(/untrusted/);
+});
+
+test("a section without an enabled agent gives a clear error", async () => {
+  queueReads(
+    [row],
+    [{ seoTitle: null, category: null, keywords: null, seoDescription: null, contentDoc: null }],
+    roster,
+  );
+  await expect(build(base)).rejects.toThrow(/No AI agent is set up for this section/);
+});
+
+test("the configured agent's persona leads the prompt and the section tools join its stage", async () => {
+  sectionAgents.list = [translator];
+  queueReads(
+    [row],
+    [{ seoTitle: "Stored title", category: null, keywords: null, seoDescription: null, contentDoc: null }],
+    roster,
+  );
+  const { stage, system, user } = await build({ ...base, agentId: "tool-translator" });
+  expect(system).toContain("professional software localizer");
+  expect(system).toMatch(/untrusted/);
+  expect(user).toContain("Stored title");
+  expect(Object.keys(stage.tools)).toEqual(
+    expect.arrayContaining(["suggestContent", "suggestDefinition", "suggestTranslation"]),
+  );
+  queueReads(
+    [row],
+    [{ seoTitle: null, category: null, keywords: null, seoDescription: null, contentDoc: null }],
+    roster,
+  );
+  await expect(build({ ...base, agentId: "planner" })).rejects.toThrow(/turned off or no longer available/);
 });
 
 test("content suggestions are checked like the save path; bad ones cannot be applied", async () => {
@@ -112,7 +194,9 @@ test("content suggestions are checked like the save path; bad ones cannot be app
   const related = proposeContent("e", { field: "relatedToolIds", value: ["devtools.other"] }, data, []);
   expect(related.proposal.data).toMatchObject({ section: "content" });
   expect(related.proposal.data.error).toBeUndefined();
-  expect(proposeContent("f", { field: "faq", value: [{ q: "Q?", a: "A." }] }, data, []).proposal.data.error).toBeUndefined();
+  expect(
+    proposeContent("f", { field: "faq", value: [{ q: "Q?", a: "A." }] }, data, []).proposal.data.error,
+  ).toBeUndefined();
   expect(proposeContent("g", { field: "howToUse", value: [] }, data, []).proposal.data.error).toBeTruthy();
   expect(proposeContent("h", { field: "bogus", value: "x" }, data, []).proposal).toBeUndefined();
 });

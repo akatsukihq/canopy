@@ -10,6 +10,8 @@ export class AssistantRequestError extends Error {
     super(message);
   }
 }
+/** The stream ended before a final event; the saved run is the source of truth. */
+export class AssistantStreamInterruptedError extends Error {}
 export async function assistantRequest<T>(
   url: string,
   body?: unknown,
@@ -49,11 +51,13 @@ export const activeRun = (status: string) => ["queued", "running", "unknown"].in
 /** One request owns one stream; callers own UI state and cancellation triggers. */
 export async function streamAssistantRun(
   integrationKey: string,
-  request: import("@/lib/assistant/types").AssistantRunRequest,
+  request: import("@/lib/assistant/types").AssistantRunRequest | { approved: boolean; reason?: string },
   signal: AbortSignal,
   onEvent: (event: import("@/lib/assistant/types").AssistantEvent) => void,
+  /** `/runs` starts a run; `/runs/<id>/approval` continues a paused one. */
+  path = "/runs",
 ): Promise<import("@/lib/assistant/types").AssistantRun> {
-  const response = await fetch(`${assistantApiBase(integrationKey)}/runs`, {
+  const response = await fetch(`${assistantApiBase(integrationKey)}${path}`, {
     method: "POST",
     credentials: "same-origin",
     cache: "no-store",
@@ -120,8 +124,7 @@ export async function streamAssistantRun(
         break;
       }
     }
-    if (!completed)
-      throw new Error("Connection interrupted. Refresh history to check the saved outcome before retrying.");
+    if (!completed) throw new AssistantStreamInterruptedError("The connection dropped before the reply finished.");
     return completed;
   } finally {
     signal.removeEventListener("abort", abort);

@@ -2,6 +2,7 @@
 
 import { useReducer, useRef } from "react";
 import {
+  Bot,
   FileCode,
   Languages,
   ListChecks,
@@ -12,12 +13,8 @@ import {
   type LucideIcon,
 } from "lucide-react";
 import { mentionedIds } from "@/lib/assistant/composer";
-import {
-  CONTENT_FIELD_SECTION,
-  TOOL_AGENTS,
-  type ToolAgentId,
-  type ToolContentField,
-} from "@/lib/tool-framework/toolAssistantCatalog";
+import { CONTENT_FIELD_SECTION, type ToolContentField } from "@/lib/tool-framework/toolAssistantCatalog";
+import type { AgentSummary } from "@/lib/agents/types";
 import { toast } from "@/components/ui/index.tsx";
 import { AssistantPanel } from "@/components/assistant/AssistantPanel";
 import type { AssistantIntegrationUI } from "@/components/assistant/types";
@@ -44,11 +41,11 @@ const SECTION_LABEL: Record<ToolAssistantSection, string> = {
   translations: "Translations",
 };
 
-const AGENT_ICONS: Record<ToolAgentId, LucideIcon> = {
-  seo: Search,
-  content: SquarePen,
-  translator: Languages,
-  definition: FileCode,
+const AGENT_ICONS: Record<string, LucideIcon> = {
+  "tool-seo": Search,
+  "tool-content": SquarePen,
+  "tool-translator": Languages,
+  "tool-definition": FileCode,
 };
 
 const FIELD_LABEL: Record<ToolContentField, string> = {
@@ -158,7 +155,11 @@ function show(value: unknown): string {
     .join("\n");
 }
 
-function useIntegration(section: ToolAssistantSection, target: AssistantTarget | null): AssistantIntegrationUI {
+function useIntegration(
+  section: ToolAssistantSection,
+  target: AssistantTarget | null,
+  agents: AgentSummary[],
+): AssistantIntegrationUI {
   const [, changed] = useReducer((value) => value + 1, 0);
   const latest = useRef(target);
   latest.current = target;
@@ -173,7 +174,15 @@ function useIntegration(section: ToolAssistantSection, target: AssistantTarget |
     conversationOperation: "chat",
     // Agents only steer the same conversation, so they use the chat operation.
     agentOperation: "chat",
-    agents: TOOL_AGENTS.map((agent) => ({ ...agent, icon: AGENT_ICONS[agent.id] })),
+    agents: agents.map((agent) => ({
+      id: agent.id,
+      name: agent.name,
+      command: agent.command ? `/${agent.command}` : "",
+      aliases: agent.aliases,
+      description: agent.description,
+      effort: agent.effort,
+      icon: AGENT_ICONS[agent.key] ?? Bot,
+    })),
     mentions: mentionsFor(active, target),
     resourceLabel: "This tool",
     resourceTitle: SECTION_LABEL[active],
@@ -290,19 +299,22 @@ function useIntegration(section: ToolAssistantSection, target: AssistantTarget |
 }
 
 export function ToolAssistantPanel({
+  agents,
   onClose,
   ownerId,
   section,
   target,
   toolId,
 }: {
+  /** Agents enabled for tool content (no prompts). */
+  agents: AgentSummary[];
   onClose: () => void;
   ownerId: string;
   section: ToolAssistantSection;
   target: AssistantTarget | null;
   toolId: string;
 }) {
-  const integration = useIntegration(section, target);
+  const integration = useIntegration(section, target, agents);
   return (
     <AssistantPanel
       key={`${ownerId}:tool-admin:${toolId}`}

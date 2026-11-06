@@ -14,6 +14,7 @@ import { Sparkles } from "lucide-react";
 import { Button, Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/index.tsx";
 import { cn } from "@/components/ui/lib/utils.ts";
 import type { ToolAssistantSection } from "@/lib/tool-framework/toolAssistant";
+import type { AgentSummary } from "@/lib/agents/types";
 import { ToolAssistantPanel, type AssistantTarget } from "./ToolAssistantPanel.tsx";
 
 type TargetStore = {
@@ -45,6 +46,7 @@ type Value = {
   ownerId: string;
   toolId: string;
   section: ToolAssistantSection;
+  agents: AgentSummary[];
 };
 
 const ToolAssistantContext = createContext<Value | null>(null);
@@ -67,11 +69,13 @@ export function useAssistantTarget(target: AssistantTarget): void {
 }
 
 export function ToolAssistantProvider({
+  agents,
   children,
   ownerId,
   section,
   toolId,
 }: {
+  agents: AgentSummary[];
   children: ReactNode;
   ownerId: string;
   section: ToolAssistantSection;
@@ -80,7 +84,7 @@ export function ToolAssistantProvider({
   const [store] = useState(createTargetStore);
   const [open, setOpen] = useState(false);
   return (
-    <ToolAssistantContext.Provider value={{ store, open, setOpen, ownerId, toolId, section }}>
+    <ToolAssistantContext.Provider value={{ store, open, setOpen, ownerId, toolId, section, agents }}>
       {children}
     </ToolAssistantContext.Provider>
   );
@@ -151,6 +155,7 @@ export function ToolAssistantDock({ children }: { children: ReactNode }) {
           inert={!open}
         >
           <ToolAssistantPanel
+            agents={assistant.agents}
             onClose={() => assistant.setOpen(false)}
             ownerId={assistant.ownerId}
             section={assistant.section}

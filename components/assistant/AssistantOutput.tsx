@@ -39,6 +39,7 @@ import { ReportView } from "./ReportView";
 import { ChangesetPreview } from "./ChangesetPreview";
 import styles from "./AssistantOutput.module.css";
 import { AssistantProgress } from "./AssistantProgress";
+import { ApprovalCard } from "./ApprovalCard";
 
 function savedTime(createdAt: string) {
   return new Date(createdAt).toLocaleTimeString(undefined, { hour: "numeric", minute: "2-digit" });
@@ -118,6 +119,7 @@ export function AssistantRunCard({
   onRefresh,
   onCopy,
   onUse,
+  onApproval,
 }: {
   execution: AssistantExecutionSummary;
   integration: AssistantIntegrationUI;
@@ -128,6 +130,7 @@ export function AssistantRunCard({
   onCopy: (id: string) => void;
   onUse: (id: string) => void;
   onRefresh: () => void;
+  onApproval?: (approved: boolean, reason?: string) => void;
 }) {
   const activityId = useId();
   const [activityOpen, setActivityOpen] = useState(false);
@@ -201,7 +204,15 @@ export function AssistantRunCard({
           </ol>
         )}
       </div>
-      {execution.artifact && !unavailable ? (
+      {execution.approval && !unavailable && (
+        <ApprovalCard
+          approval={execution.approval}
+          pending={execution.status === "awaiting-approval"}
+          busy={busy || !onApproval}
+          onRespond={(approved, reason) => onApproval?.(approved, reason)}
+        />
+      )}
+      {execution.status === "awaiting-approval" && !unavailable ? null : execution.artifact && !unavailable ? (
         <>
           <SavedArtifactCard
             label={execution.artifact.label}

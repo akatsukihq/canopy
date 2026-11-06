@@ -28,6 +28,7 @@ import { loadSpec } from "@/lib/tool-framework/catalog";
 import { ToolTranslationsForm } from "./components/ToolTranslationsForm";
 import { ToolDefinitionEditor } from "./components/ToolDefinitionEditor";
 import { ToolAssistantDock, ToolAssistantProvider, ToolAssistantToggle } from "./components/ToolAssistantContext";
+import { listSectionAgents } from "@/lib/agents/store";
 
 type ConfigurationSection = "overview" | "content" | "translations" | "definition";
 
@@ -68,9 +69,14 @@ export default async function ToolContentPage({
   if (!tool) notFound();
 
   const configured = isDatabaseConfigured();
-  const [contentRow, spec]: [ToolContentRow | null, Awaited<ReturnType<typeof loadSpec>>] = await Promise.all([
+  const [contentRow, spec, agents]: [
+    ToolContentRow | null,
+    Awaited<ReturnType<typeof loadSpec>>,
+    Awaited<ReturnType<typeof listSectionAgents>>,
+  ] = await Promise.all([
     configured ? getToolContentRow(toolId) : Promise.resolve(null),
     loadSpec(toolId),
+    configured ? listSectionAgents("tool-content") : Promise.resolve([]),
   ]);
   const [managedRow] =
     configured && (section === "translations" || section === "definition")
@@ -99,7 +105,7 @@ export default async function ToolContentPage({
   const scaffoldCommand = `pnpm tool:new ${definitionKey} --app ${tool.app} --category ${(contentRow?.category ?? inherited.category) || "<category>"}`;
 
   return (
-    <ToolAssistantProvider ownerId={session.user.id} section={section} toolId={tool.id}>
+    <ToolAssistantProvider agents={agents} ownerId={session.user.id} section={section} toolId={tool.id}>
       <div className="mx-auto flex h-full min-h-0 w-full max-w-[1240px] flex-col gap-3">
         <Toaster position="top-right" />
         <header className="flex shrink-0 flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">

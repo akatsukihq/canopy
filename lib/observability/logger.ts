@@ -39,14 +39,16 @@ function cause(error: unknown): Fields | undefined {
   };
 }
 
+/** Masked, JSON-safe description of an error for logs and server-only diagnostic columns. */
+export function errorDetails(error: unknown): Fields {
+  return {
+    name: error instanceof Error ? error.name : typeof error,
+    message: errorMessage(error, "Unknown error", { showSql: true }),
+    cause: cause(error),
+    stack: frames(error),
+  };
+}
+
 export function logError(event: string, error: unknown, fields: Fields = {}): void {
-  log("error", event, {
-    ...fields,
-    error: {
-      name: error instanceof Error ? error.name : typeof error,
-      message: errorMessage(error, "Unknown error", { showSql: true }),
-      cause: cause(error),
-      stack: frames(error),
-    },
-  });
+  log("error", event, { ...fields, error: errorDetails(error) });
 }

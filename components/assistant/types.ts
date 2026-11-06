@@ -26,6 +26,8 @@ export type ReportSection = {
   entries?: Array<{ title: string; label?: string; text?: string }>;
   findings?: Array<{ severity: "high" | "medium" | "low"; issue: string; passage: string; recommendation: string }>;
   links?: Array<{ url: string; title: string }>;
+  /** Exact data (e.g. raw JSON), shown collapsed behind the heading as highlighted code. */
+  code?: { language: string; value: string };
 };
 export type ReportModel = { summary?: string; sections: ReportSection[] };
 export type ChangeModel = {

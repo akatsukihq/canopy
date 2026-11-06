@@ -22,6 +22,7 @@ import {
   activeRun,
   assistantRequest,
   AssistantRequestError,
+  AssistantStreamInterruptedError,
   cancelAssistantRun,
   streamAssistantRun,
 } from "./client";
@@ -388,6 +389,7 @@ export function useAssistant(integrationKey: string, resourceId: string | undefi
                 label: run.response?.artifact?.label ?? "Agent request",
                 artifact: run.response?.artifact,
                 errorMessage: run.errorMessage,
+                approval: run.approval,
                 createdAt: run.createdAt,
                 updatedAt: run.updatedAt,
                 completedAt: run.completedAt,
@@ -929,7 +931,8 @@ export function useAssistant(integrationKey: string, resourceId: string | undefi
       });
       if (!alive.current || scopeVersion.current !== scope) return null;
       adoptRunThread(run);
-      completed = run.status === "completed";
+      // A run waiting for approval has a saved outcome; the composer keeps its cleared state.
+      completed = run.status === "completed" || run.status === "awaiting-approval";
       delete pending.current[id];
       updateRun(run, localMessageId, streamedText);
       if (selectedRef.current === id) setError("");
@@ -948,11 +951,12 @@ export function useAssistant(integrationKey: string, resourceId: string | undefi
           localMessageId,
           streamedText,
         );
-      if (controller.signal.aborted) {
+      // A dropped stream is not an outcome: reload the saved run (failed, completed or still running) instead of toasting.
+      if (controller.signal.aborted || (cause instanceof AssistantStreamInterruptedError && !isDraftScope(id))) {
         if (!isDraftScope(id))
           void loadThread(id).catch(() => {
             if (alive.current && scopeVersion.current === scope && selectedRef.current === id)
-              setError("Could not confirm the stopped request. Refresh history to check its saved outcome.");
+              setError("Could not confirm this request's saved outcome. Refresh history to check it.");
           });
         return null;
       }
@@ -1011,6 +1015,53 @@ export function useAssistant(integrationKey: string, resourceId: string | undefi
           delete next[id];
           return next;
         });
+      }
+    }
+  }
+  /** Approves or rejects a paused run's tool calls; the continuation streams like a reply. */
+  async function respondToApproval(run: Pick<AssistantRun, "id" | "threadId">, approved: boolean, reason?: string) {
+    const id = run.threadId;
+    if (!id || locks.current.has(id)) return;
+    const scope = scopeVersion.current;
+    const controller = new AbortController();
+    const current = () => alive.current && scopeVersion.current === scope;
+    locks.current.add(id);
+    controllers.current.set(id, controller);
+    setSubmitting((value) => ({ ...value, [id]: true }));
+    let text = "";
+    try {
+      const next = await streamAssistantRun(
+        integrationKey,
+        { approved, ...(reason?.trim() ? { reason: reason.trim() } : {}) },
+        controller.signal,
+        (event) => {
+          if (!current() || controller.signal.aborted) return;
+          if (event.type === "run") setStreams((value) => ({ ...value, [id]: { run: event.run, text } }));
+          if (event.type === "run" || event.type === "completed" || (event.type === "error" && event.run))
+            updateRun(event.run!, undefined, text);
+          else if (event.type === "text-delta" || event.type === "text") {
+            text = event.type === "text" ? event.text : text + event.text;
+            setStreams((value) => (value[id] ? { ...value, [id]: { ...value[id], text } } : value));
+          }
+        },
+        `/runs/${encodeURIComponent(run.id)}/approval`,
+      );
+      if (current()) updateRun(next, undefined, text);
+    } catch (cause) {
+      if (current() && !controller.signal.aborted && !(cause instanceof AssistantStreamInterruptedError))
+        toast.error(cause instanceof Error ? cause.message : "Could not send your decision. Try again.");
+    } finally {
+      if (current()) {
+        locks.current.delete(id);
+        controllers.current.delete(id);
+        setSubmitting((value) => ({ ...value, [id]: false }));
+        setStreams((value) => {
+          const next = { ...value };
+          delete next[id];
+          return next;
+        });
+        // The paused request now shows its recorded decision; a dropped stream shows the saved outcome.
+        void loadThread(id).catch(() => {});
       }
     }
   }
@@ -1146,6 +1197,7 @@ export function useAssistant(integrationKey: string, resourceId: string | undefi
     saveDraft,
     selectVariant,
     send,
+    respondToApproval,
     stop,
     remove,
     upload,

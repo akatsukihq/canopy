@@ -10,8 +10,15 @@ export type AIMessage = { role: "system" | "user" | "assistant" | "tool"; conten
 export type AITool = {
   description: string;
   inputSchema: z.ZodType;
+  /** Typed result shape, sent to the provider as the tool's output schema. */
+  outputSchema?: z.ZodType;
+  /** The call pauses for user approval before `execute` runs (AI SDK tool-level approval). */
+  needsApproval?: boolean;
   execute?: (input: unknown, context: { toolCallId: string; signal?: AbortSignal }) => Promise<unknown>;
 };
+/** A tool call waiting for a person's decision. */
+export type AIApprovalRequest = { approvalId: string; toolCallId: string; toolName: string; input: unknown };
+export type AIApprovalResponse = { approvalId: string; approved: boolean; reason?: string };
 export type AIRequest = {
   messages: AIMessage[];
   schema?: z.ZodType;
@@ -22,6 +29,8 @@ export type AIRequest = {
   effort?: AIEffort;
   metadata?: Record<string, string>;
   signal?: AbortSignal;
+  /** Continues a loop that stopped for approval: the saved `AIResult.approval.messages` plus the decisions. */
+  resume?: { messages: unknown[]; responses: AIApprovalResponse[] };
 };
 export const AI_EFFORTS = ["low", "medium", "high", "xhigh", "max"] as const;
 export type AIEffort = (typeof AI_EFFORTS)[number];
@@ -38,6 +47,11 @@ export type AIResult = AIHandle & {
   details?: Record<string, unknown>;
   usage?: { inputTokens?: number; outputTokens?: number; totalTokens?: number };
   error?: { code: string; message: string };
+  /**
+   * Set when the loop stopped for approval. `status` is then "failed" (APPROVAL_REQUIRED) so callers that
+   * cannot pause fail cleanly; a streaming caller resumes with `messages` (opaque provider messages).
+   */
+  approval?: { requests: AIApprovalRequest[]; messages: unknown[] };
 };
 export type AIStreamEvent =
   | { type: "response"; response: AIHandle }

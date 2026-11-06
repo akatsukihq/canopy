@@ -61,6 +61,7 @@ import { useTypedText } from "./useTypedText";
 import { AssistantProgress, AssistantThinking } from "./AssistantProgress";
 import { AssistantModelPicker } from "./AssistantModelPicker";
 import { ChangeCard } from "./ChangeCard";
+import { ApprovalCard } from "./ApprovalCard";
 import { ReportView } from "./ReportView";
 import { useAssistant } from "@/lib/assistant/useAssistant";
 
@@ -425,9 +426,7 @@ function AssistantPanelInstance({ resourceId, ownerId, integration, onClose }: P
       if (fileInput.current) fileInput.current.value = "";
     }
   }
-  const thinking = (
-    <AssistantThinking reasoning={assistant.stream?.reasoning} answering={!!assistant.stream?.text} />
-  );
+  const thinking = <AssistantThinking reasoning={assistant.stream?.reasoning} answering={!!assistant.stream?.text} />;
   // An unnamed thread shows "Assistant" until the title model names it, so the header changes once.
   const threadTitle = (assistant.selected && detail?.thread.title !== NEW_THREAD_TITLE && detail?.thread.title) || "";
   // A title types itself out only when it appears or changes while this thread is open, not on load or switch.
@@ -468,6 +467,14 @@ function AssistantPanelInstance({ resourceId, ownerId, integration, onClose }: P
       .filter((part) => part.type === "text")
       .map((part) => part.text)
       .join("\n");
+    // Non-fatal tool failures (e.g. an image that could not be generated) are saved in the message parts.
+    const toolFailures = message.parts.flatMap((part) => {
+      if (part.type !== "tool-result" || typeof part.output !== "object" || part.output === null) return [];
+      const output = part.output as { status?: unknown; error?: unknown };
+      return output.status === "failed"
+        ? [{ id: part.id, name: part.name, error: typeof output.error === "string" ? output.error : "It failed." }]
+        : [];
+    });
     const view = integration.response(run, message, assistant.freshRunIds.includes(run.id));
     return (
       <article key={message.id} className={styles.assistantResponse}>
@@ -477,20 +484,35 @@ function AssistantPanelInstance({ resourceId, ownerId, integration, onClose }: P
             thinking
           ) : (
             <p role="status" className="text-caption text-muted-foreground">
-              {run.status === "failed"
-                ? "Generation failed"
-                : run.status === "cancelled"
-                  ? "Request stopped"
-                  : "Saved outcome unconfirmed · Refresh history to check"}
+              {run.status === "awaiting-approval"
+                ? "Waiting for your approval"
+                : run.status === "failed"
+                  ? "Generation failed"
+                  : run.status === "cancelled"
+                    ? "Request stopped"
+                    : "Saved outcome unconfirmed · Refresh history to check"}
             </p>
           ))}
         {run.errorMessage && <p className="text-caption text-destructive">{run.errorMessage}</p>}
+        {toolFailures.map((failure) => (
+          <p key={failure.id} className="text-caption text-destructive">
+            {failure.name === "generateImage" ? "Image generation failed" : "A tool failed"}: {failure.error}
+          </p>
+        ))}
         {(assistant.stream?.run.id === run.id ? assistant.stream.text || text : text) && (
           <TypedMarkdown
             typingKey={assistant.stream?.run.id === run.id || assistant.freshRunIds.includes(run.id) ? run.id : null}
             markdown={assistant.stream?.run.id === run.id ? assistant.stream.text || text : text}
             {...integration.markdown}
             className={styles.assistantMarkdown}
+          />
+        )}
+        {run.approval && (
+          <ApprovalCard
+            approval={run.approval}
+            pending={run.status === "awaiting-approval"}
+            busy={busy}
+            onRespond={(approved, reason) => void assistant.respondToApproval(run, approved, reason)}
           />
         )}
         {view.warning && <p className="text-caption text-warning">{view.warning}</p>}
@@ -1007,6 +1029,13 @@ function AssistantPanelInstance({ resourceId, ownerId, integration, onClose }: P
                                 setPreparingScopes((value) => ({ ...value, [scope]: false }));
                               }
                             }}
+                            onApproval={(approved, reason) =>
+                              void assistant.respondToApproval(
+                                { id: entry.execution.id, threadId: assistant.selected },
+                                approved,
+                                reason,
+                              )
+                            }
                             onRetry={(id) => void prepareRetry(id)}
                             onNewRequest={openAgentPicker}
                             onCopy={(id) => {

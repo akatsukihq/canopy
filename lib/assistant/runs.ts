@@ -17,10 +17,10 @@ import { AIClient } from "../ai/client.ts";
 import { assistantModels, createAIClient } from "../config/integrations.ts";
 import { effortLevels } from "../ai/models.ts";
 import { AIError } from "../ai/errors.ts";
-import { log, logError } from "../observability/logger.ts";
-import type { AIResult, AIToolCall } from "../ai/types.ts";
+import { errorDetails, log, logError } from "../observability/logger.ts";
+import type { AIMessage, AIResult, AIToolCall } from "../ai/types.ts";
 import type { AssistantStageRequest } from "./integration.ts";
-import { ACTIVE_RUN_STATUSES, privateExpiry, type AssistantThreads } from "./threads.ts";
+import { ACTIVE_RUN_STATUSES, approvalView, privateExpiry, type AssistantThreads } from "./threads.ts";
 import {
   AssistantError,
   assistantId,
@@ -32,7 +32,13 @@ import {
 } from "./validation.ts";
 import type { AssistantIntegration, AssistantTransaction, StoredRun, AuxiliaryResult } from "./integration.ts";
 import { NEW_THREAD_TITLE } from "./types.ts";
-import type { AssistantMessagePart, AssistantProposal, AssistantRunRequest, AssistantEvent } from "./types.ts";
+import type {
+  AssistantAttachment,
+  AssistantMessagePart,
+  AssistantProposal,
+  AssistantRunRequest,
+  AssistantEvent,
+} from "./types.ts";
 
 export function createAssistantRuns(integration: AssistantIntegration, storage: AssistantThreads) {
   const { requireThread, requireAssistantClient, attachmentsForRun, attachmentView, runView, messageView } = storage;
@@ -400,6 +406,7 @@ export function createAssistantRuns(integration: AssistantIntegration, storage: 
     result: AIResult,
     proposals: AssistantProposal[],
     auxiliaryResult?: AuxiliaryResult,
+    toolFailures: Array<{ toolName: string; error: Record<string, unknown> }> = [],
   ) {
     return db.transaction(async (tx) => {
       const [candidate] = await tx.select().from(runs).where(eq(runs.id, id));
@@ -419,7 +426,7 @@ export function createAssistantRuns(integration: AssistantIntegration, storage: 
             run.executionMode === "standalone",
           )
         : [];
-      const validated = integration.validateResult(
+      const validated = await integration.validateResult(
         result,
         run.request,
         proposals,
@@ -469,6 +476,7 @@ export function createAssistantRuns(integration: AssistantIntegration, storage: 
           completedAt: now,
           updatedAt: now,
           errorMessage: null,
+          errorDetails: toolFailures.length ? { toolFailures } : null,
         })
         .where(eq(runs.id, id))
         .returning();
@@ -505,11 +513,193 @@ export function createAssistantRuns(integration: AssistantIntegration, storage: 
     });
   }
 
+  /** What a paused run saves to continue: its stage messages, the provider's loop messages and its proposals. */
+  const pausedSchema = z.object({
+    messages: z.array(z.custom<AIMessage>((value) => typeof value === "object" && value !== null)).min(1),
+    providerMessages: z.array(z.unknown()),
+    proposals: z.array(z.custom<AssistantProposal>((value) => typeof value === "object" && value !== null)),
+  });
+  const resumeSchema = pausedSchema.extend({
+    responses: z
+      .array(z.object({ approvalId: z.string(), approved: z.boolean(), reason: z.string().optional() }))
+      .min(1),
+  });
+  function resumeState(run: StoredRun) {
+    if (run.continuation.resume === undefined) return undefined;
+    const parsed = resumeSchema.safeParse(run.continuation.resume);
+    if (!parsed.success)
+      throw new AssistantError("CONFLICT", "This approval can no longer continue. Run the agent again.", 409);
+    return parsed.data;
+  }
+
+  /** Ends a run that waits for a person to approve tool calls; the stage state goes to `continuation.paused`. */
+  async function pauseRun(
+    id: string,
+    stage: AssistantStageRequest,
+    result: AIResult,
+    proposals: AssistantProposal[],
+    usage: AIResult["usage"],
+  ) {
+    const approval = result.approval!;
+    return db.transaction(async (tx) => {
+      const [candidate] = await tx.select().from(runs).where(eq(runs.id, id));
+      if (!candidate) throw new AssistantError("NOT_FOUND", "Request no longer exists.", 404);
+      const run = await authorizeRun(tx, candidate.ownerId, id, true);
+      if (!active(run))
+        throw new AssistantError("CONFLICT", "This request has already stopped. Run the agent again.", 409);
+      const response = { text: result.text, citations: [], proposals: [] };
+      const handles = [...new Set([...handlesOf(run), result.id].filter(Boolean))];
+      const now = new Date();
+      const [updated] = await tx
+        .update(runs)
+        .set({
+          status: "awaiting-approval",
+          model: result.model,
+          providerResponseId: result.id || null,
+          response,
+          usage: usage ?? null,
+          continuation: {
+            ...run.continuation,
+            handles,
+            approval: { calls: approval.requests },
+            paused: { messages: stage.messages, providerMessages: approval.messages, proposals },
+          },
+          updatedAt: now,
+          errorMessage: null,
+        })
+        .where(eq(runs.id, id))
+        .returning();
+      await tx
+        .update(messages)
+        .set({ parts: resultParts(response, result.toolCalls), meta: usage ? { usage } : {}, updatedAt: now })
+        .where(eq(messages.runId, id));
+      if (run.threadId) await tx.update(threads).set({ updatedAt: now }).where(eq(threads.id, run.threadId));
+      return updated;
+    });
+  }
+
+  /**
+   * Records the owner's decision on a paused run once and streams the continuation run that carries it.
+   * A repeated identical decision replays the existing continuation; a different one conflicts.
+   */
+  async function respondToApproval(actor: string, id: string, input: unknown, requestSignal: AbortSignal) {
+    const decision = z
+      .object({ approved: z.boolean(), reason: z.string().trim().max(1000).optional() })
+      .strict()
+      .parse(input);
+    const reason = decision.reason || undefined;
+    const started = await db.transaction(async (tx) => {
+      // Locks the paused run, so concurrent responses serialise; ownership and expiry are checked here.
+      const paused = await authorizeRun(tx, actor, id, true);
+      const approval = approvalView(paused.continuation);
+      const clientRequestId = `approval-${paused.id}`;
+      if (approval?.decision) {
+        if ((approval.decision === "approved") !== decision.approved)
+          throw new AssistantError("CONFLICT", "This tool call already has a recorded decision.", 409);
+        const [existing] = await tx
+          .select({ id: runs.id })
+          .from(runs)
+          .where(
+            and(
+              eq(runs.ownerId, actor),
+              eq(runs.integrationKey, integration.key),
+              eq(runs.clientRequestId, clientRequestId),
+            ),
+          );
+        if (!existing) throw new AssistantError("NOT_FOUND", "The continued request is no longer available.", 404);
+        return { run: await authorizeRun(tx, actor, existing.id), fresh: false, attachments: [] };
+      }
+      const saved = pausedSchema.safeParse(paused.continuation.paused);
+      if (paused.status !== "awaiting-approval" || !approval || !saved.success)
+        throw new AssistantError("CONFLICT", "This request is not waiting for approval.", 409);
+      const calls = z
+        .array(z.object({ approvalId: z.string() }).passthrough())
+        .parse((paused.continuation.approval as { calls: unknown }).calls);
+      const runId = randomUUID();
+      const assistantMessageId = paused.executionMode === "standalone" ? null : randomUUID();
+      const now = new Date();
+      const [run] = await tx
+        .insert(runs)
+        .values({
+          id: runId,
+          threadId: paused.threadId,
+          resourceId: paused.resourceId,
+          integrationKey: integration.key,
+          ownerId: actor,
+          inputMessageId: paused.inputMessageId,
+          clientRequestId,
+          operation: paused.operation,
+          executionMode: paused.executionMode,
+          provider: paused.provider,
+          model: paused.model,
+          status: "queued",
+          request: { ...paused.request, clientRequestId },
+          expiresAt: privateExpiry(),
+          continuation: {
+            submissionHash: digest(decision),
+            assistantMessageId,
+            handles: [],
+            resume: {
+              ...saved.data,
+              responses: calls.map(({ approvalId }) => ({
+                approvalId,
+                approved: decision.approved,
+                ...(reason ? { reason } : {}),
+              })),
+            },
+          },
+        })
+        .returning();
+      if (assistantMessageId)
+        await tx
+          .insert(messages)
+          .values({
+            id: assistantMessageId,
+            threadId: paused.threadId!,
+            runId,
+            role: "assistant",
+            parts: [],
+            meta: {},
+          });
+      // Like a retry, the continuation becomes the shown answer to the same question.
+      if (paused.inputMessageId)
+        await tx
+          .update(messages)
+          .set({ meta: sql`${messages.meta} - 'activeRunId'` })
+          .where(eq(messages.id, paused.inputMessageId));
+      const { paused: _saved, ...continuation } = paused.continuation;
+      await tx
+        .update(runs)
+        .set({
+          status: "completed",
+          completedAt: now,
+          updatedAt: now,
+          continuation: {
+            ...continuation,
+            approval: {
+              ...(paused.continuation.approval as Record<string, unknown>),
+              decision: { approved: decision.approved, ...(reason ? { reason } : {}), runId },
+            },
+          },
+        })
+        .where(eq(runs.id, paused.id));
+      return { run, fresh: true, attachments: [] };
+    });
+    return executeRun(started, requestSignal);
+  }
+
   /** NDJSON keeps SDK/provider details behind the shared AI client. */
   async function streamRun(actor: string, input: unknown, requestSignal: AbortSignal): Promise<Response> {
-    const started = await startRun(actor, input);
+    return executeRun(await startRun(actor, input), requestSignal);
+  }
+
+  /** Streams a reserved run; a duplicate (`fresh: false`) only reports its saved state. */
+  function executeRun(
+    started: { run: StoredRun; fresh: boolean; needsTitle?: boolean; attachments: AssistantAttachment[] },
+    requestSignal: AbortSignal,
+  ): Response {
     const { run, fresh, attachments: inputAttachments } = started;
-    const needsTitle = "needsTitle" in started && started.needsTitle;
+    const needsTitle = started.needsTitle === true;
     // A closed tab or back navigation only stops the stream; the run keeps going and saves its result.
     // Only an explicit cancelRun aborts the provider call.
     const abort = new AbortController();
@@ -535,6 +725,7 @@ export function createAssistantRuns(integration: AssistantIntegration, storage: 
         let receivedResult: AIResult | undefined;
         /** Usage of earlier completed stages of a multi-stage run. */
         let stageUsage: AIResult["usage"];
+        const toolFailures: Array<{ toolName: string; error: Record<string, unknown> }> = [];
         /** Sources and search outcome of earlier stages (e.g. a researching planner). */
         let stageCitations: AIResult["citations"] = [];
         let stageSearch: AIResult["searchStatus"];
@@ -572,13 +763,26 @@ export function createAssistantRuns(integration: AssistantIntegration, storage: 
             needsTitle && run.threadId
               ? threadTitle(run, run.threadId, AbortSignal.any([abort.signal, AbortSignal.timeout(10_000)]))
               : undefined;
-          const proposals: AssistantProposal[] = [];
+          const resume = resumeState(run);
+          // A continuation keeps the proposals its paused run already made.
+          const proposals: AssistantProposal[] = [...(resume?.proposals ?? [])];
           let providerRequest: AssistantStageRequest | undefined = await integration.buildRequest({
             run,
             ...context,
             proposals,
             signal: abort.signal,
+            reportToolFailure: (toolName, error) => {
+              toolFailures.push({ toolName, error: errorDetails(error) });
+              logError("assistant.tool_failed", error, { runId: run.id, integration: integration.key, toolName });
+            },
           });
+          // The tools come from a fresh build; the conversation is the one saved at the pause.
+          if (resume && providerRequest)
+            providerRequest = {
+              ...providerRequest,
+              messages: resume.messages,
+              resume: { messages: resume.providerMessages, responses: resume.responses },
+            };
           const client = await createAIClient(run.provider);
           /** A user cancel flips the stored status; later stages check it before starting. */
           const stopIfCancelled = async () => {
@@ -620,6 +824,27 @@ export function createAssistantRuns(integration: AssistantIntegration, storage: 
               } else if (event.type === "completed") {
                 abort.signal.throwIfAborted();
                 receivedResult = event.result;
+                if (event.result.approval) {
+                  // Only the top-level agent of an interactive section can wait for a person.
+                  if (index > 0 || stage.next || !integration.approvals?.(run.request))
+                    throw new AssistantError(
+                      "APPROVAL_UNSUPPORTED",
+                      "A tool here needs approval, but only the main agent of an assistant conversation can ask for it. Ask an admin to turn off approval for that tool or attach it to the main agent.",
+                    );
+                  providerComplete = true;
+                  auxiliaryAbort.abort();
+                  const [auxiliaryResult, titled] = await Promise.all([auxiliaryWork, titleWork]);
+                  if (titled?.title) emit({ type: "title", title: titled.title });
+                  const paused = await pauseRun(
+                    run.id,
+                    stage,
+                    event.result,
+                    proposals,
+                    combinedUsage(stageUsage, event.result.usage, auxiliaryResult?.usage, titled?.usage),
+                  );
+                  emit({ type: "completed", run: runView(paused) });
+                  continue;
+                }
                 if (event.result.status !== "completed") {
                   const error = new AIError(
                     event.result.status === "cancelled" ? "CANCELLED" : "INVALID_OUTPUT",
@@ -669,6 +894,7 @@ export function createAssistantRuns(integration: AssistantIntegration, storage: 
                     ...auxiliaryResult,
                     usage: combinedUsage(auxiliaryResult?.usage, titled?.usage),
                   },
+                  toolFailures,
                 );
                 for (const proposal of completedRun.response?.proposals ?? []) emit({ type: "proposal", proposal });
                 emit({ type: "completed", run: runView(completedRun) });
@@ -678,7 +904,7 @@ export function createAssistantRuns(integration: AssistantIntegration, storage: 
           if (!providerComplete) throw new Error("The provider stream ended without a final result.");
         } catch (error) {
           auxiliaryAbort.abort();
-          const [auxiliaryResult, titled] = await Promise.all([auxiliaryWork, titleWork]);
+          const [auxiliaryResult, titled] = await Promise.all([auxiliaryWork, titleWork?.catch(() => undefined)]);
           if (titled?.title) emit({ type: "title", title: titled.title });
           const cancelled =
             (abort.signal.aborted && !providerComplete) || (error instanceof AIError && error.code === "CANCELLED");
@@ -708,47 +934,64 @@ export function createAssistantRuns(integration: AssistantIntegration, storage: 
             auxiliaryResult?.usage,
             titled?.usage,
           );
-          const [failed] = await db
-            .update(runs)
-            .set({
-              status: cancelled ? "cancelled" : "failed",
-              ...(usage ? { usage } : {}),
-              errorMessage: message,
-              completedAt: new Date(),
-              updatedAt: new Date(),
-            })
-            .where(
-              and(
-                eq(runs.id, run.id),
-                sql`${runs.status} IN ('queued','running','unknown')`,
-                sql`${runs.expiresAt} > now()`,
-                sql`coalesce(${runs.continuation}->>'cleared','false') <> 'true'`,
-              ),
-            )
-            .returning();
-          if (failed)
-            await db
-              .update(messages)
+          // A failed save must never swallow the error event: the client would only see a dropped stream.
+          let failed: typeof runs.$inferSelect | undefined;
+          try {
+            [failed] = await db
+              .update(runs)
               .set({
-                meta: {
-                  ...(usage ? { usage } : {}),
-                  provider: {
-                    name: run.provider,
-                    model: receivedResult?.model ?? failed.model,
-                    details: auxiliaryResult
-                      ? {
-                          auxiliary: {
-                            model: auxiliaryResult.model,
-                            responseId: auxiliaryResult.id,
-                            usage: auxiliaryResult.usage,
-                          },
-                        }
-                      : {},
-                  },
-                },
+                status: cancelled ? "cancelled" : "failed",
+                ...(usage ? { usage } : {}),
+                errorMessage: message,
+                ...(cancelled
+                  ? {}
+                  : {
+                      errorDetails: {
+                        ...failure,
+                        aiCode: error instanceof AIError ? error.code : undefined,
+                        error: errorDetails(error),
+                        toolErrors: receivedResult?.details?.toolErrors,
+                        toolFailures: toolFailures.length ? toolFailures : undefined,
+                      },
+                    }),
+                completedAt: new Date(),
                 updatedAt: new Date(),
               })
-              .where(eq(messages.runId, run.id));
+              .where(
+                and(
+                  eq(runs.id, run.id),
+                  sql`${runs.status} IN ('queued','running','unknown')`,
+                  sql`${runs.expiresAt} > now()`,
+                  sql`coalesce(${runs.continuation}->>'cleared','false') <> 'true'`,
+                ),
+              )
+              .returning();
+            if (failed)
+              await db
+                .update(messages)
+                .set({
+                  meta: {
+                    ...(usage ? { usage } : {}),
+                    provider: {
+                      name: run.provider,
+                      model: receivedResult?.model ?? failed.model,
+                      details: auxiliaryResult
+                        ? {
+                            auxiliary: {
+                              model: auxiliaryResult.model,
+                              responseId: auxiliaryResult.id,
+                              usage: auxiliaryResult.usage,
+                            },
+                          }
+                        : {},
+                    },
+                  },
+                  updatedAt: new Date(),
+                })
+                .where(eq(messages.runId, run.id));
+          } catch (saveError) {
+            logError("assistant.run_failure_save_failed", saveError, failure);
+          }
           emit({ type: "error", message, ...(failed ? { run: runView(failed) } : {}) });
         } finally {
           abort.signal.removeEventListener("abort", cancelAuxiliary);
@@ -758,6 +1001,8 @@ export function createAssistantRuns(integration: AssistantIntegration, storage: 
             /* The browser may have disconnected. */
           }
           if (completedRun) await cleanupCompletedResponses(completedRun);
+          // Releases per-run resources (e.g. agent MCP clients) on every exit path, including failures.
+          abort.abort();
         }
       },
     });
@@ -871,5 +1116,5 @@ export function createAssistantRuns(integration: AssistantIntegration, storage: 
     });
   }
 
-  return { startRun, streamRun, getRun, cancelRun, updateProposal, authorizeRun };
+  return { startRun, streamRun, respondToApproval, getRun, cancelRun, updateProposal, authorizeRun };
 }

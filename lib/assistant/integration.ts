@@ -41,6 +41,8 @@ export interface AssistantIntegration {
     structuredOutput: boolean;
   };
   operationLabel(operation: string, agentId?: string): string;
+  /** Whether this request's top-level agent may pause for tool approval (interactive sections only). */
+  approvals?(request: AssistantRunRequest): boolean;
   /** Reasoning effort used when the user leaves the picker on its default; medium otherwise. */
   agentEffort?(agentId?: string): AIEffort | undefined;
   authorize(
@@ -61,6 +63,8 @@ export interface AssistantIntegration {
     attachments: StoredAttachment[];
     proposals: AssistantProposal[];
     signal: AbortSignal;
+    /** Records a non-fatal tool failure; saved with the run's server-only error details. */
+    reportToolFailure: (toolName: string, error: unknown) => void;
   }): AssistantStageRequest | Promise<AssistantStageRequest>;
   partialText?(output: unknown, request: AssistantRunRequest): string | undefined;
   validateResult(
@@ -68,7 +72,7 @@ export interface AssistantIntegration {
     request: AssistantRunRequest,
     proposals: AssistantProposal[],
     inputArtifactIds: string[],
-  ): AssistantCompletion;
+  ): AssistantCompletion | Promise<AssistantCompletion>;
   complete?(tx: AssistantTransaction, run: StoredRun, completion: AssistantCompletion): Promise<void>;
   auxiliary?(
     run: StoredRun,

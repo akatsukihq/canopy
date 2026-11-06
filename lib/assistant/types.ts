@@ -5,7 +5,13 @@ import type { JSONContent } from "@tiptap/core";
 export const NEW_THREAD_TITLE = "New thread";
 
 export type AssistantExecutionMode = "conversational" | "standalone";
-export type AssistantRunStatus = "queued" | "running" | "completed" | "failed" | "cancelled" | "unknown";
+export type AssistantRunStatus =
+  "queued" | "running" | "completed" | "failed" | "cancelled" | "unknown" | "awaiting-approval";
+/** Tool calls a paused run asks its owner to approve; `decision` is set once the owner answered. */
+export type AssistantApproval = {
+  calls: Array<{ toolCallId: string; toolName: string; input: unknown }>;
+  decision?: "approved" | "rejected";
+};
 export type AssistantRunRequest = {
   schemaVersion?: number;
   clientRequestId: string;
@@ -65,6 +71,7 @@ export type AssistantRun = {
   request: AssistantRunRequest;
   response: AssistantResult | null;
   errorMessage: string | null;
+  approval?: AssistantApproval;
   createdAt: string;
   updatedAt: string;
   completedAt: string | null;
@@ -160,6 +167,7 @@ export type AssistantExecutionSummary = {
   label: string;
   artifact?: AssistantArtifactReference;
   errorMessage: string | null;
+  approval?: AssistantApproval;
   createdAt: string;
   updatedAt: string;
   completedAt: string | null;

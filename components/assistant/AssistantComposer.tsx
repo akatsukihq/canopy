@@ -236,73 +236,77 @@ export function AssistantComposer(props: Props) {
     const signature = JSON.stringify([props.value, props.agentId, props.agentOffset, props.content]);
     if (signature !== syncedProps.current) {
       syncedProps.current = signature;
-      syncing.current = true;
-      let state = readDocument(editor.state.doc);
-      if (!props.value && !props.agentId && !props.content) {
-        editor.chain().setMeta("addToHistory", false).setContent(documentContent(""), { emitUpdate: false }).run();
-        state = readDocument(editor.state.doc);
-      }
-      const stored = parseComposerContent(props.content);
-      if (stored && JSON.stringify(stored) !== JSON.stringify(state.content)) {
-        const restored = editor.schema.nodeFromJSON(stored);
-        const saved = readDocument(restored);
-        if (
-          saved.text === props.value &&
-          saved.agentId === props.agentId &&
-          (!props.agentId || saved.agentOffset === (props.agentOffset ?? 0))
-        ) {
-          editor.chain().setMeta("addToHistory", false).setContent(stored, { emitUpdate: false }).run();
+      // Tiptap node views call flushSync, which React forbids inside an effect.
+      queueMicrotask(() => {
+        if (editor.isDestroyed) return;
+        syncing.current = true;
+        let state = readDocument(editor.state.doc);
+        if (!props.value && !props.agentId && !props.content) {
+          editor.chain().setMeta("addToHistory", false).setContent(documentContent(""), { emitUpdate: false }).run();
           state = readDocument(editor.state.doc);
         }
-      }
-      if (state.text !== props.value) {
-        // External actions can append slash queries or restore text without discarding existing marks.
-        let start = 0;
-        while (start < state.text.length && start < props.value.length && state.text[start] === props.value[start])
-          start++;
-        let oldEnd = state.text.length,
-          newEnd = props.value.length;
-        while (oldEnd > start && newEnd > start && state.text[oldEnd - 1] === props.value[newEnd - 1]) {
-          oldEnd--;
-          newEnd--;
+        const stored = parseComposerContent(props.content);
+        if (stored && JSON.stringify(stored) !== JSON.stringify(state.content)) {
+          const restored = editor.schema.nodeFromJSON(stored);
+          const saved = readDocument(restored);
+          if (
+            saved.text === props.value &&
+            saved.agentId === props.agentId &&
+            (!props.agentId || saved.agentOffset === (props.agentOffset ?? 0))
+          ) {
+            editor.chain().setMeta("addToHistory", false).setContent(stored, { emitUpdate: false }).run();
+            state = readDocument(editor.state.doc);
+          }
         }
-        editor
-          .chain()
-          .setMeta("addToHistory", false)
-          .insertContentAt(
-            {
-              from: documentPosition(editor.state.doc, start),
-              to: documentPosition(editor.state.doc, oldEnd),
-            },
-            inlineText(props.value.slice(start, newEnd)),
-            { updateSelection: false },
-          )
-          .run();
-        state = readDocument(editor.state.doc);
-      }
-      if (
-        state.agentId !== props.agentId ||
-        (props.agentId && state.agentOffset !== Math.min(props.agentOffset ?? 0, props.value.length))
-      ) {
-        const transaction = editor.state.tr.setMeta("addToHistory", false);
-        editor.state.doc.descendants((node, position) => {
-          if (node.type.name === "agentMention")
-            transaction.delete(transaction.mapping.map(position), transaction.mapping.map(position + node.nodeSize));
-        });
-        if (props.agentId)
-          transaction.insert(
-            documentPosition(transaction.doc, props.agentOffset ?? 0),
-            editor.schema.nodes.agentMention.create({ agentId: props.agentId }),
-          );
-        editor.view.dispatch(transaction);
-      }
-      syncing.current = false;
-      const canonical = readDocument(editor.state.doc);
-      if (
-        (canonical.text || canonical.agentId || props.content) &&
-        JSON.stringify(canonical.content) !== JSON.stringify(props.content)
-      )
-        current.current.onChange(canonical);
+        if (state.text !== props.value) {
+          // External actions can append slash queries or restore text without discarding existing marks.
+          let start = 0;
+          while (start < state.text.length && start < props.value.length && state.text[start] === props.value[start])
+            start++;
+          let oldEnd = state.text.length,
+            newEnd = props.value.length;
+          while (oldEnd > start && newEnd > start && state.text[oldEnd - 1] === props.value[newEnd - 1]) {
+            oldEnd--;
+            newEnd--;
+          }
+          editor
+            .chain()
+            .setMeta("addToHistory", false)
+            .insertContentAt(
+              {
+                from: documentPosition(editor.state.doc, start),
+                to: documentPosition(editor.state.doc, oldEnd),
+              },
+              inlineText(props.value.slice(start, newEnd)),
+              { updateSelection: false },
+            )
+            .run();
+          state = readDocument(editor.state.doc);
+        }
+        if (
+          state.agentId !== props.agentId ||
+          (props.agentId && state.agentOffset !== Math.min(props.agentOffset ?? 0, props.value.length))
+        ) {
+          const transaction = editor.state.tr.setMeta("addToHistory", false);
+          editor.state.doc.descendants((node, position) => {
+            if (node.type.name === "agentMention")
+              transaction.delete(transaction.mapping.map(position), transaction.mapping.map(position + node.nodeSize));
+          });
+          if (props.agentId)
+            transaction.insert(
+              documentPosition(transaction.doc, props.agentOffset ?? 0),
+              editor.schema.nodes.agentMention.create({ agentId: props.agentId }),
+            );
+          editor.view.dispatch(transaction);
+        }
+        syncing.current = false;
+        const canonical = readDocument(editor.state.doc);
+        if (
+          (canonical.text || canonical.agentId || props.content) &&
+          JSON.stringify(canonical.content) !== JSON.stringify(props.content)
+        )
+          current.current.onChange(canonical);
+      });
     }
     editor.setOptions({
       editorProps: {

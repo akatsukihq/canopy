@@ -32,6 +32,7 @@ import type {
   AssistantRun,
   AssistantAvailability,
   AssistantMessage,
+  AssistantApproval,
   AssistantExecutionSummary,
   AssistantRunRequest,
   AssistantResult,
@@ -42,6 +43,21 @@ import { attachmentProvider, deleteRunResponses } from "./resources.ts";
 import { NEW_THREAD_TITLE } from "./types.ts";
 export const ACTIVE_RUN_STATUSES = ["queued", "running", "unknown"] as const;
 export const privateExpiry = () => new Date(Date.now() + 30 * 24 * 60 * 60 * 1000);
+
+const storedApproval = z.object({
+  calls: z.array(z.object({ toolCallId: z.string(), toolName: z.string(), input: z.unknown() })).min(1),
+  decision: z.object({ approved: z.boolean() }).passthrough().optional(),
+});
+/** The browser-safe view of a run's approval request (never its saved conversation). */
+export function approvalView(continuation: Record<string, unknown>): AssistantApproval | undefined {
+  const parsed = storedApproval.safeParse(continuation.approval);
+  if (!parsed.success) return undefined;
+  const { calls, decision } = parsed.data;
+  return {
+    calls: calls.map(({ toolCallId, toolName, input }) => ({ toolCallId, toolName, input })),
+    ...(decision ? { decision: decision.approved ? ("approved" as const) : ("rejected" as const) } : {}),
+  };
+}
 
 export function createAssistantThreads(integration: AssistantIntegration) {
   function threadView(row: typeof threads.$inferSelect): AssistantThread {
@@ -127,6 +143,7 @@ export function createAssistantThreads(integration: AssistantIntegration) {
         : "Expired result",
       artifact: available ? row.response?.artifact : undefined,
       errorMessage: available ? row.errorMessage : "This result has expired.",
+      ...(available && approvalView(row.continuation) ? { approval: approvalView(row.continuation) } : {}),
       createdAt: row.createdAt.toISOString(),
       updatedAt: row.updatedAt.toISOString(),
       completedAt: row.completedAt?.toISOString() ?? null,
@@ -169,7 +186,9 @@ export function createAssistantThreads(integration: AssistantIntegration) {
         errorMessage: runs.errorMessage,
         request: sql<AssistantRunRequest>`jsonb_build_object('agentId', ${runs.request}->>'agentId', 'message', ${runs.request}->>'message')`,
         response: sql<AssistantResult | null>`CASE WHEN ${runs.response} IS NULL THEN NULL ELSE jsonb_build_object('artifact', ${runs.response}->'artifact') END`,
-        continuation: sql<Record<string, unknown>>`'{}'::jsonb`,
+        continuation: sql<
+          Record<string, unknown>
+        >`jsonb_strip_nulls(jsonb_build_object('approval', ${runs.continuation}->'approval'))`,
       })
       .from(runs)
       .where(
@@ -310,6 +329,7 @@ export function createAssistantThreads(integration: AssistantIntegration) {
       assistantMessageId:
         typeof row.continuation.assistantMessageId === "string" ? row.continuation.assistantMessageId : null,
       errorMessage: row.errorMessage,
+      ...(approvalView(row.continuation) ? { approval: approvalView(row.continuation) } : {}),
       createdAt: row.createdAt.toISOString(),
       updatedAt: row.updatedAt.toISOString(),
       completedAt: row.completedAt?.toISOString() ?? null,
