@@ -233,7 +233,8 @@ export function SettingsForm({
               }
               description={hint ? `${group.description ?? ""} ${hint}`.trim() : group.description}
               key={group.title}
-              title={groups.length > 1 ? group.title : undefined}
+              columns={group.fields.length % 3 === 0 ? 3 : 2}
+              title={group.title}
             >
               {group.fields.map((field) => (
                 <FieldRow
@@ -281,7 +282,10 @@ function FieldRow({
   const errorId = `${id}-error`;
   const resetting = draft === null;
   const value = draft ?? field.defaultValue ?? "";
-  const invalid = { "aria-describedby": error ? errorId : undefined, "aria-invalid": error ? true : undefined };
+  const invalid = {
+    "aria-describedby": error ? errorId : field.description ? `${id}-description` : undefined,
+    "aria-invalid": error ? true : undefined,
+  };
 
   const control =
     field.kind === "boolean" ? (
@@ -339,9 +343,20 @@ function FieldRow({
         </SelectContent>
       </Select>
     ) : (
-      <div className="relative">
+      <div
+        aria-invalid={error ? true : undefined}
+        className={
+          field.unit
+            ? "flex items-center rounded-lg border border-input bg-background focus-within:border-ring focus-within:ring-[3px] focus-within:ring-ring/50 aria-invalid:border-destructive"
+            : undefined
+        }
+      >
         <Input
-          className={field.unit ? "pr-20" : undefined}
+          className={
+            field.unit
+              ? "rounded-none border-0 bg-transparent shadow-none focus-visible:ring-0 dark:bg-transparent"
+              : undefined
+          }
           disabled={!editable}
           id={id}
           inputMode={field.kind === "number" ? "decimal" : field.format === "plain" ? "text" : "email"}
@@ -351,11 +366,7 @@ function FieldRow({
           value={value}
           {...invalid}
         />
-        {field.unit ? (
-          <Caption className="pointer-events-none absolute inset-y-0 right-3 flex items-center text-muted-foreground">
-            {field.unit}
-          </Caption>
-        ) : null}
+        {field.unit ? <Caption className="shrink-0 pr-3 text-muted-foreground">{field.unit}</Caption> : null}
       </div>
     );
 

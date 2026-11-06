@@ -1,16 +1,5 @@
 import type { ReactNode } from "react";
-import { Info } from "lucide-react";
-import {
-  Caption,
-  Card,
-  H2,
-  Label,
-  P,
-  Tooltip,
-  TooltipContent,
-  TooltipProvider,
-  TooltipTrigger,
-} from "@/components/ui/index.tsx";
+import { Caption, Card, H2, Label, P, TooltipProvider } from "@/components/ui/index.tsx";
 import { cn } from "@/components/ui/lib/utils.ts";
 
 /** One setting: label row, then the control, then help text (replaced by the error when there is one). */
@@ -59,18 +48,6 @@ export function SettingRow({
         ) : (
           <P className="font-medium">{label}</P>
         )}
-        <Tooltip>
-          <TooltipTrigger asChild>
-            <button
-              aria-label={`About ${label}`}
-              className="rounded-full text-muted-foreground outline-none hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring"
-              type="button"
-            >
-              <Info aria-hidden="true" className="size-3.5" />
-            </button>
-          </TooltipTrigger>
-          <TooltipContent className="max-w-xs">{description}</TooltipContent>
-        </Tooltip>
         {status}
         <div className={"ml-auto flex shrink-0 items-center gap-1"}>
           {actions}
@@ -82,6 +59,10 @@ export function SettingRow({
         <Caption className="block text-xs text-destructive" id={errorId} role="alert">
           {error}
         </Caption>
+      ) : description ? (
+        <Caption className="block text-xs text-muted-foreground" id={id ? `${id}-description` : undefined}>
+          {description}
+        </Caption>
       ) : null}
       {details}
     </li>
@@ -92,11 +73,14 @@ export function SettingRow({
 export function SettingsSection({
   actions,
   children,
+  columns = 2,
   description,
   title,
 }: {
   actions?: ReactNode;
   children?: ReactNode;
+  /** Field columns from the small breakpoint up; 3 suits groups of three or six fields. */
+  columns?: 2 | 3;
   description?: ReactNode;
   /** Omit to render the rows without a header (the page title already says it). */
   title?: string;
@@ -118,7 +102,9 @@ export function SettingsSection({
       ) : null}
       {children ? (
         <TooltipProvider>
-          <ul className="grid grid-cols-[repeat(auto-fill,minmax(16rem,1fr))] gap-x-4 gap-y-2 p-3">{children}</ul>
+          <ul className={cn("grid gap-x-4 gap-y-2 p-3 sm:grid-cols-2", columns === 3 && "lg:grid-cols-3")}>
+            {children}
+          </ul>
         </TooltipProvider>
       ) : null}
     </Card>
