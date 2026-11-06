@@ -69,6 +69,7 @@ export {
 } from "./components/avatar.tsx";
 export { Badge, badgeVariants } from "./components/badge.tsx";
 export { FileChip } from "./components/file-chip.tsx";
+export { ChipMultiSelect, type ChipOption } from "./components/ChipMultiSelect.tsx";
 export { WorkspacePanelHeader } from "./components/WorkspacePanelHeader.tsx";
 export { Button, buttonVariants, ToolActionButton } from "./components/button.tsx";
 export { CanvasHandle } from "./components/canvas-handle.tsx";
@@ -697,7 +698,7 @@ export function Checkbox({
   const control = (
     <label className={cn("flex min-h-10 items-start gap-3 text-sm text-foreground", className)}>
       {tooltip && !props.disabled ? <TooltipTrigger asChild>{checkbox}</TooltipTrigger> : checkbox}
-      <span>
+      <span className="min-w-0">
         <span className="block font-semibold">{label}</span>
         {description ? <span className="mt-1 block leading-5 text-muted-foreground">{description}</span> : null}
       </span>

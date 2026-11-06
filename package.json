@@ -31,6 +31,7 @@
   },
   "dependencies": {
     "@ai-sdk/anthropic": "^4.0.56",
+    "@ai-sdk/mcp": "^2.0.90",
     "@ai-sdk/openai": "^4.0.69",
     "@base-ui/react": "^1.8.0",
     "@codemirror/autocomplete": "6.20.3",

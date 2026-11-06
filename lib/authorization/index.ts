@@ -66,6 +66,13 @@ export const PERMISSION_CATALOG = {
       archive: { description: "Move blog articles to trash and restore them." },
     },
   },
+  agents: {
+    description: "AI agents, skills, MCP servers, and custom tools used by the assistants.",
+    actions: {
+      view: { description: "View agent, skill, MCP server, and custom tool configuration." },
+      edit: { description: "Create, edit, and delete agents, skills, MCP servers, and custom tools." },
+    },
+  },
   features: {
     description: "Application feature flags.",
     actions: {
@@ -117,6 +124,7 @@ export const ADMIN_ACCESS = freezeAccess({
     archive: true,
   },
   blog: { view: true, create: true, edit: true, publish: true, archive: true },
+  agents: { view: true, edit: true },
   features: { view: true, edit: true, toggle: true },
   users: { view: true, suspend: true, assignRoles: true },
   roles: { view: true, create: true, edit: true, delete: true },

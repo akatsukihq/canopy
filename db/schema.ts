@@ -551,6 +551,8 @@ export const assistantRunsTable = pgTable(
     continuation: jsonb("continuation").$type<Record<string, unknown>>().notNull().default({}),
     usage: jsonb("usage").$type<unknown>(),
     errorMessage: text("error_message"),
+    /** Server-only failure diagnostics (never sent to the browser). */
+    errorDetails: jsonb("error_details").$type<Record<string, unknown>>(),
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
     updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
     completedAt: timestamp("completed_at", { withTimezone: true }),
@@ -593,7 +595,7 @@ export const assistantRunsTable = pgTable(
     check("assistant_runs_execution_mode_check", sql`${table.executionMode} IN ('conversational','standalone')`),
     check(
       "assistant_runs_status_check",
-      sql`${table.status} IN ('queued','running','completed','failed','cancelled','unknown')`,
+      sql`${table.status} IN ('queued','running','completed','failed','cancelled','unknown','awaiting-approval')`,
     ),
   ],
 );
@@ -679,5 +681,166 @@ export const assistantAttachmentsTable = pgTable(
       .where(sql`${table.status} = 'deleting'`),
     check("assistant_attachments_data_check", sql`jsonb_typeof(${table.data}) = 'object'`),
     check("assistant_attachments_status_check", sql`${table.status} IN ('processing','ready','failed','deleting')`),
+  ],
+);
+
+export const aiSkillsTable = pgTable("ai_skills", {
+  id: text("id").primaryKey(),
+  key: text("key").notNull().unique(),
+  name: text("name").notNull(),
+  description: text("description").notNull(),
+  body: text("body").notNull(),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+});
+
+export const aiMcpServersTable = pgTable(
+  "ai_mcp_servers",
+  {
+    id: text("id").primaryKey(),
+    name: text("name").notNull(),
+    url: text("url").notNull(),
+    transport: text("transport").$type<"http" | "sse">().notNull().default("http"),
+    /** Header name → encrypted value (lib/config/secrets StoredSecret). Never sent to the browser. */
+    headers: jsonb("headers").$type<Record<string, unknown>>().notNull().default({}),
+    enabled: boolean("enabled").notNull().default(true),
+    tools: jsonb("tools").$type<{ name: string; description: string }[]>().notNull().default([]),
+    lastCheckedAt: timestamp("last_checked_at", { withTimezone: true }),
+    lastError: text("last_error"),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [check("ai_mcp_servers_transport_check", sql`${table.transport} IN ('http','sse')`)],
+);
+
+export const aiAgentsTable = pgTable(
+  "ai_agents",
+  {
+    id: text("id").primaryKey(),
+    key: text("key").notNull().unique(),
+    name: text("name").notNull(),
+    description: text("description").notNull(),
+    command: text("command"),
+    aliases: jsonb("aliases").$type<string[]>().notNull().default([]),
+    persona: text("persona").notNull(),
+    model: text("model"),
+    effort: text("effort").notNull().default("medium"),
+    sections: jsonb("sections").$type<string[]>().notNull().default([]),
+    defaultFor: jsonb("default_for").$type<string[]>().notNull().default([]),
+    outputSchema: jsonb("output_schema").$type<Record<string, unknown> | null>(),
+    proposesDocument: boolean("proposes_document").notNull().default(false),
+    requiresDocument: boolean("requires_document").notNull().default(false),
+    webSearch: boolean("web_search").notNull().default(false),
+    builtinTools: jsonb("builtin_tools").$type<string[]>().notNull().default([]),
+    skillIds: jsonb("skill_ids").$type<string[]>().notNull().default([]),
+    mcpTools: jsonb("mcp_tools").$type<{ serverId: string; tool: string }[]>().notNull().default([]),
+    subagents: jsonb("subagents")
+      .$type<{ mode: "none" | "delegate" | "pipeline"; agentIds: string[] }>()
+      .notNull()
+      .default({ mode: "none", agentIds: [] }),
+    enabled: boolean("enabled").notNull().default(true),
+    version: integer("version").notNull().default(1),
+    updatedBy: text("updated_by").references(() => authUser.id, { onDelete: "set null" }),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [
+    check("ai_agents_effort_check", sql`${table.effort} IN ('low','medium','high','xhigh','max')`),
+    check(
+      "ai_agents_output_schema_check",
+      sql`${table.outputSchema} IS NULL OR jsonb_typeof(${table.outputSchema}) = 'object'`,
+    ),
+  ],
+);
+
+export const aiToolConnectionsTable = pgTable("ai_tool_connections", {
+  id: text("id").primaryKey(),
+  key: text("key").notNull().unique(),
+  name: text("name").notNull(),
+  description: text("description").notNull().default(""),
+  /** Template: fixed https origin (+ prefix) or one leading {{inputs.<id>}}. */
+  baseUrl: text("base_url").notNull(),
+  /** ToolInputField[] shared by every tool of the connection. */
+  inputs: jsonb("inputs").$type<unknown[]>().notNull().default([]),
+  headers: jsonb("headers").$type<Record<string, string>>().notNull().default({}),
+  /** Field id → encrypted StoredSecret shared by every agent; an agent's own value overrides it. */
+  secretValues: jsonb("secret_values").$type<Record<string, unknown>>().notNull().default({}),
+  enabled: boolean("enabled").notNull().default(true),
+  updatedBy: text("updated_by").references(() => authUser.id, { onDelete: "set null" }),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+});
+
+export const aiToolsTable = pgTable(
+  "ai_tools",
+  {
+    id: text("id").primaryKey(),
+    key: text("key").notNull().unique(),
+    name: text("name").notNull(),
+    description: text("description").notNull(),
+    kind: text("kind").$type<"http" | "code">().notNull(),
+    argsSchema: jsonb("args_schema").$type<Record<string, unknown>>().notNull(),
+    /** ToolInputField[] (lib/agents/toolTypes.ts). */
+    inputs: jsonb("inputs").$type<unknown[]>().notNull().default([]),
+    /** Field id → encrypted StoredSecret shared by every agent; an agent's own value overrides it. */
+    secretValues: jsonb("secret_values").$type<Record<string, unknown>>().notNull().default({}),
+    http: jsonb("http").$type<Record<string, unknown> | null>(),
+    code: jsonb("code").$type<Record<string, unknown> | null>(),
+    output: jsonb("output").$type<Record<string, unknown>>().notNull(),
+    requiresApproval: boolean("requires_approval").notNull().default(false),
+    enabled: boolean("enabled").notNull().default(true),
+    /** Set for an endpoint of a connection: http kind, no own inputs, url is a path. */
+    connectionId: text("connection_id").references(() => aiToolConnectionsTable.id, { onDelete: "restrict" }),
+    updatedBy: text("updated_by").references(() => authUser.id, { onDelete: "set null" }),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [
+    index("ai_tools_connection_id_idx").on(table.connectionId),
+    check("ai_tools_kind_check", sql`${table.kind} IN ('http','code')`),
+    check("ai_tools_args_schema_check", sql`jsonb_typeof(${table.argsSchema}) = 'object'`),
+    check(
+      "ai_tools_config_check",
+      sql`(${table.kind} = 'http' AND ${table.http} IS NOT NULL AND ${table.code} IS NULL) OR (${table.kind} = 'code' AND ${table.code} IS NOT NULL AND ${table.http} IS NULL)`,
+    ),
+  ],
+);
+
+export const aiAgentToolsTable = pgTable(
+  "ai_agent_tools",
+  {
+    agentId: text("agent_id")
+      .notNull()
+      .references(() => aiAgentsTable.id, { onDelete: "cascade" }),
+    toolId: text("tool_id")
+      .notNull()
+      .references(() => aiToolsTable.id, { onDelete: "restrict" }),
+    /** Field id → value; secret fields hold an encrypted StoredSecret (lib/config/secrets). Never sent to the browser. */
+    inputs: jsonb("inputs").$type<Record<string, unknown>>().notNull().default({}),
+  },
+  (table) => [
+    primaryKey({ columns: [table.agentId, table.toolId] }),
+    index("ai_agent_tools_tool_id_idx").on(table.toolId),
+    check("ai_agent_tools_inputs_check", sql`jsonb_typeof(${table.inputs}) = 'object'`),
+  ],
+);
+
+/** One agent's values for a connection's inputs, shared by every endpoint of it the agent enables. */
+export const aiAgentConnectionsTable = pgTable(
+  "ai_agent_connections",
+  {
+    agentId: text("agent_id")
+      .notNull()
+      .references(() => aiAgentsTable.id, { onDelete: "cascade" }),
+    connectionId: text("connection_id")
+      .notNull()
+      .references(() => aiToolConnectionsTable.id, { onDelete: "restrict" }),
+    /** Field id → value; secrets hold an encrypted StoredSecret. Never sent to the browser. */
+    inputs: jsonb("inputs").$type<Record<string, unknown>>().notNull().default({}),
+  },
+  (table) => [
+    primaryKey({ columns: [table.agentId, table.connectionId] }),
+    index("ai_agent_connections_connection_id_idx").on(table.connectionId),
+    check("ai_agent_connections_inputs_check", sql`jsonb_typeof(${table.inputs}) = 'object'`),
   ],
 );

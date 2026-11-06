@@ -49,7 +49,11 @@ const unavailable = (language: CodeLanguage, reason: UnavailableReason): CodeRun
   reason,
 });
 
-async function execute(
+/**
+ * Runs source with stdin through the shared gate and limits. Also used by custom code tools (lib/agents).
+ * Throws ToolError for invalid input and the abort reason on abort; every engine outcome is a result.
+ */
+export async function executeCode(
   language: CodeLanguage,
   text: string,
   secondary: string | undefined,
@@ -85,7 +89,7 @@ export async function runCode(
   const startedAt = performance.now();
   let result: CodeRunResult;
   try {
-    result = await execute(language, input.text, input.secondary, signal);
+    result = await executeCode(language, input.text, input.secondary, signal);
   } catch (error) {
     if (error instanceof ToolError || signal.aborted) throw error;
     // Never forward the original error: it could echo request content into logs or Sentry.

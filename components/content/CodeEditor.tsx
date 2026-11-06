@@ -2,7 +2,7 @@
 
 import dynamic from "next/dynamic";
 import { WrapText } from "lucide-react";
-import { useState, type AriaAttributes, type Ref } from "react";
+import { useState, type AriaAttributes, type ReactNode, type Ref } from "react";
 
 import { Button } from "@/components/ui/components/button.tsx";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/components/tooltip.tsx";
@@ -59,6 +59,8 @@ export interface CodeEditorProps extends Pick<
   wrap?: "soft" | "hard" | "off";
   onCaretChange?: (position: { line: number; column: number }) => void;
   onScroll?: (scroller: HTMLElement) => void;
+  /** Extra buttons shown beside the wrap toggle. */
+  toolbar?: ReactNode;
   editorRef?: Ref<CodeEditorHandle>;
   scrollRef?: Ref<HTMLElement>;
   searchQuery?: string;
@@ -77,7 +79,7 @@ const LazyCodeEditor = dynamic(() => import("./CodeEditorImpl"), {
   ),
 });
 
-export function CodeEditor({ className, ...props }: CodeEditorProps) {
+export function CodeEditor({ className, toolbar, ...props }: CodeEditorProps) {
   const [wrapOverride, setWrapOverride] = useState<boolean | null>(null);
   const language = props.language.trim().toLowerCase();
   const delimited = language === "csv" || language === "tsv";
@@ -88,7 +90,8 @@ export function CodeEditor({ className, ...props }: CodeEditorProps) {
       : language === "jwt" || language === "qr" || language === "url" || (delimited && Boolean(props.onChange)));
   return (
     <div className={cn("relative flex h-full min-h-0 min-w-0 flex-col overflow-hidden", className)}>
-      <div className="absolute top-1 right-2 z-10">
+      <div className="absolute top-1 right-2 z-10 flex items-center gap-1">
+        {toolbar}
         <TooltipProvider>
           <Tooltip>
             <TooltipTrigger asChild>
