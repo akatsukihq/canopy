@@ -5,6 +5,7 @@ import { createRoot } from "react-dom/client";
 import { afterEach, beforeEach, expect, test, vi } from "vitest";
 
 import DnsCheckerWorkspace from "./workspace.tsx";
+import { withToolIntl } from "../../tests/helpers/react-tools.mjs";
 const definition = await toolSpec("dns-checker");
 
 vi.mock("@/components/FileProcessorWorkspace", () => ({ FileProcessorWorkspace: () => null }));
@@ -89,18 +90,21 @@ function resultFixture(overrides = {}) {
 async function mount(result, { error, domain = "example.com" } = {}) {
   await act(() =>
     root.render(
-      React.createElement(DnsCheckerWorkspace, {
-        spec: definition,
-        settings: Object.fromEntries(
-          Object.entries(definition.settings.fields).map(([key, field]) => [key, field.default]),
-        ),
-        input: { text: domain, files: [] },
-        lifecycle: error ? "failed" : "completed",
-        result,
-        error,
-        onInputChange: () => {},
-        onSettingChange: () => {},
-      }),
+      withToolIntl(
+        React.createElement(DnsCheckerWorkspace, {
+          spec: definition,
+          settings: Object.fromEntries(
+            Object.entries(definition.settings.fields).map(([key, field]) => [key, field.default]),
+          ),
+          input: { text: domain, files: [] },
+          lifecycle: error ? "failed" : "completed",
+          result,
+          error,
+          onInputChange: () => {},
+          onSettingChange: () => {},
+        }),
+        definition,
+      ),
     ),
   );
 }

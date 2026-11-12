@@ -45,20 +45,46 @@ export function setupReactTools() {
   });
 }
 
-export async function mountTool(element, { spec, locale = "en", messages = {} } = {}) {
-  const container = document.createElement("div");
-  document.body.append(container);
-  const root = createRoot(container);
-  const dictionary = {
+function toolDictionary(spec, locale, messages = {}) {
+  return {
     ...getCommonMessages(locale),
     ...(spec ? { Tool: toolMessageTree({ ...extractToolMessages(spec), ...messages }) } : {}),
   };
+}
+
+/** Wraps an element in the translation context tool components need, for tests that manage their own React root. */
+export function withToolIntl(element, spec, { locale = "en", messages } = {}) {
+  return React.createElement(
+    NextIntlClientProvider,
+    { locale, messages: toolDictionary(spec, locale, messages), timeZone: "UTC" },
+    element,
+  );
+}
+
+// `appProviders` adds the saved-tools and global-search providers the document
+// root supplies, for tests that render a whole page (header included).
+export async function mountTool(element, { spec, locale = "en", messages = {}, appProviders = false } = {}) {
+  const container = document.createElement("div");
+  document.body.append(container);
+  const root = createRoot(container);
+  const dictionary = toolDictionary(spec, locale, messages);
+  // Loaded on demand: most tests mock the UI libraries these providers pull in.
+  const { GlobalToolSearchProvider } = appProviders
+    ? await import("../../components/ui/components/GlobalToolSearch.tsx")
+    : {};
+  const { SavedToolsProvider } = appProviders ? await import("../../components/ui/components/SavedTools.tsx") : {};
   const view = {
     container,
     async rerender(next) {
       await act(async () =>
         root.render(
-          React.createElement(NextIntlClientProvider, { locale, messages: dictionary, timeZone: "UTC" }, next),
+          React.createElement(
+            NextIntlClientProvider,
+            { locale, messages: dictionary, timeZone: "UTC" },
+            appProviders
+              ? React.createElement(SavedToolsProvider, null, React.createElement(GlobalToolSearchProvider, null, next))
+              : next,
+          ),
         ),
       );
     },

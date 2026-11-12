@@ -1,7 +1,12 @@
-import { NextRequest } from "next/server.js";
-import nextTesting from "next/experimental/testing/server.js";
+import { AsyncLocalStorage } from "node:async_hooks";
 import { expect, test, vi } from "vitest";
 
+// The Next.js runtime provides this global; the locale middleware in the proxy needs it.
+globalThis.AsyncLocalStorage ??= AsyncLocalStorage;
+
+// Imported after the global is set: Next reads it once, when its modules load.
+const { NextRequest } = await import("next/server.js");
+const { default: nextTesting } = await import("next/experimental/testing/server.js");
 const { unstable_doesMiddlewareMatch: doesProxyMatch } = nextTesting;
 
 // vi.hoisted runs before the hoisted vi.mock factory below so the fake session
@@ -26,11 +31,15 @@ const { proxy, config } = await import("@/proxy.ts");
 test("suspension blocks pages, actions and APIs while preserving identity and logout", async () => {
   const request = (path, method = "GET", cookie = "smarttools.session_token=test") =>
     new NextRequest(`http://localhost:3000${path}`, { method, headers: { cookie } });
-  expect((await proxy(request("/", "GET", ""))).headers.get("x-middleware-next")).toBe("1");
+  // Signed-out visitors skip the session lookup; the public home page is served under its locale prefix.
+  expect((await proxy(request("/", "GET", ""))).headers.get("x-middleware-rewrite")).toBe("http://localhost:3000/en");
   expect(fixture.queries).toBe(0);
   for (const session of [null, { user: { status: "active" } }]) {
     fixture.session = session;
-    expect((await proxy(request("/paperwork"))).headers.get("x-middleware-next")).toBe("1");
+    // Active (or signed-out) visitors are not blocked; the public page is served under its locale prefix.
+    const response = await proxy(request("/paperwork"));
+    expect(response.status).toBe(200);
+    expect(response.headers.get("x-middleware-rewrite")).toBe("http://localhost:3000/en/paperwork");
   }
   fixture.session = { user: { status: "suspended" } };
   for (const path of [

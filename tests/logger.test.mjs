@@ -21,12 +21,14 @@ test("logs one JSON line per event and honors LOG_LEVEL", () => {
   expect(out).toHaveBeenCalledTimes(1);
 });
 
-test("logError keeps stack frames but masks secrets and SQL parameters", () => {
+test("logError keeps stack frames and SQL parameters for diagnosis but masks credentials", () => {
   const err = vi.spyOn(console, "error").mockImplementation(() => {});
   const error = new Error("Failed query: select 1\nparams: secret-value postgres://user:pw@host/db");
   logError("db.failed", error, { path: "/x" });
   const line = JSON.parse(err.mock.calls[0][0]);
   expect(line).toMatchObject({ level: "error", event: "db.failed", path: "/x", error: { name: "Error" } });
   expect(line.error.stack.length).toBeGreaterThan(0);
-  expect(err.mock.calls[0][0]).not.toMatch(/secret-value|user:pw/);
+  // Server logs show failed SQL and its parameters on purpose; connection credentials stay masked.
+  expect(line.error.message).toContain("params: secret-value");
+  expect(err.mock.calls[0][0]).not.toMatch(/user:pw|postgres:\/\//);
 });

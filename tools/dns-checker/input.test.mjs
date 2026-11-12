@@ -4,6 +4,7 @@ import React, { act, useState } from "react";
 import { createRoot } from "react-dom/client";
 import { afterEach, beforeEach, expect, test, vi } from "vitest";
 import DnsCheckerWorkspace from "./workspace.tsx";
+import { withToolIntl } from "../../tests/helpers/react-tools.mjs";
 const definition = await toolSpec("dns-checker");
 
 vi.mock("@/components/ResultSurface", () => ({ ResultSurface: () => null }));
@@ -70,7 +71,7 @@ async function mount({
       primaryAction: { label: "Check DNS", onRun, disabled: actionDisabled, running: actionRunning },
     });
   }
-  await act(() => root.render(React.createElement(Fixture)));
+  await act(() => root.render(withToolIntl(React.createElement(Fixture), definition)));
 }
 
 const domainInput = () => {

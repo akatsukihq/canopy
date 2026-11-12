@@ -16,6 +16,8 @@ vi.mock("next/navigation", () => ({
   usePathname: () => "/devtools/domain-age-checker",
   useSearchParams: () => new URLSearchParams(),
   useRouter: () => ({ push() {}, replace() {}, refresh() {} }),
+  redirect() {},
+  permanentRedirect() {},
 }));
 
 setupReactTools();
@@ -46,6 +48,7 @@ async function mountPage() {
       spec,
       title: spec.name,
     }),
+    { spec, appProviders: true },
   );
   await waitFor(() => expect(field(/Domain name/, view.container)).toBeTruthy());
   return view;

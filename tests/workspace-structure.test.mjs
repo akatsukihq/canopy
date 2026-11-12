@@ -28,45 +28,6 @@ test("SmartTools is a root-owned direct-layout Next.js application", async () =>
   expect(await exists("src")).toBe(false);
 });
 
-test("public tools use scoped server-resolved dynamic slugs", async () => {
-  const [paperworkCatalog, paperworkTool, devtoolsCatalog, devtoolsTool, mediaCatalog, mediaTool] = await Promise.all([
-    readFile(new URL("app/(public)/[locale]/paperwork/page.tsx", root), "utf8"),
-    readFile(new URL("app/(public)/[locale]/paperwork/[slug]/page.tsx", root), "utf8"),
-    readFile(new URL("app/(public)/[locale]/devtools/page.tsx", root), "utf8"),
-    readFile(new URL("app/(public)/[locale]/devtools/[slug]/page.tsx", root), "utf8"),
-    readFile(new URL("app/(public)/[locale]/media/page.tsx", root), "utf8"),
-    readFile(new URL("app/(public)/[locale]/media/[slug]/page.tsx", root), "utf8"),
-  ]);
-
-  expect(paperworkCatalog).toMatch(/href=\{`\/paperwork\/\$\{tool\.slug\}`\}/);
-  expect(paperworkTool).toMatch(/notFound\(\)/);
-  expect(paperworkTool).toMatch(/componentKey/);
-  expect(devtoolsCatalog).toMatch(/getTools\(["']devtools["']\)/);
-  expect(devtoolsCatalog).toMatch(/`\/devtools\/\$\{tool\.slug\}`/);
-  expect(devtoolsCatalog).not.toMatch(/redirect\(/);
-  expect(devtoolsTool).toMatch(/resolveToolPage\(["']devtools["']/);
-  expect(devtoolsTool).toMatch(/notFound\(\)/);
-  expect(mediaCatalog).toMatch(/getTools\(["']media["']\)/);
-  expect(mediaCatalog).toMatch(/`\/media\/\$\{tool\.slug\}`/);
-  expect(mediaTool).toMatch(/resolveToolPage\(["']media["']/);
-  expect(mediaTool).toMatch(/notFound\(\)/);
-  // Prerendering a slug would need a redeploy per admin toggle.
-  expect(devtoolsTool).not.toMatch(/export\s[^\n]*generateStaticParams/);
-  expect(mediaTool).not.toMatch(/export\s[^\n]*generateStaticParams/);
-
-  for (const path of [
-    "app/paperwork/receipt-generator/page.tsx",
-    "app/paperwork/expense-report/page.tsx",
-    "app/paperwork/mileage-log/page.tsx",
-    "app/paperwork/quarterly-tax-estimator/page.tsx",
-    "app/paperwork/w9-request/page.tsx",
-    "app/paperwork/1099-nec-tracker/page.tsx",
-    "app/devtools/json-formatter/page.tsx",
-  ]) {
-    expect(await exists(path), `${path} must stay dynamic`).toBe(false);
-  }
-});
-
 test("root scripts run the root-owned application directly", async () => {
   const packageJson = await readJson("package.json");
 

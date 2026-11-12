@@ -120,7 +120,7 @@ test("attachment preparation allows links and same-input retry but rejects cross
   );
 });
 
-test("first send titles a provisional thread immediately and later sends preserve its title", async () => {
+test("sending messages keeps an unnamed thread unnamed until the title model names it", async () => {
   const previous = {
     transaction: db.transaction,
     enabled: process.env.AI_ENABLED,
@@ -212,7 +212,8 @@ test("first send titles a provisional thread immediately and later sends preserv
         context: { editorJson: { type: "doc", content: [] } },
       });
       expect(run.status).toBe("queued");
-      expect(thread.title).toBe("How can I improve this draft?");
+      // The title model names the thread beside the reply; sending never derives a title from the raw message.
+      expect(thread.title).toBe("New thread");
       expect(userMessages.length).toBe(index + 1);
       expect(savedRuns[index].integrationKey).toBe("blog");
       expect(savedRuns[index].resourceId).toBe("post");

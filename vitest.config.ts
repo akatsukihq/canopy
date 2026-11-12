@@ -29,7 +29,9 @@ const toolDynamicImportExtensions: Plugin = {
 export default defineConfig({
   plugins: [toolDynamicImportExtensions],
   resolve: {
-    alias: { "@": root },
+    // `server-only` throws outside a Server Component build; tests have no such
+    // build step, so resolve it to an empty module as the per-file mocks do.
+    alias: { "@": root, "server-only": path.join(root, "tests/stubs/server-only.mjs") },
   },
   test: {
     // next-intl's Next.js entrypoints use extensionless framework imports.

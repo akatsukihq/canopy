@@ -10,7 +10,7 @@ vi.mock("@sentry/core", () => ({
   captureException: (error) => state.captured.push(error),
 }));
 vi.mock("@/lib/tool-framework/catalog", () => ({
-  getPublicTools: async () => {
+  getPublicToolListings: async () => {
     throw state.failure;
   },
   // The route reads the spec from the database; only the test tool has a row.

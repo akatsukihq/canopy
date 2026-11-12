@@ -6,6 +6,7 @@ import { createRoot } from "react-dom/client";
 import { afterEach, beforeEach, expect, test, vi } from "vitest";
 
 import { ResultSurface } from "../../components/ResultSurface.tsx";
+import { withToolIntl } from "../../tests/helpers/react-tools.mjs";
 const definition = await toolSpec("markdown-to-html");
 
 vi.mock("@/components/content/CodeEditor", () => ({
@@ -66,7 +67,9 @@ const result = {
 };
 
 async function mount(props = {}) {
-  await act(() => root.render(React.createElement(ResultSurface, { spec: definition, result, ...props })));
+  await act(() =>
+    root.render(withToolIntl(React.createElement(ResultSurface, { spec: definition, result, ...props }), definition)),
+  );
 }
 
 const tabs = () => [...container.querySelectorAll('[role="tablist"][aria-label="Result view"] [role="tab"]')];

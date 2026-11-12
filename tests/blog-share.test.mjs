@@ -15,6 +15,14 @@ vi.mock("react", async (importOriginal) => ({
   useRef: () => globalThis.__blogShareTest.timer,
   useEffect: () => {},
 }));
+// The component is called as a plain function, so supply real English messages without a provider.
+vi.mock("next-intl", async (importOriginal) => {
+  const { createTranslator } = await importOriginal();
+  const { getCommonMessages } = await import("../lib/i18n/messages.ts");
+  return {
+    useTranslations: (namespace) => createTranslator({ locale: "en", messages: getCommonMessages("en"), namespace }),
+  };
+});
 vi.mock("@/components/ui/index.tsx", () => ({
   Button: "button",
   Input: "input",
@@ -78,7 +86,7 @@ test("article sharing copies the canonical URL, resets feedback, and recovers fr
   expect(announcement()).toMatch(/Select and copy/);
   expect(render().find((n) => n.type === "popover").props.open).toBe(true);
   expect(render().find((n) => n.type === "input").props.value).toBe(url);
-  expect(state.errors.at(-1)).toMatch(/Couldn't copy/);
+  expect(state.errors.at(-1)).toMatch(/Couldn[’']t copy/);
   const mail = render().find((n) => n.type === "a").props.href;
   expect(mail).toBe(`mailto:?subject=${encodeURIComponent(title)}&body=${encodeURIComponent(url)}`);
   navigator.clipboard.writeText = async (value) => copied.push(value);

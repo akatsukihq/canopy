@@ -26,8 +26,8 @@ test("JSON to CSV preserves the CSV artifact and provides matching table cells",
     truncated: false,
   });
   expect(result.stats).toEqual([
-    { label: "Rows", value: "2" },
-    { label: "Columns", value: "3" },
+    { label: "Rows", labelMessage: { key: "execution.rows" }, value: "2" },
+    { label: "Columns", labelMessage: { key: "execution.columns" }, value: "3" },
   ]);
 });
 
@@ -81,7 +81,12 @@ test("JSON to CSV applies repair mode to both representations", () => {
   expect(nulled.text).toBe("name,age\nAda,");
   expect(nulled.tablePreview.columns).toEqual(["name", "age"]);
   expect(nulled.tablePreview.rows).toEqual([["Ada", ""]]);
-  expect(nulled.stats.at(-1)).toEqual({ label: "Repaired", value: "Yes" });
+  expect(nulled.stats.at(-1)).toEqual({
+    label: "Repaired",
+    labelMessage: { key: "execution.repaired" },
+    value: "Yes",
+    valueMessage: { key: "execution.yes" },
+  });
   expect(() => convert(source)).toThrow(expect.objectContaining({ code: "syntax" }));
 });
 

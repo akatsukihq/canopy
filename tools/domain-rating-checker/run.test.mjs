@@ -18,7 +18,8 @@ const context = (text = "example.com", settings = {}, signal = new AbortControll
 const response = (data, status = 200) => new Response(JSON.stringify(data), { status });
 import { run as rating } from "./run.server.ts";
 const config = vi.hoisted(() => ({ integrations: { ahrefsApiKey: "" } }));
-vi.mock("@/lib/config/config.ts", () => ({ default: config }));
+// The key is resolved through runtime settings, which trim the stored value.
+vi.mock("@/lib/config/integrations.ts", () => ({ ahrefsApiKey: async () => config.integrations.ahrefsApiKey.trim() }));
 beforeEach(() => {
   config.integrations.ahrefsApiKey = "";
 });
@@ -99,6 +100,8 @@ describe("domain-rating-checker: validated server transport", () => {
       code: "upstream-unreachable",
       message: expect.stringMatching(/try again/i),
     });
+    // The API key is resolved asynchronously before the request starts.
+    await vi.waitFor(() => expect(fetchMock).toHaveBeenCalledOnce());
     expect(timeout).toHaveBeenCalledWith(10_000);
     deadline.abort(new DOMException("Ahrefs timed out", "TimeoutError"));
     await failed;
@@ -133,8 +136,7 @@ describe("domain-rating-checker: validated server transport", () => {
       return { ok: true, status: 200, json };
     });
     const output = rating(context("example.com", {}, controller.signal));
-    await Promise.resolve();
-    expect(json).toHaveBeenCalledOnce();
+    await vi.waitFor(() => expect(json).toHaveBeenCalledOnce());
     controller.abort();
     await expect(output).rejects.toMatchObject({ name: "AbortError" });
   });

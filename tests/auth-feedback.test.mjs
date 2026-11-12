@@ -33,6 +33,7 @@ vi.mock("@/components/ui/index.tsx", () => ({
   Text: "Text",
   TextLink: "TextLink",
   AlertBanner: "AlertBanner",
+  BackButton: "BackButton",
   Button: "Button",
   Card: "Card",
   CheckboxControl: "CheckboxControl",

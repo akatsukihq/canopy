@@ -46,6 +46,9 @@ vi.mock("@/db/index.ts", () => ({
   authUser: {},
   authVerification: {},
   userRolesTable: {},
+  platformSettingsTable: {},
+  // No database: runtime settings fall back to the environment configured above.
+  isDatabaseConfigured: () => false,
   and: () => {},
   countDistinct: () => {},
   eq: () => {},

@@ -15,6 +15,8 @@ vi.mock("next/navigation", () => ({
   usePathname: () => "/devtools/domain-rating-checker",
   useSearchParams: () => new URLSearchParams(),
   useRouter: () => ({ push() {}, replace() {}, refresh() {} }),
+  redirect() {},
+  permanentRedirect() {},
 }));
 
 setupReactTools();
@@ -68,6 +70,7 @@ async function mountPage() {
       spec,
       title: spec.name,
     }),
+    { spec, appProviders: true },
   );
   await waitFor(() => expect(field(/Public domain/, view.container)).toBeTruthy());
   return view;
@@ -134,7 +137,8 @@ test.each([
   [
     "malformed API response",
     () => new Response("<html>Proxy failure</html>", { status: 502 }),
-    "This tool returned an invalid response.",
+    // The client reports this as `processing-failed`, which the framework shows with its localized text.
+    "This tool could not finish.",
   ],
 ])("%s surfaces the actual runtime error and recovers after edited input", async (_name, response, message) => {
   const view = await mountPage();
@@ -167,7 +171,8 @@ test("a genuine worker processing failure is shown without accidentally calling 
   await click(button("Check domain rating"));
   await waitFor(() =>
     expect(view.container.querySelector('[data-testid="tool-status-line"]')?.textContent).toContain(
-      workerFailure.message,
+      // Known error codes show the framework's localized message instead of the worker's raw text.
+      "This tool could not finish.",
     ),
   );
   expect(workerRequests).toHaveLength(1);

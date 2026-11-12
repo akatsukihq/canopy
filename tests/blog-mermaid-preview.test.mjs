@@ -15,6 +15,8 @@ vi.mock("react", async (importOriginal) => ({
 }));
 vi.mock("@/components/ui/index.tsx", () => ({
   Button: "button",
+  ActionMenuButton: "action-menu",
+  DropdownMenuItem: "menu-item",
   Tooltip: "tooltip",
   TooltipContent: "tooltip-content",
   TooltipProvider: "provider",
@@ -71,10 +73,11 @@ test("PNG export reports loading and offers recovery when rendering fails", asyn
   };
   const downloadNodes = () => walk(render().find((node) => node.type === "full-preview").props.downloads);
   downloadNodes()
-    .find((node) => node.type === "button" && node.props.children === "Download PNG")
-    .props.onClick();
-  expect(downloadNodes().some((node) => node.props.loading === true)).toBeTruthy();
+    .find((node) => node.type === "menu-item" && node.props.children === "Download PNG")
+    .props.onSelect();
+  expect(downloadNodes().find((node) => node.type === "action-menu").props.loading).toBe(true);
   await new Promise((resolve) => setImmediate(resolve));
   expect(state.errors).toEqual(["PNG download failed. Try again or download SVG."]);
-  expect(downloadNodes().find((node) => node.props.children === "Download PNG").props.loading).toBe(false);
+  expect(downloadNodes().find((node) => node.type === "action-menu").props.loading).toBe(false);
+  expect(downloadNodes().find((node) => node.props.children === "Download PNG").props.disabled).toBe(false);
 });

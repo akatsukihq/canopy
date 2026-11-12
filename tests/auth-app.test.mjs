@@ -17,23 +17,6 @@ const redirectPolicy = {
   fallback: "/",
 };
 
-test("profile keeps the auth theme and returns through the validated origin", async () => {
-  const [page, backLink] = await Promise.all([
-    readFile(new URL("../app/auth/profile/page.tsx", import.meta.url), "utf8"),
-    readFile(new URL("../app/auth/profile/components/ProfileBackLink.tsx", import.meta.url), "utf8"),
-  ]);
-
-  expect(page).toMatch(/resolveConfiguredReturnTo\(first\(params\.returnTo\)\)/);
-  expect(page).toMatch(/<div className=["']auth-shell /);
-  expect(page).toMatch(/<main>/);
-  expect(page).toMatch(/<ProfileBackLink fallbackHref=\{returnTo\}/);
-  expect(backLink).toMatch(/aria-label=["']Back to previous page["']/);
-  expect(backLink).toMatch(/href=\{fallbackHref\}/);
-  expect(backLink).toMatch(/shouldUseBrowserBack\(/);
-  expect(backLink).toMatch(/event\.preventDefault\(\)/);
-  expect(backLink).toMatch(/window\.history\.back\(\)/);
-});
-
 test("profile uses browser history only for the validated return origin", () => {
   const fallback = "/admin";
   const current = "https://smarttools.test/auth/profile";

@@ -25,6 +25,8 @@ vi.mock("next/navigation", () => ({
   usePathname: () => "/devtools/timestamp-converter",
   useSearchParams: () => new URLSearchParams(),
   useRouter: () => ({ push() {}, replace() {}, refresh() {} }),
+  redirect() {},
+  permanentRedirect() {},
 }));
 
 setupReactTools();
@@ -50,6 +52,7 @@ async function mountPage() {
       spec,
       title: spec.name,
     }),
+    { spec, appProviders: true },
   );
   await waitFor(() => expect(field(/^Timestamp or date/)).toBeTruthy());
   return view;
@@ -72,13 +75,14 @@ test("live conversion executes through ToolPage without a synthetic run button a
 test("live conversion recovers from invalid input and reset cancels the pending debounce", async () => {
   const view = await mountPage();
   await fill(field(/^Timestamp or date/), "invalid-date");
-  const invalidFeedback = "Timestamp or date is not a valid date or timestamp.";
-  await waitFor(() => expect(view.container.textContent).toContain(invalidFeedback));
+  // Assert which error was raised by its stable code, not by its translated wording.
+  const invalidCode = "invalid-date";
+  await waitFor(() => expect(view.container.textContent).toContain(invalidCode));
   expect(view.container.textContent).not.toContain("ISO:");
   expect(button("Copy all")?.disabled ?? true).toBe(true);
   await fill(field(/^Timestamp or date/), "1704067200");
   await waitFor(() => expect(view.container.textContent).toContain("ISO: 2024-01-01T00:00:00.000Z"));
-  expect(view.container.textContent).not.toContain(invalidFeedback);
+  expect(view.container.textContent).not.toContain(invalidCode);
   vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout"] });
   try {
     await fill(field(/^Timestamp or date/), "1900000000");

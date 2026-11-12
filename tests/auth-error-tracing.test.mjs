@@ -41,14 +41,15 @@ test("authentication reports unexpected and server errors while keeping expected
   expect(state.captured).toEqual([]);
   expect(log.mock.calls.length).toBe(0);
 
-  const cause = new Error("Database failed with sensitive connection details");
+  const cause = new Error("Database failed to connect to postgres://user:pw@db.internal/app");
   const errors = [cause, new APIError("INTERNAL_SERVER_ERROR", { cause }), new APIError(503, { cause })];
   for (const error of errors) expect(report(error)).toBe(undefined);
   expect(state.captured).toEqual(errors);
   const lines = log.mock.calls.map(([line]) => JSON.parse(line));
   expect(lines.map(({ level, event }) => [level, event])).toEqual(errors.map(() => ["error", "auth.request_failed"]));
-  // The connection detail in the message must not reach the log.
-  expect(JSON.stringify(lines)).not.toContain("connection details");
+  // Messages are logged for diagnosis, but connection credentials in them are masked.
+  expect(lines[0].error.message).toBe("Database failed to connect to [hidden]");
+  expect(JSON.stringify(lines)).not.toMatch(/user:pw|db\.internal/);
 
   log.mockRestore();
 });

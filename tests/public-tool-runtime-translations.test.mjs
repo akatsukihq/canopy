@@ -18,7 +18,7 @@ const graphDefinition = await toolSpec("open-graph-preview");
 import { parseMetadata } from "../tools/open-graph-preview/metadata.ts";
 import { inspectPage } from "../tools/open-graph-preview/run.server.ts";
 
-vi.mock("@/lib/config/config.ts", () => ({ default: { integrations: { ahrefsApiKey: "" } } }));
+vi.mock("@/lib/config/integrations.ts", () => ({ ahrefsApiKey: async () => "" }));
 afterEach(() => vi.unstubAllGlobals());
 const context = (text, settings = {}, secondary) => ({
   input: { text, secondary, files: [] },

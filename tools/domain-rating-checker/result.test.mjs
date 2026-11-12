@@ -3,7 +3,7 @@ import { afterEach, beforeEach, expect, test, vi } from "vitest";
 import { run } from "./run.server.ts";
 import { readDomainRating } from "./result.ts";
 
-vi.mock("@/lib/config/config.ts", () => ({ default: { integrations: { ahrefsApiKey: "" } } }));
+vi.mock("@/lib/config/integrations.ts", () => ({ ahrefsApiKey: async () => "" }));
 
 const LICENSE = "http://ahrefs.com/legal/domain-rating-license";
 

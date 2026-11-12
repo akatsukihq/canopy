@@ -76,7 +76,7 @@ async function mountPage() {
       spec,
       title: spec.name,
     }),
-    { spec },
+    { spec, appProviders: true },
   );
   await waitFor(() => expect(field(/Domain name/, view.container)).toBeTruthy());
   return view;

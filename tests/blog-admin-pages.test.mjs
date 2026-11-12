@@ -1,6 +1,8 @@
 import { createElement } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
+import { NextIntlClientProvider } from "next-intl";
 import { afterAll, expect, test, vi } from "vitest";
+import { getCommonMessages } from "../lib/i18n/messages.ts";
 
 vi.mock("server-only", () => ({}));
 
@@ -15,10 +17,18 @@ vi.mock("next/navigation", () => ({
   useRouter: () => ({ push() {}, refresh() {} }),
   usePathname: () => globalThis.__adminShellPath ?? "/admin/blog",
   useSelectedLayoutSegment: () => null,
+  // Segments come from the internal route, so the clean `/blog` and internal `/admin/blog` URLs yield the same ones.
+  useSelectedLayoutSegments: () =>
+    (globalThis.__adminShellPath ?? "/admin/blog")
+      .replace(/^\/admin(?=\/|$)/, "")
+      .split("/")
+      .filter(Boolean),
   useSearchParams: () => new URLSearchParams(),
   notFound: () => {
     throw new Error("NOT_FOUND");
   },
+  redirect() {},
+  permanentRedirect() {},
 }));
 vi.mock("@/lib/admin/access", () => ({
   requirePagePermission: async () => ({ user: { id: "admin" } }),
@@ -64,11 +74,15 @@ test("clean admin routes retain the same workspace and navigation as their inter
       const render = (pathname) => {
         globalThis.__adminShellPath = pathname;
         return renderToStaticMarkup(
-          createElement(AdminShell, {
-            user: { name: "Admin", isAdmin: true },
-            publicSiteUrl: "https://example.test",
-            children: createElement("section", null, "Working document"),
-          }),
+          createElement(
+            NextIntlClientProvider,
+            { locale: "en", messages: getCommonMessages("en"), timeZone: "UTC" },
+            createElement(AdminShell, {
+              user: { name: "Admin", isAdmin: true },
+              publicSiteUrl: "https://example.test",
+              children: createElement("section", null, "Working document"),
+            }),
+          ),
         );
       };
       expect(render(path), path).toBe(render(path === "/" ? "/admin" : `/admin${path}`));

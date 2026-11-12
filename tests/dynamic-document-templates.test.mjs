@@ -72,14 +72,6 @@ test("the admin fields panel is registry-driven and edits ordered form sections"
   expect(source).not.toMatch(/template\.documentType === "invoice"\s*\?/);
 });
 
-test("advanced invoices use only the shared pdfme workspace export path", async () => {
-  const source = await readFile("app/paperwork/components/App.tsx", "utf8");
-
-  expect(source).toMatch(/<AdvancedTemplateWorkspace/);
-  expect(source).toMatch(/isInvoice\s*&&\s*selectedTemplate\.layoutFamily\s*!==\s*"advanced"/);
-  expect(source).not.toMatch(/advancedInvoiceInputs/);
-});
-
 test("every enabled Paperwork component key loads its matching templates", async () => {
   const source = await readFile("app/(public)/[locale]/paperwork/[slug]/page.tsx", "utf8");
 

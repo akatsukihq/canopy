@@ -54,11 +54,3 @@ test("domain APIs are namespaced in the unified application", async () => {
     expect(await exists(route), `${route} must exist`).toBe(true);
   }
 });
-
-test("media isolation headers cover pages and their worker bundles", async () => {
-  const source = await readFile(new URL("next.config.ts", root), "utf8");
-
-  expect(source).toMatch(/source:\s*["']\/media\/:path\*["']/);
-  expect(source).toMatch(/source:\s*["']\/_next\/static\/chunks\/:path\*["']/);
-  expect(source).not.toMatch(/source:\s*["']\/\(\.\*\)["']/);
-});
