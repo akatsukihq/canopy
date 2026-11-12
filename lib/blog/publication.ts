@@ -2,6 +2,7 @@ import config from "../config/config.ts";
 import type { Metadata } from "next";
 import { z } from "zod";
 import { blogImageUrl, validateBlogDocument, type BlogDocument } from "./document.ts";
+import { organizationId, organizationReference, serializeJsonLd } from "../seo/structuredData.ts";
 
 type PublishedArticle = {
   slug: string;
@@ -76,21 +77,23 @@ export function blogArticleMetadata(post: PublishedArticle, appUrl?: string): Me
 /** Return script-safe JSON, including when trusted admins wrote literal closing script tags. */
 export function blogStructuredData(post: PublishedArticle, appUrl?: string): string {
   const document = validateBlogDocument(post.document);
-  return JSON.stringify({
+  const url = blogCanonicalUrl(post.slug, appUrl);
+  return serializeJsonLd({
     "@context": "https://schema.org",
     "@type": "BlogPosting",
     headline: document.title,
     description: document.seoDescription || document.excerpt,
-    mainEntityOfPage: blogCanonicalUrl(post.slug, appUrl),
+    url,
+    mainEntityOfPage: url,
     datePublished: publishedDate(post.firstPublishedAt).toISOString(),
     dateModified: publishedDate(post.publishedUpdatedAt).toISOString(),
-    author: { "@type": "Person", name: document.authorName },
-    publisher: { "@type": "Organization", name: "SmartTools" },
+    // A house byline ("SmartTools Team") is the organization, not a person.
+    author: /^smarttools\b/i.test(document.authorName.trim())
+      ? { "@id": organizationId(appUrl) }
+      : { "@type": "Person", name: document.authorName },
+    publisher: organizationReference(appUrl),
     ...(document.coverImage ? { image: blogImageUrl(document.coverImage) } : {}),
-  })
-    .replace(/</g, "\\u003c")
-    .replace(/\u2028/g, "\\u2028")
-    .replace(/\u2029/g, "\\u2029");
+  });
 }
 
 function xml(value: string): string {

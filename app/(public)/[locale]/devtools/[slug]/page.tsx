@@ -7,6 +7,9 @@ import { headers } from "next/headers";
 import { notFound } from "next/navigation";
 
 import ToolPage from "@/components/ToolPage";
+import { JsonLd } from "@/components/seo/JsonLd";
+import { toolStructuredData } from "@/lib/seo/structuredData";
+import { getTranslations } from "next-intl/server";
 import { relatedTools, resolveToolPage } from "@/lib/tool-framework/catalog";
 import { toolMetadata } from "@/lib/tool-framework/metadata";
 import { loadRuntimeLimits } from "@/lib/tool-framework/systemLimits";
@@ -22,35 +25,48 @@ export default async function DevtoolsToolPage({ params }: { params: Promise<{ s
   const tool = await resolveToolPage("devtools", slug, locale);
   if (!tool) notFound();
 
-  const [related, session, limits] = await Promise.all([
+  const [catalog, related, session, limits] = await Promise.all([
+    getTranslations({ locale, namespace: "Catalog" }),
     relatedTools(tool.toolId, locale),
     getOptionalSession(await headers()),
     loadRuntimeLimits(),
   ]);
 
   return (
-    <NextIntlClientProvider
-      locale={locale}
-      messages={{ ...getCommonMessages(locale), Tool: toolMessageTree(tool.messages) }}
-    >
-      <ToolPage
-        availableLocales={tool.availableLocales}
-        account={{
-          returnTo: tool.href,
-          user: session?.user ?? null,
-        }}
-        category={getCommonMessages(locale).Categories[tool.category]}
-        definitionKey={tool.definitionKey}
-        description={tool.description}
-        icon={tool.icon}
-        limits={limits}
-        relatedTools={related.map((candidate) => ({
-          href: candidate.href,
-          label: candidate.name,
-        }))}
-        spec={tool.spec}
-        title={tool.name}
+    <>
+      <JsonLd
+        data={toolStructuredData({
+          suite: "devtools",
+          suiteName: catalog("developerOverline"),
+          name: tool.name,
+          description: tool.seoDescription,
+          href: tool.href,
+          locale,
+        })}
       />
-    </NextIntlClientProvider>
+      <NextIntlClientProvider
+        locale={locale}
+        messages={{ ...getCommonMessages(locale), Tool: toolMessageTree(tool.messages) }}
+      >
+        <ToolPage
+          availableLocales={tool.availableLocales}
+          account={{
+            returnTo: tool.href,
+            user: session?.user ?? null,
+          }}
+          category={getCommonMessages(locale).Categories[tool.category]}
+          definitionKey={tool.definitionKey}
+          description={tool.description}
+          icon={tool.icon}
+          limits={limits}
+          relatedTools={related.map((candidate) => ({
+            href: candidate.href,
+            label: candidate.name,
+          }))}
+          spec={tool.spec}
+          title={tool.name}
+        />
+      </NextIntlClientProvider>
+    </>
   );
 }

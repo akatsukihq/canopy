@@ -69,6 +69,12 @@ const messages = {
       onYourTerms: "On your terms.",
       mediaDescription: "Edit images, organize PDFs, and make files smaller.",
       developerDescription: "Format, compare, convert, and inspect your data.",
+      developerMetadataTitle: "Free Online Developer Tools: JSON, Base64, Regex & More",
+      developerMetadataDescription:
+        "Free developer tools that run in your browser: format and validate JSON, encode Base64, test regular expressions, generate hashes and UUIDs, and convert data formats. No sign-up.",
+      mediaMetadataTitle: "Free Online PDF & Image Tools",
+      mediaMetadataDescription:
+        "Free PDF and image tools that run in your browser: compress, convert, merge, split, crop, and resize files. Your files stay on your device. No sign-up.",
       mediaSupport: "Everyday media tasks, handled in your browser.",
       developerSupport: "Everyday developer tasks, without the busywork.",
       mediaPrivacy: "Your files stay on this device.",
@@ -244,6 +250,12 @@ const messages = {
       onYourTerms: "आपके तरीके से।",
       mediaDescription: "तस्वीरें संपादित करें, PDF व्यवस्थित करें और फ़ाइलों का आकार घटाएँ।",
       developerDescription: "डेटा फ़ॉर्मैट करें, तुलना करें, बदलें और जाँचें।",
+      developerMetadataTitle: "मुफ़्त ऑनलाइन डेवलपर टूल: JSON, Base64, Regex और बहुत कुछ",
+      developerMetadataDescription:
+        "ब्राउज़र में चलने वाले मुफ़्त डेवलपर टूल: JSON फ़ॉर्मैट और जाँचें, Base64 एन्कोड करें, रेगुलर एक्सप्रेशन परखें, हैश और UUID बनाएँ और डेटा फ़ॉर्मैट बदलें। साइन-अप की ज़रूरत नहीं।",
+      mediaMetadataTitle: "मुफ़्त ऑनलाइन PDF और चित्र टूल",
+      mediaMetadataDescription:
+        "ब्राउज़र में चलने वाले मुफ़्त PDF और चित्र टूल: फ़ाइलें छोटी करें, बदलें, जोड़ें, अलग करें, क्रॉप करें और उनका आकार बदलें। आपकी फ़ाइलें आपके डिवाइस पर ही रहती हैं। साइन-अप की ज़रूरत नहीं।",
       mediaSupport: "मीडिया के रोज़मर्रा के काम, सीधे आपके ब्राउज़र में।",
       developerSupport: "डेवलपर के रोज़मर्रा के काम, बिना अनावश्यक मेहनत के।",
       mediaPrivacy: "आपकी फ़ाइलें इसी डिवाइस पर रहती हैं।",
@@ -420,6 +432,12 @@ const messages = {
       onYourTerms: "A tu manera.",
       mediaDescription: "Edita imágenes, organiza PDF y reduce el tamaño de tus archivos.",
       developerDescription: "Da formato, compara, convierte e inspecciona tus datos.",
+      developerMetadataTitle: "Herramientas de desarrollo online gratis: JSON, Base64, regex y más",
+      developerMetadataDescription:
+        "Herramientas de desarrollo gratuitas que funcionan en tu navegador: formatea y valida JSON, codifica Base64, prueba expresiones regulares, genera hashes y UUID y convierte formatos de datos. Sin registro.",
+      mediaMetadataTitle: "Herramientas online gratis para PDF e imágenes",
+      mediaMetadataDescription:
+        "Herramientas gratuitas de PDF e imágenes que funcionan en tu navegador: comprime, convierte, une, divide, recorta y redimensiona archivos. Tus archivos no salen de tu dispositivo. Sin registro.",
       mediaSupport: "Tareas multimedia cotidianas, desde tu navegador.",
       developerSupport: "Tareas de desarrollo cotidianas, sin trabajo repetitivo.",
       mediaPrivacy: "Tus archivos permanecen en este dispositivo.",
@@ -598,6 +616,12 @@ const messages = {
       onYourTerms: "À votre façon.",
       mediaDescription: "Modifiez des images, organisez des PDF et réduisez la taille des fichiers.",
       developerDescription: "Formatez, comparez, convertissez et examinez vos données.",
+      developerMetadataTitle: "Outils de développement en ligne gratuits : JSON, Base64, regex et plus",
+      developerMetadataDescription:
+        "Outils de développement gratuits qui fonctionnent dans votre navigateur : formatez et validez du JSON, encodez en Base64, testez des expressions régulières, générez des hachages et des UUID, et convertissez des formats de données. Sans inscription.",
+      mediaMetadataTitle: "Outils PDF et images en ligne gratuits",
+      mediaMetadataDescription:
+        "Outils PDF et images gratuits qui fonctionnent dans votre navigateur : compressez, convertissez, fusionnez, divisez, recadrez et redimensionnez vos fichiers. Vos fichiers restent sur votre appareil. Sans inscription.",
       mediaSupport: "Les tâches multimédias quotidiennes, dans votre navigateur.",
       developerSupport: "Les tâches de développement quotidiennes, sans travail répétitif.",
       mediaPrivacy: "Vos fichiers restent sur cet appareil.",
@@ -775,6 +799,12 @@ const messages = {
       onYourTerms: "Nach deinen Regeln.",
       mediaDescription: "Bilder bearbeiten, PDFs ordnen und Dateien verkleinern.",
       developerDescription: "Daten formatieren, vergleichen, konvertieren und prüfen.",
+      developerMetadataTitle: "Kostenlose Online-Entwicklertools: JSON, Base64, Regex und mehr",
+      developerMetadataDescription:
+        "Kostenlose Entwicklertools direkt im Browser: JSON formatieren und validieren, Base64 kodieren, reguläre Ausdrücke testen, Hashes und UUIDs erzeugen und Datenformate umwandeln. Ohne Anmeldung.",
+      mediaMetadataTitle: "Kostenlose Online-Tools für PDF und Bilder",
+      mediaMetadataDescription:
+        "Kostenlose PDF- und Bildtools direkt im Browser: Dateien komprimieren, umwandeln, zusammenfügen, teilen, zuschneiden und skalieren. Ihre Dateien bleiben auf Ihrem Gerät. Ohne Anmeldung.",
       mediaSupport: "Alltägliche Medienaufgaben direkt im Browser.",
       developerSupport: "Alltägliche Entwickleraufgaben ohne Routinearbeit.",
       mediaPrivacy: "Deine Dateien bleiben auf diesem Gerät.",
@@ -952,6 +982,12 @@ const messages = {
       onYourTerms: "Do seu jeito.",
       mediaDescription: "Edite imagens, organize PDFs e reduza o tamanho dos arquivos.",
       developerDescription: "Formate, compare, converta e inspecione seus dados.",
+      developerMetadataTitle: "Ferramentas de desenvolvimento online grátis: JSON, Base64, regex e mais",
+      developerMetadataDescription:
+        "Ferramentas de desenvolvimento gratuitas que funcionam no seu navegador: formate e valide JSON, codifique Base64, teste expressões regulares, gere hashes e UUIDs e converta formatos de dados. Sem cadastro.",
+      mediaMetadataTitle: "Ferramentas online grátis para PDF e imagens",
+      mediaMetadataDescription:
+        "Ferramentas gratuitas de PDF e imagens que funcionam no seu navegador: comprima, converta, junte, divida, recorte e redimensione arquivos. Seus arquivos ficam no seu dispositivo. Sem cadastro.",
       mediaSupport: "Tarefas de mídia do dia a dia, direto no navegador.",
       developerSupport: "Tarefas de desenvolvimento sem trabalho repetitivo.",
       mediaPrivacy: "Seus arquivos ficam neste dispositivo.",
@@ -1128,6 +1164,12 @@ const messages = {
       onYourTerms: "بطريقتك.",
       mediaDescription: "عدّل الصور ونظّم ملفات PDF وقلّل أحجام الملفات.",
       developerDescription: "نسّق بياناتك وقارنها وحوّلها وافحصها.",
+      developerMetadataTitle: "أدوات مطورين مجانية عبر الإنترنت: JSON وBase64 وRegex والمزيد",
+      developerMetadataDescription:
+        "أدوات مطورين مجانية تعمل في متصفحك: نسّق JSON وتحقّق منه، ورمّز Base64، واختبر التعابير النمطية، وأنشئ قيم التجزئة وUUID، وحوّل صيغ البيانات. دون تسجيل.",
+      mediaMetadataTitle: "أدوات PDF وصور مجانية عبر الإنترنت",
+      mediaMetadataDescription:
+        "أدوات PDF وصور مجانية تعمل في متصفحك: اضغط الملفات وحوّلها وادمجها وقسّمها واقتصّها وغيّر حجمها. تبقى ملفاتك على جهازك. دون تسجيل.",
       mediaSupport: "مهام الوسائط اليومية، مباشرة في متصفحك.",
       developerSupport: "مهام التطوير اليومية دون الأعمال المتكررة.",
       mediaPrivacy: "تبقى ملفاتك على هذا الجهاز.",
@@ -1305,6 +1347,12 @@ const messages = {
       onYourTerms: "由您掌控。",
       mediaDescription: "编辑图片、整理 PDF 并缩小文件。",
       developerDescription: "格式化、比较、转换并检查数据。",
+      developerMetadataTitle: "免费在线开发者工具：JSON、Base64、正则表达式等",
+      developerMetadataDescription:
+        "在浏览器中运行的免费开发者工具：格式化和校验 JSON、Base64 编码、测试正则表达式、生成哈希值和 UUID，以及转换数据格式。无需注册。",
+      mediaMetadataTitle: "免费在线 PDF 和图片工具",
+      mediaMetadataDescription:
+        "在浏览器中运行的免费 PDF 和图片工具：压缩、转换、合并、拆分、裁剪和调整文件大小。文件始终保留在你的设备上。无需注册。",
       mediaSupport: "日常媒体任务，在浏览器中轻松完成。",
       developerSupport: "完成日常开发任务，告别重复劳动。",
       mediaPrivacy: "您的文件始终保存在此设备上。",
@@ -1478,6 +1526,12 @@ const messages = {
       onYourTerms: "あなたのやり方で。",
       mediaDescription: "画像の編集、PDF の整理、ファイルの軽量化。",
       developerDescription: "データの整形、比較、変換、検査。",
+      developerMetadataTitle: "無料のオンライン開発者ツール：JSON・Base64・正規表現など",
+      developerMetadataDescription:
+        "ブラウザで動く無料の開発者ツール。JSON の整形と検証、Base64 エンコード、正規表現のテスト、ハッシュや UUID の生成、データ形式の変換ができます。登録不要。",
+      mediaMetadataTitle: "無料のオンライン PDF・画像ツール",
+      mediaMetadataDescription:
+        "ブラウザで動く無料の PDF・画像ツール。ファイルの圧縮、変換、結合、分割、切り抜き、サイズ変更ができます。ファイルはお使いの端末から出ません。登録不要。",
       mediaSupport: "日々のメディア作業をブラウザで。",
       developerSupport: "日々の開発作業から単純作業を減らします。",
       mediaPrivacy: "ファイルはこのデバイス上に保存されます。",
@@ -1653,6 +1707,12 @@ const messages = {
       onYourTerms: "На ваших условиях.",
       mediaDescription: "Редактируйте изображения, организуйте PDF и уменьшайте файлы.",
       developerDescription: "Форматируйте, сравнивайте, преобразуйте и проверяйте данные.",
+      developerMetadataTitle: "Бесплатные онлайн-инструменты разработчика: JSON, Base64, регулярные выражения и другое",
+      developerMetadataDescription:
+        "Бесплатные инструменты разработчика прямо в браузере: форматируйте и проверяйте JSON, кодируйте Base64, тестируйте регулярные выражения, создавайте хеши и UUID, преобразуйте форматы данных. Без регистрации.",
+      mediaMetadataTitle: "Бесплатные онлайн-инструменты для PDF и изображений",
+      mediaMetadataDescription:
+        "Бесплатные инструменты для PDF и изображений прямо в браузере: сжимайте, конвертируйте, объединяйте, разделяйте, обрезайте файлы и меняйте их размер. Файлы остаются на вашем устройстве. Без регистрации.",
       mediaSupport: "Повседневные задачи с медиа прямо в браузере.",
       developerSupport: "Повседневные задачи разработки без лишней рутины.",
       mediaPrivacy: "Ваши файлы остаются на этом устройстве.",

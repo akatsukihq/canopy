@@ -4,7 +4,7 @@ const state = vi.hoisted(() => ({ tools: [], posts: [], toolsError: false, posts
 globalThis.__blogSitemapTest = state;
 
 vi.mock("@/lib/tool-framework/catalog", () => ({
-  getPublicTools: async () => {
+  getSitemapTools: async () => {
     if (state.toolsError) throw new Error("Tool catalog unavailable");
     return state.tools;
   },
@@ -18,6 +18,9 @@ vi.mock("@/lib/blog/queries", () => ({
 }));
 
 const { default: sitemap } = await import("@/app/sitemap.ts");
+const { locales } = await import("@/lib/i18n/config.ts");
+// Home, three suite hubs, two paperwork pages, privacy and contact in every locale, plus the blog index.
+const PAGE_COUNT = 8 * locales.length + 1;
 const originalUrl = process.env.APP_URL;
 beforeEach(() => {
   Object.assign(state, { tools: [], posts: [], toolsError: false, postsError: false, limits: [] });
@@ -29,18 +32,62 @@ afterAll(() => {
   delete globalThis.__blogSitemapTest;
 });
 
+test("sitemap lists localized home, hub and static pages with hreflang alternates", async () => {
+  const entries = await sitemap();
+  expect(entries.length).toBe(PAGE_COUNT);
+  const urls = entries.map((entry) => entry.url);
+  for (const url of [
+    "https://smarttools.example/",
+    "https://smarttools.example/ja",
+    "https://smarttools.example/devtools",
+    "https://smarttools.example/de/media",
+    "https://smarttools.example/fr/paperwork/about",
+    "https://smarttools.example/privacy",
+    "https://smarttools.example/blog",
+  ]) {
+    expect(urls).toContain(url);
+  }
+  const devtools = entries.find((entry) => entry.url === "https://smarttools.example/es/devtools");
+  expect(devtools.alternates.languages).toMatchObject({
+    en: "https://smarttools.example/devtools",
+    es: "https://smarttools.example/es/devtools",
+    "zh-Hans": "https://smarttools.example/zh-Hans/devtools",
+  });
+});
+
 test("sitemap preserves tool entries and adds blog publication timestamps and canonical URLs", async () => {
   const publishedUpdatedAt = new Date("2026-09-16T10:00:00Z");
-  state.tools = [{ href: "/devtools/json-formatter" }, { href: "/paperwork/invoice-generator" }];
+  state.tools = [
+    { href: "/devtools/json-formatter", availableLocales: ["en", "ja"] },
+    { href: "/paperwork/invoice-generator", availableLocales: ["en"] },
+  ];
   state.posts = [{ slug: "using-json", publishedUpdatedAt }];
-  expect(await sitemap()).toEqual([
+  expect((await sitemap()).slice(PAGE_COUNT)).toEqual([
     {
       url: "https://smarttools.example/devtools/json-formatter",
+      alternates: {
+        languages: {
+          en: "https://smarttools.example/devtools/json-formatter",
+          ja: "https://smarttools.example/ja/devtools/json-formatter",
+        },
+      },
+      changeFrequency: "weekly",
+      priority: 0.7,
+    },
+    {
+      url: "https://smarttools.example/ja/devtools/json-formatter",
+      alternates: {
+        languages: {
+          en: "https://smarttools.example/devtools/json-formatter",
+          ja: "https://smarttools.example/ja/devtools/json-formatter",
+        },
+      },
       changeFrequency: "weekly",
       priority: 0.7,
     },
     {
       url: "https://smarttools.example/paperwork/invoice-generator",
+      alternates: { languages: { en: "https://smarttools.example/paperwork/invoice-generator" } },
       changeFrequency: "weekly",
       priority: 0.7,
     },
@@ -51,23 +98,26 @@ test("sitemap preserves tool entries and adds blog publication timestamps and ca
       priority: 0.7,
     },
   ]);
-  expect(state.limits).toEqual([49998]);
 });
 
 test("either catalog can fail independently without losing the other catalog's URLs", async () => {
-  state.tools = [{ href: "/media/image-converter" }];
+  state.tools = [{ href: "/media/image-converter", availableLocales: ["en"] }];
   state.posts = [{ slug: "images", publishedUpdatedAt: new Date("2026-09-16T10:00:00Z") }];
   state.postsError = true;
-  expect((await sitemap()).map((entry) => entry.url)).toEqual(["https://smarttools.example/media/image-converter"]);
+  const urls = async () => (await sitemap()).slice(PAGE_COUNT).map((entry) => entry.url);
+  expect(await urls()).toEqual(["https://smarttools.example/media/image-converter"]);
   state.postsError = false;
   state.toolsError = true;
-  expect((await sitemap()).map((entry) => entry.url)).toEqual(["https://smarttools.example/blog/images"]);
+  expect(await urls()).toEqual(["https://smarttools.example/blog/images"]);
   state.postsError = true;
-  expect(await sitemap()).toEqual([]);
+  expect(await sitemap()).toHaveLength(PAGE_COUNT);
 });
 
-test("sitemap bounds the combined catalog to 50,000 URLs and reserves existing tool capacity", async () => {
-  state.tools = Array.from({ length: 49999 }, (_, index) => ({ href: `/devtools/tool-${index}` }));
+test("sitemap bounds the combined catalog to 50,000 URLs and keeps tool URLs ahead of blog entries", async () => {
+  state.tools = Array.from({ length: 50000 - PAGE_COUNT - 1 }, (_, index) => ({
+    href: `/devtools/tool-${index}`,
+    availableLocales: ["en"],
+  }));
   state.posts = [
     { slug: "first", publishedUpdatedAt: new Date() },
     { slug: "second", publishedUpdatedAt: new Date() },
@@ -75,17 +125,16 @@ test("sitemap bounds the combined catalog to 50,000 URLs and reserves existing t
   const entries = await sitemap();
   expect(entries.length).toBe(50000);
   expect(entries.at(-1).url).toBe("https://smarttools.example/blog/first");
-  expect(state.limits).toEqual([1]);
-  state.tools.push({ href: "/devtools/extra-a" }, { href: "/devtools/extra-b" });
-  expect((await sitemap()).length).toBe(50000);
-  expect(state.limits.at(-1)).toBe(0);
+  state.tools.push({ href: "/devtools/extra-a", availableLocales: ["en"] });
+  state.tools.push({ href: "/devtools/extra-b", availableLocales: ["en"] });
+  const capped = await sitemap();
+  expect(capped.length).toBe(50000);
+  expect(capped.at(-1).url).toBe("https://smarttools.example/devtools/extra-a");
 });
 
-test("sitemap retains the local APP_URL fallback and handles empty catalogs", async () => {
-  expect(await sitemap()).toEqual([]);
+test("sitemap retains the local APP_URL fallback", async () => {
   delete process.env.APP_URL;
-  state.tools = [{ href: "/paperwork/invoice-generator" }];
-  expect((await sitemap())[0].url).toBe("http://localhost:3000/paperwork/invoice-generator");
+  expect((await sitemap())[0].url).toBe("http://localhost:3000/");
 });
 
 test("sitemap query rejects unbounded limits and returns zero capacity without database work", async () => {

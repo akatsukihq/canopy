@@ -1,12 +1,17 @@
 import { Display, H2, Muted, Overline } from "@/components/ui/index.tsx";
 import type { Metadata } from "next";
-import { getTranslations } from "next-intl/server";
+import { getLocale, getTranslations } from "next-intl/server";
+import { defaultLocale, isLocale, localizedAlternates } from "@/lib/i18n/config";
 import { AnalyticsPreferences } from "@/components/analytics/Analytics";
 import PublicInfoChrome from "@/components/canopy/PublicInfoChrome";
 
 export async function generateMetadata(): Promise<Metadata> {
-  const t = await getTranslations("Privacy");
-  return { title: t("metadataTitle"), description: t("metadataDescription") };
+  const [t, locale] = await Promise.all([getTranslations("Privacy"), getLocale()]);
+  return {
+    title: t("metadataTitle"),
+    description: t("metadataDescription"),
+    alternates: localizedAlternates("/privacy", isLocale(locale) ? locale : defaultLocale),
+  };
 }
 
 const sections = ["information", "limits", "cookies", "rights"] as const;

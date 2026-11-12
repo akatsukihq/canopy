@@ -1,5 +1,8 @@
 import { getLocale, getTranslations } from "next-intl/server";
-import { isLocale, defaultLocale } from "@/lib/i18n/config";
+import { isLocale, defaultLocale, localizedAlternates } from "@/lib/i18n/config";
+import { JsonLd } from "@/components/seo/JsonLd";
+import { suiteStructuredData } from "@/lib/seo/structuredData";
+import type { Metadata } from "next";
 import { CanopyFooter } from "@/components/canopy/CanopyFooter";
 import { getOptionalSession } from "@/lib/auth/session.ts";
 import { definitionKeyOf, getPublicToolListings } from "@/lib/tool-framework/catalog";
@@ -26,6 +29,11 @@ const TOOL_ICONS: Record<string, LucideIcon> = {
   "1099-nec-tracker": Sparkles,
 };
 
+export async function generateMetadata(): Promise<Metadata> {
+  const requestedLocale = await getLocale();
+  return { alternates: localizedAlternates("/paperwork", isLocale(requestedLocale) ? requestedLocale : defaultLocale) };
+}
+
 export default async function HomePage() {
   const [requestedLocale, t] = await Promise.all([getLocale(), getTranslations("CatalogPage")]);
   const locale = isLocale(requestedLocale) ? requestedLocale : defaultLocale;
@@ -44,6 +52,15 @@ export default async function HomePage() {
         name="Paperwork"
       />
       <main>
+        <JsonLd
+          data={suiteStructuredData({
+            suite: "paperwork",
+            name: "Paperwork",
+            description: t("paperworkDescription"),
+            locale,
+            tools: tools.map((tool) => ({ name: tool.name, href: tool.href })),
+          })}
+        />
         <PageHero
           compact
           description={t("paperworkDescription")}

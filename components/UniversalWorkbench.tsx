@@ -11,6 +11,7 @@ import {
   Muted,
   List,
   H2,
+  H3,
   AccountNavigation,
   AlertDialog,
   AlertDialogAction,
@@ -32,6 +33,7 @@ import {
   ArrowLeftRight,
   ArrowUpRight,
   CheckCircle2,
+  CircleHelp,
   Globe2,
   ListChecks,
   LockKeyhole,
@@ -367,9 +369,10 @@ function WorkbenchFrame<Input, Settings extends ToolSettings, Result>({
           className="mt-4 border-t border-border pt-4"
           data-testid="tool-support"
         >
-          <Overline className="text-primary" id="before-you-continue-heading">
-            {t("beforeContinue")}
-          </Overline>
+          {/* Real headings for crawlers and assistive tech; preflight resets them, so the overline look stays. */}
+          <h2 id="before-you-continue-heading">
+            <Overline className="text-primary">{t("beforeContinue")}</Overline>
+          </h2>
           <div
             className={`mt-3 grid gap-3 max-[52rem]:grid-cols-1 ${supportItems.length > 1 ? "grid-cols-2" : "grid-cols-1"}`}
           >
@@ -377,10 +380,15 @@ function WorkbenchFrame<Input, Settings extends ToolSettings, Result>({
               const Icon = item.icon;
               return (
                 <article className="rounded-lg border border-border bg-muted/55 px-4 py-3" key={item.eyebrow}>
-                  <Overline className="flex items-center gap-2">
-                    <Icon aria-hidden="true" className={`size-4 ${item.warning ? "text-amber-700" : "text-primary"}`} />
-                    {item.eyebrow}
-                  </Overline>
+                  <h3>
+                    <Overline className="flex items-center gap-2">
+                      <Icon
+                        aria-hidden="true"
+                        className={`size-4 ${item.warning ? "text-amber-700" : "text-primary"}`}
+                      />
+                      {item.eyebrow}
+                    </Overline>
+                  </h3>
                   <List className="mt-1.5 list-disc space-y-1 pl-4 text-muted-foreground">
                     {item.items.map((text, index) => (
                       <li key={`${item.eyebrow}-${index}`}>{text}</li>
@@ -390,6 +398,31 @@ function WorkbenchFrame<Input, Settings extends ToolSettings, Result>({
               );
             })}
           </div>
+
+          {content.faq?.length ? (
+            // Always rendered, never collapsed: a closed accordion unmounts its answers,
+            // which hides them from crawlers that read the server HTML.
+            <section aria-labelledby="tool-faq-heading" className="mt-4" data-testid="tool-faq">
+              <h2 id="tool-faq-heading">
+                <Overline className="flex items-center gap-2">
+                  <CircleHelp aria-hidden="true" className="size-4 text-primary" />
+                  {t("faq")}
+                </Overline>
+              </h2>
+              <dl className="mt-3 grid grid-cols-2 gap-3 max-[52rem]:grid-cols-1">
+                {content.faq.map((entry, index) => (
+                  <div className="rounded-lg border border-border bg-muted/55 px-4 py-3" key={`faq-${index}`}>
+                    <dt>
+                      <H3 className="text-sm font-semibold">{entry.q}</H3>
+                    </dt>
+                    <dd className="mt-1.5">
+                      <Muted className="text-muted-foreground">{entry.a}</Muted>
+                    </dd>
+                  </div>
+                ))}
+              </dl>
+            </section>
+          ) : null}
 
           <div className="mt-4 flex min-h-20 items-center justify-between gap-6 py-3 max-[52rem]:items-start max-[52rem]:flex-col">
             <div>

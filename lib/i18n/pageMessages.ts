@@ -42,6 +42,8 @@ const messages = {
     },
     Home: {
       metadataTitle: "Online Developer, PDF & Image Tools | SmartTools",
+      metadataDescription:
+        "Free online PDF, image, and developer tools that run in your browser. Create invoices, compress PDFs and images, format JSON, and more, with no sign-up.",
       eyebrow: "Focused utilities for everyday work",
       heroTitle: "Less time between <accent>need</accent> and done.",
       intro:
@@ -158,6 +160,8 @@ const messages = {
     },
     Home: {
       metadataTitle: "ऑनलाइन डेवलपर, PDF और चित्र टूल | SmartTools",
+      metadataDescription:
+        "ब्राउज़र में चलने वाले मुफ़्त ऑनलाइन PDF, चित्र और डेवलपर टूल। बिना साइन-अप के इनवॉइस बनाएँ, PDF और चित्र छोटे करें, JSON फ़ॉर्मैट करें और बहुत कुछ।",
       eyebrow: "रोज़मर्रा के काम के लिए केंद्रित टूल",
       heroTitle: "<accent>ज़रूरत</accent> से काम पूरा होने तक कम समय।",
       intro: "SmartTools में चित्र और PDF टूल, व्यावसायिक दस्तावेज़ और डेवलपर टूल एक ही जगह मिलते हैं।",
@@ -273,6 +277,8 @@ const messages = {
     },
     Home: {
       metadataTitle: "Herramientas de desarrollo, PDF e imágenes online | SmartTools",
+      metadataDescription:
+        "Herramientas online gratuitas de PDF, imágenes y desarrollo que funcionan en tu navegador. Crea facturas, comprime PDF e imágenes, formatea JSON y más, sin registrarte.",
       eyebrow: "Utilidades para el trabajo diario",
       heroTitle: "Menos tiempo entre <accent>necesitarlo</accent> y terminarlo.",
       intro:
@@ -393,6 +399,8 @@ const messages = {
     },
     Home: {
       metadataTitle: "Outils de développement, PDF et images en ligne | SmartTools",
+      metadataDescription:
+        "Outils en ligne gratuits pour les PDF, les images et le développement, directement dans votre navigateur. Créez des factures, compressez PDF et images, formatez du JSON et plus, sans inscription.",
       eyebrow: "Des outils ciblés pour le travail quotidien",
       heroTitle: "Moins de temps entre le <accent>besoin</accent> et le résultat.",
       intro:
@@ -516,6 +524,8 @@ const messages = {
     },
     Home: {
       metadataTitle: "Online-Tools für Entwicklung, PDF und Bilder | SmartTools",
+      metadataDescription:
+        "Kostenlose Online-Tools für PDF, Bilder und Entwicklung, direkt im Browser. Rechnungen erstellen, PDFs und Bilder komprimieren, JSON formatieren und mehr – ohne Anmeldung.",
       eyebrow: "Gezielte Werkzeuge für den Arbeitsalltag",
       heroTitle: "Schneller vom <accent>Vorhaben</accent> zum Ergebnis.",
       intro:
@@ -635,6 +645,8 @@ const messages = {
     },
     Home: {
       metadataTitle: "Ferramentas online de desenvolvimento, PDF e imagens | SmartTools",
+      metadataDescription:
+        "Ferramentas online gratuitas de PDF, imagens e desenvolvimento que funcionam no seu navegador. Crie faturas, comprima PDFs e imagens, formate JSON e muito mais, sem cadastro.",
       eyebrow: "Utilitários para o trabalho do dia a dia",
       heroTitle: "Menos tempo entre <accent>precisar</accent> e concluir.",
       intro:
@@ -753,6 +765,8 @@ const messages = {
     },
     Home: {
       metadataTitle: "أدوات للمطوّرين وPDF والصور عبر الإنترنت | SmartTools",
+      metadataDescription:
+        "أدوات مجانية عبر الإنترنت لملفات PDF والصور والمطوّرين تعمل في متصفحك. أنشئ الفواتير، واضغط ملفات PDF والصور، ونسّق JSON والمزيد، دون تسجيل.",
       eyebrow: "أدوات مركّزة للعمل اليومي",
       heroTitle: "وقت أقل بين <accent>الحاجة</accent> والإنجاز.",
       intro: "يجمع SmartTools أدوات الصور وPDF ومستندات الأعمال وأدوات المطوّرين في مكان واضح للبدء.",
@@ -867,6 +881,8 @@ const messages = {
     },
     Home: {
       metadataTitle: "在线开发者、PDF 和图片工具 | SmartTools",
+      metadataDescription:
+        "在浏览器中运行的免费在线 PDF、图片和开发者工具。无需注册即可创建发票、压缩 PDF 和图片、格式化 JSON 等。",
       eyebrow: "专注于日常工作的实用工具",
       heroTitle: "从<accent>需要</accent>到完成，少花一点时间。",
       intro: "SmartTools 将图片与 PDF 工具、商务文档和开发者工具汇聚于一处，让你轻松开始。",
@@ -981,6 +997,8 @@ const messages = {
     },
     Home: {
       metadataTitle: "オンライン開発者・PDF・画像ツール | SmartTools",
+      metadataDescription:
+        "ブラウザで動く無料のオンライン PDF・画像・開発者ツール。登録不要で請求書の作成、PDF や画像の圧縮、JSON の整形などができます。",
       eyebrow: "日々の仕事に役立つ、目的に合ったツール",
       heroTitle: "<accent>必要</accent>から完了までを、もっと短く。",
       intro: "SmartTools は画像・PDF ツール、ビジネス書類、開発者向けツールをひとつの場所にまとめています。",
@@ -1098,6 +1116,8 @@ const messages = {
     },
     Home: {
       metadataTitle: "Онлайн-инструменты для разработки, PDF и изображений | SmartTools",
+      metadataDescription:
+        "Бесплатные онлайн-инструменты для PDF, изображений и разработки прямо в браузере. Создавайте счета, сжимайте PDF и изображения, форматируйте JSON и многое другое без регистрации.",
       eyebrow: "Полезные инструменты для повседневной работы",
       heroTitle: "Меньше времени от <accent>задачи</accent> до результата.",
       intro:

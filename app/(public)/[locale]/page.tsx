@@ -1,5 +1,7 @@
 import { getLocale, getTranslations } from "next-intl/server";
-import { localizeHref, type Locale } from "@/lib/i18n/config";
+import { localizeHref, localizedAlternates, type Locale } from "@/lib/i18n/config";
+import { JsonLd } from "@/components/seo/JsonLd";
+import { siteStructuredData } from "@/lib/seo/structuredData";
 import { CanopyFooter } from "@/components/canopy/CanopyFooter";
 import { getOptionalSession } from "@/lib/auth/session.ts";
 import {
@@ -19,11 +21,23 @@ import {
   ProductHeader,
 } from "@/components/ui/index.tsx";
 import { headers } from "next/headers";
-import type { Metadata } from "next";
+import type { Metadata, ResolvingMetadata } from "next";
 
-export async function generateMetadata(): Promise<Metadata> {
-  const t = await getTranslations("Home");
-  return { title: t("metadataTitle"), openGraph: { title: t("metadataTitle") } };
+// A page-level `openGraph` replaces the inherited one, so carry the segment's image forward.
+export async function generateMetadata(_props: unknown, parent: ResolvingMetadata): Promise<Metadata> {
+  const [t, locale, inherited] = await Promise.all([getTranslations("Home"), getLocale(), parent]);
+  return {
+    title: t("metadataTitle"),
+    description: t("metadataDescription"),
+    alternates: localizedAlternates("/", locale as Locale),
+    openGraph: {
+      title: t("metadataTitle"),
+      description: t("metadataDescription"),
+      type: "website",
+      siteName: "SmartTools",
+      images: inherited.openGraph?.images,
+    },
+  };
 }
 
 const projects = [
@@ -66,6 +80,7 @@ export default async function HomePage() {
       />
 
       <main>
+        <JsonLd data={siteStructuredData({ description: t("metadataDescription"), locale })} />
         <section className="overflow-hidden border-b border-border bg-card">
           <div className="mx-auto grid max-w-7xl lg:grid-cols-[minmax(0,1.08fr)_minmax(28rem,0.92fr)]">
             <div className="flex min-h-[36rem] flex-col justify-center px-4 py-16 sm:px-6 sm:py-20 lg:min-h-[44rem] lg:border-e lg:border-border lg:px-8 lg:py-24">

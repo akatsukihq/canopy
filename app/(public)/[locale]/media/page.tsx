@@ -1,7 +1,10 @@
 import { FamilyToolSearch } from "@/components/ui/components/GlobalToolSearch";
 import { getLocale, getTranslations } from "next-intl/server";
 import { useTranslations } from "next-intl";
-import { isLocale, defaultLocale, localizeHref } from "@/lib/i18n/config";
+import { isLocale, defaultLocale, localizeHref, localizedAlternates } from "@/lib/i18n/config";
+import { JsonLd } from "@/components/seo/JsonLd";
+import { suiteStructuredData } from "@/lib/seo/structuredData";
+import type { Metadata } from "next";
 import { CatalogHero } from "@/components/canopy/CatalogHero";
 import { CatalogListing } from "@/components/canopy/CatalogListing";
 import { CanopyFooter } from "@/components/canopy/CanopyFooter";
@@ -51,6 +54,11 @@ function ToolCard({ tool }: { tool: CatalogToolListing }) {
   );
 }
 
+export async function generateMetadata(): Promise<Metadata> {
+  const requestedLocale = await getLocale();
+  return { alternates: localizedAlternates("/media", isLocale(requestedLocale) ? requestedLocale : defaultLocale) };
+}
+
 export default async function HomePage({
   searchParams,
 }: {
@@ -63,6 +71,7 @@ export default async function HomePage({
     getTranslations("Categories"),
   ]);
   const locale = isLocale(requestedLocale) ? requestedLocale : defaultLocale;
+  const catalog = await getTranslations("Catalog");
   const requestHeaders = await headers();
   const params = await searchParams;
   const query = first(params.q).trim().slice(0, 80);
@@ -84,6 +93,15 @@ export default async function HomePage({
       />
 
       <main>
+        <JsonLd
+          data={suiteStructuredData({
+            suite: "media",
+            name: catalog("mediaOverline"),
+            description: catalog("mediaMetadataDescription"),
+            locale,
+            tools: tools.map((tool) => ({ name: tool.name, href: tool.href })),
+          })}
+        />
         <CatalogHero suite="media" />
         <section aria-label={t("findMedia")} className="bg-muted/50">
           <AppContainer className="py-6">

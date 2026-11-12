@@ -7,6 +7,9 @@ import { headers } from "next/headers";
 import { notFound } from "next/navigation";
 
 import ToolPage from "@/components/ToolPage";
+import { JsonLd } from "@/components/seo/JsonLd";
+import { toolStructuredData } from "@/lib/seo/structuredData";
+import { getTranslations } from "next-intl/server";
 import { IMAGE_CONVERSION_KEYS } from "@/app/media/lib/imageConversion";
 import { loadSpecByDefinitionKey, relatedTools, resolveToolPage } from "@/lib/tool-framework/catalog";
 import type { ToolSpec } from "@/lib/tool-framework/spec";
@@ -23,7 +26,8 @@ export default async function MediaToolPage({ params }: { params: Promise<{ slug
   const tool = await resolveToolPage("media", slug, locale);
   if (!tool) notFound();
 
-  const [related, session, conversions] = await Promise.all([
+  const [catalog, related, session, conversions] = await Promise.all([
+    getTranslations({ locale, namespace: "Catalog" }),
     relatedTools(tool.toolId, locale),
     getOptionalSession(await headers()),
     IMAGE_CONVERSION_KEYS.includes(tool.definitionKey)
@@ -32,28 +36,40 @@ export default async function MediaToolPage({ params }: { params: Promise<{ slug
   ]);
 
   return (
-    <NextIntlClientProvider
-      locale={locale}
-      messages={{ ...getCommonMessages(locale), Tool: toolMessageTree(tool.messages) }}
-    >
-      <ToolPage
-        availableLocales={tool.availableLocales}
-        account={{
-          returnTo: tool.href,
-          user: session?.user ?? null,
-        }}
-        category={getCommonMessages(locale).Categories[tool.category]}
-        conversions={conversions.filter((entry): entry is ToolSpec => entry !== null)}
-        definitionKey={tool.definitionKey}
-        description={tool.description}
-        icon={tool.icon}
-        relatedTools={related.map((candidate) => ({
-          href: candidate.href,
-          label: candidate.name,
-        }))}
-        spec={tool.spec}
-        title={tool.name}
+    <>
+      <JsonLd
+        data={toolStructuredData({
+          suite: "media",
+          suiteName: catalog("mediaOverline"),
+          name: tool.name,
+          description: tool.seoDescription,
+          href: tool.href,
+          locale,
+        })}
       />
-    </NextIntlClientProvider>
+      <NextIntlClientProvider
+        locale={locale}
+        messages={{ ...getCommonMessages(locale), Tool: toolMessageTree(tool.messages) }}
+      >
+        <ToolPage
+          availableLocales={tool.availableLocales}
+          account={{
+            returnTo: tool.href,
+            user: session?.user ?? null,
+          }}
+          category={getCommonMessages(locale).Categories[tool.category]}
+          conversions={conversions.filter((entry): entry is ToolSpec => entry !== null)}
+          definitionKey={tool.definitionKey}
+          description={tool.description}
+          icon={tool.icon}
+          relatedTools={related.map((candidate) => ({
+            href: candidate.href,
+            label: candidate.name,
+          }))}
+          spec={tool.spec}
+          title={tool.name}
+        />
+      </NextIntlClientProvider>
+    </>
   );
 }

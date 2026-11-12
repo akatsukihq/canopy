@@ -1,7 +1,10 @@
 import { FamilyToolSearch } from "@/components/ui/components/GlobalToolSearch";
 import { getLocale, getTranslations } from "next-intl/server";
 import { useTranslations } from "next-intl";
-import { isLocale, defaultLocale, localizeHref } from "@/lib/i18n/config";
+import { isLocale, defaultLocale, localizeHref, localizedAlternates } from "@/lib/i18n/config";
+import { JsonLd } from "@/components/seo/JsonLd";
+import { suiteStructuredData } from "@/lib/seo/structuredData";
+import type { Metadata } from "next";
 import { CatalogHero } from "@/components/canopy/CatalogHero";
 import { CatalogListing } from "@/components/canopy/CatalogListing";
 import { CanopyFooter } from "@/components/canopy/CanopyFooter";
@@ -65,6 +68,11 @@ function ToolCard({ tool }: { tool: CatalogToolListing }) {
   );
 }
 
+export async function generateMetadata(): Promise<Metadata> {
+  const requestedLocale = await getLocale();
+  return { alternates: localizedAlternates("/devtools", isLocale(requestedLocale) ? requestedLocale : defaultLocale) };
+}
+
 export default async function HomePage({
   searchParams,
 }: {
@@ -77,6 +85,7 @@ export default async function HomePage({
     getTranslations("Categories"),
   ]);
   const locale = isLocale(requestedLocale) ? requestedLocale : defaultLocale;
+  const catalog = await getTranslations("Catalog");
   const requestHeaders = await headers();
   const params = await searchParams;
   const query = first(params.q).trim().slice(0, 80);
@@ -141,6 +150,15 @@ export default async function HomePage({
       />
 
       <main>
+        <JsonLd
+          data={suiteStructuredData({
+            suite: "devtools",
+            name: catalog("developerOverline"),
+            description: catalog("developerMetadataDescription"),
+            locale,
+            tools: tools.map((tool) => ({ name: tool.name, href: tool.href })),
+          })}
+        />
         <CatalogHero suite="devtools" />
         {hasFilter || showAllTools ? (
           <section className="border-b border-border bg-muted/50">

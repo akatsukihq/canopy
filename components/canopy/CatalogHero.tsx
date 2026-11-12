@@ -9,8 +9,11 @@ export function CatalogHero({ suite }: { suite: "media" | "devtools" }) {
     <section className="bg-muted/50">
       <AppContainer className="grid items-center gap-6 px-6 py-8 sm:px-8 md:grid-cols-2 md:gap-8 lg:px-16">
         <div className="min-w-0 text-start max-md:text-center">
-          <Overline className="block text-primary">{t(isMedia ? "mediaOverline" : "developerOverline")}</Overline>
-          <Display className="mt-3 text-[2.5rem] leading-[1.05] tracking-tight lg:text-[3.25rem]">
+          {/* The suite name opens the heading so the page's H1 names what it offers, not only the slogan. */}
+          <Display className="text-[2.5rem] leading-[1.05] tracking-tight lg:text-[3.25rem]">
+            <Overline className="mb-3 block text-primary">
+              {t(isMedia ? "mediaOverline" : "developerOverline")}
+            </Overline>{" "}
             {t(isMedia ? "mediaTitle" : "developerTitle")}{" "}
             <span className={`mt-3 block text-primary ${isMedia ? "" : "max-md:mt-0 max-md:inline"}`}>
               {t("onYourTerms")}

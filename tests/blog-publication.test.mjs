@@ -65,8 +65,15 @@ test("structured data is safe to embed in an application/ld+json script", () => 
   expect(json).not.toMatch(/<script|<\/script/i);
   const data = JSON.parse(json);
   expect(data["@type"]).toBe("BlogPosting");
-  expect(data.author.name).toBe("SmartTools Team");
   expect(data.mainEntityOfPage).toBe("https://example.test/blog/first-post");
+});
+test("house bylines credit the site organization while named writers stay people", () => {
+  const author = (authorName) =>
+    JSON.parse(blogStructuredData({ ...post, document: { ...post.document, authorName } }, "https://example.test"))
+      .author;
+  for (const house of ["SmartTools Team", "SmartTools", " smarttools editorial "])
+    expect(author(house)).toEqual({ "@id": "https://example.test/#organization" });
+  expect(author("Asha Rao")).toEqual({ "@type": "Person", name: "Asha Rao" });
 });
 test("RSS escapes stored text and uses publication dates rather than draft updates", () => {
   const xml = buildBlogFeed(

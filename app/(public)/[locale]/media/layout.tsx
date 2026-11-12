@@ -4,8 +4,8 @@ import type { Metadata, Viewport } from "next";
 export async function generateMetadata(): Promise<Metadata> {
   const t = await getTranslations("Catalog");
   return {
-    title: { default: t("mediaOverline") + " | SmartTools", template: "%s | SmartTools" },
-    description: t("mediaDescription"),
+    title: { default: t("mediaMetadataTitle") + " | SmartTools", template: "%s | SmartTools" },
+    description: t("mediaMetadataDescription"),
   };
 }
 

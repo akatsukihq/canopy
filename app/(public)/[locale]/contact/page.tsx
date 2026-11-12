@@ -5,11 +5,15 @@ import { Clock3, LifeBuoy, Mail } from "lucide-react";
 import PublicInfoChrome from "@/components/canopy/PublicInfoChrome";
 import ContactForm from "@/app/contact/ContactForm";
 import { getLocale, getTranslations } from "next-intl/server";
-import { isLocale, localizeHref } from "@/lib/i18n/config";
+import { defaultLocale, isLocale, localizeHref, localizedAlternates } from "@/lib/i18n/config";
 
 export async function generateMetadata(): Promise<Metadata> {
-  const t = await getTranslations("Contact");
-  return { title: t("metadataTitle"), description: t("metadataDescription") };
+  const [t, locale] = await Promise.all([getTranslations("Contact"), getLocale()]);
+  return {
+    title: t("metadataTitle"),
+    description: t("metadataDescription"),
+    alternates: localizedAlternates("/contact", isLocale(locale) ? locale : defaultLocale),
+  };
 }
 
 const methods = [

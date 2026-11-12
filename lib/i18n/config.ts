@@ -50,3 +50,17 @@ export function localizeHref(href: string, locale: Locale): string {
   const suffix = suffixIndex < 0 ? "" : href.slice(suffixIndex);
   return `${locale === defaultLocale ? path : `/${locale}${path === "/" ? "" : path}`}${suffix}`;
 }
+
+/** Canonical plus hreflang alternates (and x-default) for a page served in every locale. */
+export function localizedAlternates(
+  path: string,
+  locale: Locale,
+): { canonical: string; languages: Record<string, string> } {
+  return {
+    canonical: localizeHref(path, locale),
+    languages: {
+      ...Object.fromEntries(locales.map((language) => [language, localizeHref(path, language)])),
+      "x-default": localizeHref(path, defaultLocale),
+    },
+  };
+}
