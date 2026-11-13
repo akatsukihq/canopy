@@ -6,7 +6,7 @@ import type { Metadata } from "next";
 import { CanopyFooter } from "@/components/canopy/CanopyFooter";
 import { getOptionalSession } from "@/lib/auth/session.ts";
 import { definitionKeyOf, getPublicToolListings } from "@/lib/tool-framework/catalog";
-import { AccountNavigation, CatalogCard, PageHero, ProductHeader, StatusBadge } from "@/components/ui/index.tsx";
+import { AccountNavigation, CatalogCard, H2, PageHero, ProductHeader, StatusBadge } from "@/components/ui/index.tsx";
 import {
   ClipboardCheck,
   ClipboardList,
@@ -35,7 +35,11 @@ export async function generateMetadata(): Promise<Metadata> {
 }
 
 export default async function HomePage() {
-  const [requestedLocale, t] = await Promise.all([getLocale(), getTranslations("CatalogPage")]);
+  const [requestedLocale, t, common] = await Promise.all([
+    getLocale(),
+    getTranslations("CatalogPage"),
+    getTranslations("Common"),
+  ]);
   const locale = isLocale(requestedLocale) ? requestedLocale : defaultLocale;
   const requestHeaders = await headers();
   const [tools, session] = await Promise.all([
@@ -68,7 +72,10 @@ export default async function HomePage() {
           title={t("paperworkTitle")}
         />
 
-        <section className="mx-auto max-w-7xl px-4 pb-16 sm:px-6 lg:px-8">
+        <section aria-labelledby="paperwork-tools-title" className="mx-auto max-w-7xl px-4 pb-16 sm:px-6 lg:px-8">
+          <H2 className="mb-4" id="paperwork-tools-title">
+            {common("allTools")}
+          </H2>
           <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
             {tools.map((tool) => {
               const Icon = TOOL_ICONS[definitionKeyOf(tool.toolId) ?? ""] ?? FileText;

@@ -911,6 +911,7 @@ export function FileProcessorWorkspace(props: FileProcessorWorkspaceProps) {
           state={wasCancelled ? "cancelled" : "waiting"}
           className="rounded-none border-0 bg-transparent"
           description={wasCancelled ? t("mediaInputUnchanged") : props.spec.labels.empty}
+          headingLevel="p"
           icon={<FileText aria-hidden="true" />}
           title={wasCancelled ? t("mediaProcessingCancelled") : t("resultEmpty")}
         />

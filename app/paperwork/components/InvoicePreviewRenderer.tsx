@@ -200,9 +200,9 @@ export default function InvoicePreviewRenderer({ data, template, isPrintMode = f
                   ) : null}
 
                   {businessBlock.showBusinessName && (
-                    <h1 className={`font-black tracking-tight ${headingSizeClass}`} style={styles.primaryColorText}>
+                    <p className={`font-black tracking-tight ${headingSizeClass}`} style={styles.primaryColorText}>
                       {data.business.name || "[Business Name]"}
-                    </h1>
+                    </p>
                   )}
 
                   {/* Seller Contacts */}
@@ -231,12 +231,12 @@ export default function InvoicePreviewRenderer({ data, template, isPrintMode = f
                 {/* Meta details right block */}
                 <div className="sm:text-right shrink-0">
                   {header.showInvoiceTitle && (
-                    <h2
+                    <p
                       className="text-2xl font-black uppercase tracking-wider leading-none mb-1"
                       style={styles.primaryColorText}
                     >
                       {labels.invoiceTitle || "INVOICE"}
-                    </h2>
+                    </p>
                   )}
 
                   {header.showStatusBadge && (

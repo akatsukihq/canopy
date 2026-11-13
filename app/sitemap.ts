@@ -2,7 +2,7 @@ import config from "@/lib/config/config.ts";
 import { getSitemapTools } from "@/lib/tool-framework/catalog";
 import { getBlogSitemapEntries } from "@/lib/blog/queries";
 import type { MetadataRoute } from "next";
-import { locales, localizeHref } from "@/lib/i18n/config";
+import { defaultLocale, locales, localizeHref, type Locale } from "@/lib/i18n/config";
 
 // Deliberately no `generateStaticParams` companion anywhere: slugs and
 // enablement live in `managed_tools`, so use the runtime public catalog cache
@@ -15,15 +15,37 @@ import { locales, localizeHref } from "@/lib/i18n/config";
 export const dynamic = "force-dynamic";
 
 const LOCALIZED_PAGES = [
-  { path: "/", priority: 1 },
-  { path: "/devtools", priority: 0.9 },
-  { path: "/media", priority: 0.9 },
-  { path: "/paperwork", priority: 0.9 },
-  { path: "/paperwork/about", priority: 0.3 },
-  { path: "/paperwork/terms", priority: 0.2 },
-  { path: "/privacy", priority: 0.2 },
-  { path: "/contact", priority: 0.3 },
+  "/",
+  "/devtools",
+  "/media",
+  "/paperwork",
+  "/paperwork/about",
+  "/paperwork/terms",
+  "/privacy",
+  "/contact",
 ] as const;
+
+// Google ignores <changefreq> and <priority>, and only trusts <lastmod> when it is accurate, so entries carry a
+// <lastmod> only where a real modification date exists. `x-default` points at the English URL, which every page has.
+function localizedEntry(
+  path: string,
+  locale: Locale,
+  availableLocales: readonly Locale[],
+  base: string,
+  lastModified?: Date,
+): MetadataRoute.Sitemap[number] {
+  const urlFor = (language: Locale) => new URL(localizeHref(path, language), base).toString();
+  return {
+    url: urlFor(locale),
+    ...(lastModified ? { lastModified } : {}),
+    alternates: {
+      languages: {
+        "x-default": urlFor(defaultLocale),
+        ...Object.fromEntries(availableLocales.map((language) => [language, urlFor(language)])),
+      },
+    },
+  };
+}
 
 export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
   const base = config.appUrl;
@@ -40,19 +62,8 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
 
   // Every public locale serves these pages; the blog index canonicalizes to one URL.
   const pages: MetadataRoute.Sitemap = [
-    ...LOCALIZED_PAGES.flatMap(({ path, priority }) =>
-      locales.map((locale) => ({
-        url: new URL(localizeHref(path, locale), base).toString(),
-        alternates: {
-          languages: Object.fromEntries(
-            locales.map((language) => [language, new URL(localizeHref(path, language), base).toString()]),
-          ),
-        },
-        changeFrequency: "weekly" as const,
-        priority,
-      })),
-    ),
-    { url: new URL("/blog", base).toString(), changeFrequency: "daily" as const, priority: 0.6 },
+    ...LOCALIZED_PAGES.flatMap((path) => locales.map((locale) => localizedEntry(path, locale, locales, base))),
+    { url: new URL("/blog", base).toString() },
   ];
 
   // ponytail: one sitemap holds 50,000 URLs; split into sitemap files before
@@ -60,19 +71,9 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
   const entries: MetadataRoute.Sitemap = pages;
   entries.push(
     ...tools.flatMap((tool) =>
-      tool.availableLocales.map((locale) => ({
-        url: new URL(localizeHref(tool.href, locale), base).toString(),
-        alternates: {
-          languages: Object.fromEntries(
-            tool.availableLocales.map((language) => [
-              language,
-              new URL(localizeHref(tool.href, language), base).toString(),
-            ]),
-          ),
-        },
-        changeFrequency: "weekly" as const,
-        priority: 0.7,
-      })),
+      tool.availableLocales.map((locale) =>
+        localizedEntry(tool.href, locale, tool.availableLocales, base, tool.updatedAt),
+      ),
     ),
   );
   entries.splice(50000);
@@ -80,8 +81,6 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
     ...allPosts.slice(0, 50000 - entries.length).map((post) => ({
       url: new URL(`/blog/${post.slug}`, base).toString(),
       lastModified: post.publishedUpdatedAt ?? undefined,
-      changeFrequency: "weekly" as const,
-      priority: 0.7,
     })),
   );
   return entries;

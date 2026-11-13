@@ -109,7 +109,8 @@ function AppDialog({
       }}
       ref={dialogRef}
     >
-      {children}
+      {/* A closed <dialog> still ships its children in the HTML, so crawlers would read these titles as page headings. */}
+      {open ? children : null}
     </dialog>
   );
 }

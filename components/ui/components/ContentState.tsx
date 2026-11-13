@@ -14,7 +14,8 @@ export type ContentStateProps = Omit<ComponentProps<"div">, "title" | "children"
   state?: "empty" | "no-results" | "error" | "loading" | "unavailable" | "waiting" | "cancelled" | "complete";
   density?: "page" | "section" | "panel" | "compact";
   align?: "center" | "start";
-  headingLevel?: "h1" | "h2" | "h3";
+  /** `"p"` renders status text that must not become a document heading (crawlers read headings as page structure). */
+  headingLevel?: "h1" | "h2" | "h3" | "p";
   /** Opt in for asynchronously changing messages, not the action controls. */
   announcement?: "off" | "polite" | "assertive";
 };

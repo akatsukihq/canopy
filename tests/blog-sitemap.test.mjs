@@ -55,49 +55,55 @@ test("sitemap lists localized home, hub and static pages with hreflang alternate
   });
 });
 
-test("sitemap preserves tool entries and adds blog publication timestamps and canonical URLs", async () => {
+test("sitemap adds x-default, real modification dates and canonical blog URLs", async () => {
   const publishedUpdatedAt = new Date("2026-09-16T10:00:00Z");
+  const toolUpdatedAt = new Date("2026-10-20T08:30:00Z");
   state.tools = [
-    { href: "/devtools/json-formatter", availableLocales: ["en", "ja"] },
-    { href: "/paperwork/invoice-generator", availableLocales: ["en"] },
+    { href: "/devtools/json-formatter", availableLocales: ["en", "ja"], updatedAt: toolUpdatedAt },
+    { href: "/paperwork/invoice-generator", availableLocales: ["en"], updatedAt: toolUpdatedAt },
   ];
   state.posts = [{ slug: "using-json", publishedUpdatedAt }];
+  const jsonAlternates = {
+    languages: {
+      "x-default": "https://smarttools.example/devtools/json-formatter",
+      en: "https://smarttools.example/devtools/json-formatter",
+      ja: "https://smarttools.example/ja/devtools/json-formatter",
+    },
+  };
   expect((await sitemap()).slice(PAGE_COUNT)).toEqual([
     {
       url: "https://smarttools.example/devtools/json-formatter",
-      alternates: {
-        languages: {
-          en: "https://smarttools.example/devtools/json-formatter",
-          ja: "https://smarttools.example/ja/devtools/json-formatter",
-        },
-      },
-      changeFrequency: "weekly",
-      priority: 0.7,
+      lastModified: toolUpdatedAt,
+      alternates: jsonAlternates,
     },
     {
       url: "https://smarttools.example/ja/devtools/json-formatter",
-      alternates: {
-        languages: {
-          en: "https://smarttools.example/devtools/json-formatter",
-          ja: "https://smarttools.example/ja/devtools/json-formatter",
-        },
-      },
-      changeFrequency: "weekly",
-      priority: 0.7,
+      lastModified: toolUpdatedAt,
+      alternates: jsonAlternates,
     },
     {
       url: "https://smarttools.example/paperwork/invoice-generator",
-      alternates: { languages: { en: "https://smarttools.example/paperwork/invoice-generator" } },
-      changeFrequency: "weekly",
-      priority: 0.7,
+      lastModified: toolUpdatedAt,
+      alternates: {
+        languages: {
+          "x-default": "https://smarttools.example/paperwork/invoice-generator",
+          en: "https://smarttools.example/paperwork/invoice-generator",
+        },
+      },
     },
-    {
-      url: "https://smarttools.example/blog/using-json",
-      lastModified: publishedUpdatedAt,
-      changeFrequency: "weekly",
-      priority: 0.7,
-    },
+    { url: "https://smarttools.example/blog/using-json", lastModified: publishedUpdatedAt },
   ]);
+});
+
+test("static pages carry x-default but no invented modification date, and no ignored tags", async () => {
+  const entries = await sitemap();
+  const home = entries.find((entry) => entry.url === "https://smarttools.example/ja");
+  expect(home.alternates.languages["x-default"]).toBe("https://smarttools.example/");
+  for (const entry of entries) {
+    expect(entry).not.toHaveProperty("changeFrequency");
+    expect(entry).not.toHaveProperty("priority");
+  }
+  expect(home).not.toHaveProperty("lastModified");
 });
 
 test("either catalog can fail independently without losing the other catalog's URLs", async () => {

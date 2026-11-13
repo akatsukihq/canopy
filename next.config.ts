@@ -44,6 +44,33 @@ const mediaSecurityHeaders = [
 
 const workerIsolationHeaders = [{ key: "Cross-Origin-Embedder-Policy", value: "require-corp" }];
 
+// Baseline for every route. No Content-Security-Policy here: the strict one above blocks AdSense, which public pages load.
+// `/media` rules come later in headers(), so their stricter Referrer-Policy and frame rules win for the same key.
+const siteSecurityHeaders = [
+  ...(development ? [] : [{ key: "Strict-Transport-Security", value: "max-age=31536000" }]),
+  { key: "X-Content-Type-Options", value: "nosniff" },
+  { key: "X-Frame-Options", value: "SAMEORIGIN" },
+  { key: "Referrer-Policy", value: "strict-origin-when-cross-origin" },
+  {
+    key: "Permissions-Policy",
+    value: "camera=(), display-capture=(), geolocation=(), microphone=(), payment=(), usb=()",
+  },
+];
+
+// Search engines treat www and the apex as two sites, so send www to the canonical origin with one permanent hop.
+const appOrigin = new URL(config.appUrl);
+const wwwRedirects =
+  appOrigin.protocol === "https:" && !appOrigin.hostname.startsWith("www.")
+    ? [
+        {
+          source: "/:path*",
+          has: [{ type: "host" as const, value: `www.${appOrigin.hostname}` }],
+          destination: `${appOrigin.origin}/:path*`,
+          permanent: true,
+        },
+      ]
+    : [];
+
 const nextConfig: NextConfig = {
   // Only the public product URL is exposed; authentication secrets stay server-side.
   env: { APP_URL: config.appUrl },
@@ -53,6 +80,7 @@ const nextConfig: NextConfig = {
     "/*": ["./scripts/seed-assets/**/*"],
   },
   reactStrictMode: true,
+  poweredByHeader: false,
   typescript: {
     ignoreBuildErrors: true,
   },
@@ -102,8 +130,12 @@ const nextConfig: NextConfig = {
     "pdfjs-dist",
     "qpdf-wasm",
   ],
+  async redirects() {
+    return wwwRedirects;
+  },
   async headers() {
     return [
+      { source: "/:path*", headers: siteSecurityHeaders },
       { source: "/media/:path*", headers: mediaSecurityHeaders },
       { source: `/:locale(${locales.join("|")})/media/:path*`, headers: mediaSecurityHeaders },
       {

@@ -469,14 +469,21 @@ const loadCatalog = cache(async (locale: Locale = defaultLocale, app?: PublicToo
  * contract, so this skips re-parsing specs and translations per request.
  * English must be published, since every other locale falls back to it.
  */
-export async function getSitemapTools(): Promise<readonly { href: string; availableLocales: Locale[] }[]> {
+export async function getSitemapTools(): Promise<
+  readonly { href: string; availableLocales: Locale[]; updatedAt: Date }[]
+> {
   if (!isDatabaseConfigured()) return [];
   const published = sql<string[]>`COALESCE((
     SELECT jsonb_agg(t.key) FROM jsonb_each(${managedToolsTable.translations}) t
     WHERE t.value->>'status' = 'published'
   ), '[]'::jsonb)`;
   const rows = await db
-    .select({ app: managedToolsTable.app, slug: managedToolsTable.slug, published })
+    .select({
+      app: managedToolsTable.app,
+      slug: managedToolsTable.slug,
+      updatedAt: managedToolsTable.updatedAt,
+      published,
+    })
     .from(managedToolsTable)
     .where(and(eq(managedToolsTable.enabled, true), eq(managedToolsTable.archived, false)))
     .orderBy(managedToolsTable.app, managedToolsTable.order);
@@ -486,7 +493,13 @@ export async function getSitemapTools(): Promise<readonly { href: string; availa
     if (!row.slug || !isValidToolSlug(row.app, row.slug) || counts.get(`${row.app}/${row.slug}`) !== 1) return [];
     const have = new Set(row.published.filter(isLocale));
     if (!have.has(defaultLocale)) return [];
-    return [{ href: `/${row.app}/${row.slug}`, availableLocales: locales.filter((l) => have.has(l)) }];
+    return [
+      {
+        href: `/${row.app}/${row.slug}`,
+        availableLocales: locales.filter((l) => have.has(l)),
+        updatedAt: row.updatedAt,
+      },
+    ];
   });
 }
 

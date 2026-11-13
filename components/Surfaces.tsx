@@ -105,6 +105,7 @@ function WorkspaceSurface({
         density={state === "empty" && purpose === "result" ? "compact" : "section"}
         icon={state === "empty" && purpose === "result" ? null : (stateIcon ?? DEFAULT_STATE_ICONS[state])}
         title={stateTitle ?? t(DEFAULT_STATE_TITLES[state])}
+        headingLevel="p"
         description={stateDescription}
         action={stateAction}
         announcement="polite"

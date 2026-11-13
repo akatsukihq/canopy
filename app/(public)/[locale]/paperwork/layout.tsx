@@ -4,8 +4,8 @@ import type { Metadata } from "next";
 export async function generateMetadata(): Promise<Metadata> {
   const t = await getTranslations("CatalogPage");
   return {
-    title: { default: t("paperworkTitle") + " | SmartTools", template: "%s | SmartTools" },
-    description: t("paperworkDescription"),
+    title: { default: t("paperworkMetadataTitle") + " | SmartTools", template: "%s | SmartTools" },
+    description: t("paperworkMetadataDescription"),
   };
 }
 

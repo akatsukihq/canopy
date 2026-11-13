@@ -112,6 +112,9 @@ const messages = {
       paperworkDescription: "Create invoices, receipts, reports, estimates, and contractor records without an account.",
       paperworkEyebrow: "Small business toolkit",
       paperworkTitle: "Choose the paperwork tool for the job.",
+      paperworkMetadataTitle: "Free Invoice, Receipt & Tax Paperwork Tools",
+      paperworkMetadataDescription:
+        "Create invoices, receipts, expense reports, mileage logs, and tax estimates in your browser. Free to use, with no account needed.",
       available: "Available",
       filterCategory: "Filter tools by category",
       allCategories: "All categories",
@@ -229,6 +232,9 @@ const messages = {
       paperworkDescription: "बिना खाते के इनवॉइस, रसीदें, रिपोर्ट, अनुमान और ठेकेदार रिकॉर्ड बनाएँ।",
       paperworkEyebrow: "छोटे व्यवसाय के टूल",
       paperworkTitle: "अपने काम के लिए दस्तावेज़ टूल चुनें।",
+      paperworkMetadataTitle: "मुफ़्त इनवॉइस, रसीद और टैक्स दस्तावेज़ टूल",
+      paperworkMetadataDescription:
+        "अपने ब्राउज़र में इनवॉइस, रसीदें, खर्च रिपोर्ट, माइलेज लॉग और टैक्स अनुमान बनाएँ। उपयोग मुफ़्त है और खाते की ज़रूरत नहीं।",
       available: "उपलब्ध",
       filterCategory: "श्रेणी के अनुसार टूल फ़िल्टर करें",
       allCategories: "सभी श्रेणियाँ",
@@ -350,6 +356,9 @@ const messages = {
       paperworkDescription: "Crea facturas, recibos, informes, estimaciones y registros de contratistas sin cuenta.",
       paperworkEyebrow: "Herramientas para pequeñas empresas",
       paperworkTitle: "Elige la herramienta de documentos para tu tarea.",
+      paperworkMetadataTitle: "Herramientas gratuitas de facturas, recibos e impuestos",
+      paperworkMetadataDescription:
+        "Crea facturas, recibos, informes de gastos, registros de kilometraje y estimaciones de impuestos en tu navegador. Es gratis y no necesitas cuenta.",
       available: "Disponible",
       filterCategory: "Filtrar herramientas por categoría",
       allCategories: "Todas las categorías",
@@ -475,6 +484,9 @@ const messages = {
       paperworkDescription: "Créez des factures, reçus, rapports, estimations et dossiers de prestataires sans compte.",
       paperworkEyebrow: "Outils pour petites entreprises",
       paperworkTitle: "Choisissez l’outil documentaire adapté à votre tâche.",
+      paperworkMetadataTitle: "Outils gratuits de factures, reçus et impôts",
+      paperworkMetadataDescription:
+        "Créez factures, reçus, notes de frais, journaux kilométriques et estimations d’impôts dans votre navigateur. Gratuit, sans compte.",
       available: "Disponible",
       filterCategory: "Filtrer les outils par catégorie",
       allCategories: "Toutes les catégories",
@@ -597,6 +609,9 @@ const messages = {
         "Erstelle Rechnungen, Belege, Berichte, Schätzungen und Auftragnehmerunterlagen ohne Konto.",
       paperworkEyebrow: "Werkzeuge für kleine Unternehmen",
       paperworkTitle: "Wähle das passende Werkzeug für deine Unterlagen.",
+      paperworkMetadataTitle: "Kostenlose Tools für Rechnungen, Belege und Steuern",
+      paperworkMetadataDescription:
+        "Erstelle Rechnungen, Belege, Spesenabrechnungen, Fahrtenbücher und Steuerschätzungen im Browser. Kostenlos und ohne Konto nutzbar.",
       available: "Verfügbar",
       filterCategory: "Tools nach Kategorie filtern",
       allCategories: "Alle Kategorien",
@@ -717,6 +732,9 @@ const messages = {
       paperworkDescription: "Crie faturas, recibos, relatórios, estimativas e registros de prestadores sem conta.",
       paperworkEyebrow: "Ferramentas para pequenos negócios",
       paperworkTitle: "Escolha a ferramenta de documentos certa para a tarefa.",
+      paperworkMetadataTitle: "Ferramentas gratuitas de faturas, recibos e impostos",
+      paperworkMetadataDescription:
+        "Crie faturas, recibos, relatórios de despesas, registros de quilometragem e estimativas de impostos no navegador. Grátis e sem precisar de conta.",
       available: "Disponível",
       filterCategory: "Filtrar ferramentas por categoria",
       allCategories: "Todas as categorias",
@@ -833,6 +851,9 @@ const messages = {
       paperworkDescription: "أنشئ الفواتير والإيصالات والتقارير والتقديرات وسجلات المتعاقدين دون حساب.",
       paperworkEyebrow: "أدوات للأعمال الصغيرة",
       paperworkTitle: "اختر أداة المستندات المناسبة للمهمة.",
+      paperworkMetadataTitle: "أدوات مجانية للفواتير والإيصالات والضرائب",
+      paperworkMetadataDescription:
+        "أنشئ الفواتير والإيصالات وتقارير النفقات وسجلات المسافات وتقديرات الضرائب في متصفحك. الاستخدام مجاني دون الحاجة إلى حساب.",
       available: "متاحة",
       filterCategory: "تصفية الأدوات حسب الفئة",
       allCategories: "جميع الفئات",
@@ -949,6 +970,8 @@ const messages = {
       paperworkDescription: "无需账户即可创建发票、收据、报告、估算和承包商记录。",
       paperworkEyebrow: "小型企业工具包",
       paperworkTitle: "为当前任务选择合适的文档工具。",
+      paperworkMetadataTitle: "免费发票、收据和税务文档工具",
+      paperworkMetadataDescription: "在浏览器中创建发票、收据、费用报告、里程记录和税款估算。免费使用，无需账户。",
       available: "可用",
       filterCategory: "按分类筛选工具",
       allCategories: "所有分类",
@@ -1067,6 +1090,9 @@ const messages = {
       paperworkDescription: "アカウントなしで請求書、領収書、報告書、見積もり、契約業者の記録を作成できます。",
       paperworkEyebrow: "小規模事業者向けツール",
       paperworkTitle: "作業に合った書類ツールを選びましょう。",
+      paperworkMetadataTitle: "無料の請求書・領収書・税務書類ツール",
+      paperworkMetadataDescription:
+        "請求書、領収書、経費報告書、走行記録、税額の見積もりをブラウザーで作成できます。無料で、アカウントも不要です。",
       available: "利用可能",
       filterCategory: "カテゴリーでツールを絞り込む",
       allCategories: "すべてのカテゴリー",
@@ -1188,6 +1214,9 @@ const messages = {
       paperworkDescription: "Создавайте счета, квитанции, отчёты, расчёты и записи о подрядчиках без аккаунта.",
       paperworkEyebrow: "Инструменты для малого бизнеса",
       paperworkTitle: "Выберите подходящий инструмент для документов.",
+      paperworkMetadataTitle: "Бесплатные инструменты для счетов, квитанций и налогов",
+      paperworkMetadataDescription:
+        "Создавайте счета, квитанции, отчёты о расходах, журналы пробега и расчёты налогов в браузере. Бесплатно и без аккаунта.",
       available: "Доступно",
       filterCategory: "Фильтровать инструменты по категории",
       allCategories: "Все категории",

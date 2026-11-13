@@ -253,16 +253,11 @@ export default async function BlogPage({ searchParams }: Props) {
                 id="blog-stories-heading"
                 className={`break-words font-sans text-[28px] leading-normal ${filters.search ? "" : "font-normal lg:text-[26px] lg:font-semibold"}`}
               >
-                {filters.search ? (
-                  t("resultsFor", { query: filters.search })
-                ) : filtered ? (
-                  t("filteredArticles")
-                ) : (
-                  <>
-                    <span className="lg:hidden">{t("theLatest")}</span>
-                    <span className="hidden lg:inline">{t("latestArticles")}</span>
-                  </>
-                )}
+                {filters.search
+                  ? t("resultsFor", { query: filters.search })
+                  : filtered
+                    ? t("filteredArticles")
+                    : t("latestArticles")}
               </StoriesHeading>
               {!filters.search && (
                 <Caption className="font-sans text-sm text-muted-foreground lg:text-[13px]">
