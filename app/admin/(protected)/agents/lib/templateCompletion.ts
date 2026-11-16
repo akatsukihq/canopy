@@ -9,6 +9,7 @@ export type TemplateScope = {
 };
 
 export type TemplateSuggestion =
+  | { type: "namespace"; kind: "args" | "inputs"; name: ""; detail: string }
   | { type: "existing"; kind: "args" | "inputs"; name: string; detail: string }
   | { type: "create"; kind: "args" | "inputs"; name: string; secret: boolean; detail: string };
 
@@ -41,6 +42,15 @@ export function templateCompletion(text: string, caret: number, scope: TemplateS
   const forcedKind = parts.length === 2 ? (parts[0] === "args" || parts[0] === "inputs" ? parts[0] : null) : null;
   if (parts.length === 2 && !forcedKind) return null;
 
+  const namespaces: TemplateSuggestion[] =
+    parts.length === 2
+      ? []
+      : ([
+          { type: "namespace", kind: "args", name: "", detail: "Arguments the model passes" },
+          { type: "namespace", kind: "inputs", name: "", detail: "Inputs and secrets set per agent" },
+        ].filter((item) => item.kind.startsWith(needle)) as TemplateSuggestion[]);
+  const secretsTyped = parts.length === 1 && needle !== "" && "secrets".startsWith(needle);
+
   const existing: TemplateSuggestion[] = [
     ...scope.args.map(
       (name) => ({ type: "existing", kind: "args", name, detail: "Argument the model passes" }) as const,
@@ -58,19 +68,17 @@ export function templateCompletion(text: string, caret: number, scope: TemplateS
     const full = `${item.kind}.${item.name}`.toLowerCase();
     return parts.length === 2
       ? full.startsWith(needle)
-      : full.startsWith(needle) || item.name.toLowerCase().startsWith(needle);
+      : full.startsWith(needle) ||
+          item.name.toLowerCase().startsWith(needle) ||
+          (secretsTyped && item.detail.startsWith("Secret"));
   });
 
-  const suggestions: TemplateSuggestion[] = existing.slice(0, MAX_EXISTING);
+  const suggestions: TemplateSuggestion[] = [...namespaces, ...existing.slice(0, MAX_EXISTING)];
   const taken = (kind: "args" | "inputs") =>
     (kind === "args" ? scope.args : scope.inputs.map((input) => input.id)).includes(typed);
-  if (IDENTIFIER.test(typed) && typed !== "args" && typed !== "inputs") {
-    if (
-      scope.createArg &&
-      (forcedKind ?? "args") === "args" &&
-      !taken("args") &&
-      !existingHasName(existing, typed, "args")
-    )
+  // Names are created only after a namespace (`args.` / `inputs.`); namespaces themselves are fixed.
+  if (forcedKind && IDENTIFIER.test(typed)) {
+    if (scope.createArg && forcedKind === "args" && !taken("args") && !existingHasName(existing, typed, "args"))
       suggestions.push({
         type: "create",
         kind: "args",
@@ -78,7 +86,7 @@ export function templateCompletion(text: string, caret: number, scope: TemplateS
         secret: false,
         detail: "Add to the arguments schema",
       });
-    if (scope.createInput && (forcedKind ?? "inputs") === "inputs" && !taken("inputs")) {
+    if (scope.createInput && forcedKind === "inputs" && !taken("inputs")) {
       suggestions.push({ type: "create", kind: "inputs", name: typed, secret: false, detail: "Add as a text input" });
       suggestions.push({ type: "create", kind: "inputs", name: typed, secret: true, detail: "Add as a secret" });
     }
@@ -98,7 +106,12 @@ export function applyTemplateSuggestion(
   completion: TemplateCompletion,
   suggestion: TemplateSuggestion,
 ): { value: string; caret: number } {
-  const insert = `${suggestion.kind}.${suggestion.name}`;
+  const insert = suggestion.type === "namespace" ? `${suggestion.kind}.` : `${suggestion.kind}.${suggestion.name}`;
+  if (suggestion.type === "namespace")
+    return {
+      value: text.slice(0, completion.from) + insert + text.slice(completion.to),
+      caret: completion.from + insert.length,
+    };
   const value = text.slice(0, completion.from) + insert + (completion.closed ? "" : "}}") + text.slice(completion.to);
   const consumed = completion.closed ? text.slice(completion.to).match(/^\s*\}\}/)![0].length : 0;
   return { value, caret: completion.from + insert.length + (completion.closed ? consumed : 2) };

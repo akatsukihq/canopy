@@ -53,9 +53,11 @@ export function TemplateText({ value }: { value: string }) {
 }
 
 const suggestionLabel = (suggestion: TemplateSuggestion) =>
-  suggestion.type === "existing"
-    ? `${suggestion.kind}.${suggestion.name}`
-    : `Create ${suggestion.kind === "args" ? "argument" : suggestion.secret ? "secret" : "input"} “${suggestion.name}”`;
+  suggestion.type === "namespace"
+    ? `${suggestion.kind}.`
+    : suggestion.type === "existing"
+      ? `${suggestion.kind}.${suggestion.name}`
+      : `Create ${suggestion.kind === "args" ? "argument" : suggestion.secret ? "secret" : "input"} “${suggestion.name}”`;
 
 /** Sets a controlled input's value the way typing would, so the owner's onChange runs. */
 function setInputValue(input: HTMLInputElement, value: string) {
@@ -102,7 +104,8 @@ export function TemplateInput({
     }
     setInputValue(input, applied.value);
     input.setSelectionRange(applied.caret, applied.caret);
-    setCompletion(null);
+    if (suggestion.type === "namespace") refresh(input);
+    else setCompletion(null);
   };
   const open = completion !== null;
   return (
@@ -199,7 +202,7 @@ export function TemplateInput({
                 onMouseEnter={() => setActive(index)}
                 role="option"
               >
-                <span className={cn("text-[13px]", suggestion.type === "existing" && "font-mono")}>
+                <span className={cn("text-[13px]", suggestion.type !== "create" && "font-mono")}>
                   {suggestionLabel(suggestion)}
                 </span>
                 <span className="text-xs text-muted-foreground">{suggestion.detail}</span>

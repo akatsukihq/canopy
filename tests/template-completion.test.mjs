@@ -23,6 +23,8 @@ test("no suggestions outside a placeholder", () => {
 
 test("an empty placeholder lists everything declared", () => {
   expect(names(at("Bearer {{"))).toEqual([
+    "namespace:args.",
+    "namespace:inputs.",
     "existing:args.query",
     "existing:args.count",
     "existing:inputs.apiKey",
@@ -33,13 +35,15 @@ test("an empty placeholder lists everything declared", () => {
 test("typing narrows by namespace and name", () => {
   expect(names(at("{{inputs."))).toEqual(["existing:inputs.apiKey", "existing:inputs.baseUrl"]);
   expect(names(at("{{args.co"))).toEqual(["existing:args.count", "create:args.co"]);
+  expect(names(at("{{in"))[0]).toBe("namespace:inputs.");
   expect(names(at("{{api"))).toContain("existing:inputs.apiKey");
 });
 
 test("an unknown name offers to create it", () => {
   expect(names(at("{{args.limit"))).toEqual(["create:args.limit"]);
   expect(names(at("{{inputs.region"))).toEqual(["create:inputs.region", "create:inputs.region!"]);
-  expect(names(at("{{region")).sort()).toEqual(["create:args.region", "create:inputs.region", "create:inputs.region!"]);
+  expect(at("{{region")).toBeNull();
+  expect(names(at("{{secrets"))).toEqual(["existing:inputs.apiKey"]);
   expect(names(at("{{args.query"))).toEqual(["existing:args.query"]);
 });
 
