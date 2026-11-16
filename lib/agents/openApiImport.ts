@@ -209,7 +209,7 @@ function securityInputs(doc: Json, taken: Set<string>, warnings: string[]): Auth
       defaultValue: null,
       description: text(scheme.description) ? cut(text(scheme.description), 300) : null,
     });
-    const value = `{{inputs.${id}}}`;
+    const value = `{{secrets.${id}}}`;
     if (bearer) auth.headers.Authorization = `Bearer ${value}`;
     else if (scheme.in === "query") auth.query[text(scheme.name) || id] = value;
     else if (HEADER_NAME.test(text(scheme.name))) auth.headers[text(scheme.name)] = value;

@@ -33,7 +33,7 @@ const connection = {
   description: "",
   baseUrl: "https://api.crm.example/v1/",
   inputs: [secret("apiKey")],
-  headers: { Authorization: "Bearer {{inputs.apiKey}}", Accept: "application/json" },
+  headers: { Authorization: "Bearer {{secrets.apiKey}}", Accept: "application/json" },
   enabled: true,
 };
 const endpoint = (http = {}, over = {}) => ({
@@ -71,7 +71,7 @@ const endpoint = (http = {}, over = {}) => ({
 test("bindConnection joins base URL and path, merges headers case-insensitively, and inherits inputs and enabled", () => {
   const bound = bindConnection(endpoint(), connection);
   expect(bound.http.url).toBe("https://api.crm.example/v1/users/{{args.id}}");
-  expect(bound.http.headers).toEqual({ Authorization: "Bearer {{inputs.apiKey}}", accept: "text/plain" });
+  expect(bound.http.headers).toEqual({ Authorization: "Bearer {{secrets.apiKey}}", accept: "text/plain" });
   expect(bound.inputs).toEqual(connection.inputs);
   expect(bindConnection(endpoint(), { ...connection, enabled: false }).enabled).toBe(false);
 });
@@ -180,7 +180,7 @@ test("OpenAPI import: connection from info, server variables and bearer auth; un
   const { connection: draft, warnings } = result.preview;
   expect(draft).toMatchObject({ key: "pet_store_api", name: "Pet Store API", baseUrl: "https://api.pets.example/v2" });
   expect(draft.inputs).toEqual([expect.objectContaining({ id: "bearerAuth", type: "secret", required: true })]);
-  expect(draft.headers).toEqual({ Authorization: "Bearer {{inputs.bearerAuth}}" });
+  expect(draft.headers).toEqual({ Authorization: "Bearer {{secrets.bearerAuth}}" });
   expect(warnings.join(" ")).toMatch(/oauth/);
 });
 
@@ -229,7 +229,7 @@ paths:
     ["baseUrl", "url"],
     ["key", "secret"],
   ]);
-  expect(result.preview.endpoints[0].tool.http.query).toEqual({ api_key: "{{inputs.key}}" });
+  expect(result.preview.endpoints[0].tool.http.query).toEqual({ api_key: "{{secrets.key}}" });
   expect(previewOpenApi('{"swagger":"2.0"}')).toEqual({ ok: false, error: expect.stringMatching(/Swagger 2.0/) });
   expect(previewOpenApi("{ nope").ok).toBe(false);
 });

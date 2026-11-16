@@ -13,7 +13,7 @@ const scope = {
   createInput: () => {},
 };
 const at = (text, scopeValue = scope) => templateCompletion(text, text.length, scopeValue);
-const names = (c) => c.suggestions.map((s) => `${s.type}:${s.kind}.${s.name}${s.secret ? "!" : ""}`);
+const names = (c) => c.suggestions.map((s) => `${s.type}:${s.kind}.${s.name}`);
 
 test("no suggestions outside a placeholder", () => {
   expect(at("https://x.test")).toBeNull();
@@ -25,25 +25,28 @@ test("an empty placeholder lists everything declared", () => {
   expect(names(at("Bearer {{"))).toEqual([
     "namespace:args.",
     "namespace:inputs.",
+    "namespace:secrets.",
     "existing:args.query",
     "existing:args.count",
-    "existing:inputs.apiKey",
     "existing:inputs.baseUrl",
+    "existing:secrets.apiKey",
   ]);
 });
 
 test("typing narrows by namespace and name", () => {
-  expect(names(at("{{inputs."))).toEqual(["existing:inputs.apiKey", "existing:inputs.baseUrl"]);
+  expect(names(at("{{inputs."))).toEqual(["existing:inputs.baseUrl"]);
+  expect(names(at("{{secrets."))).toEqual(["existing:secrets.apiKey"]);
   expect(names(at("{{args.co"))).toEqual(["existing:args.count", "create:args.co"]);
   expect(names(at("{{in"))[0]).toBe("namespace:inputs.");
-  expect(names(at("{{api"))).toContain("existing:inputs.apiKey");
+  expect(names(at("{{api"))).toEqual(["existing:secrets.apiKey"]);
 });
 
 test("an unknown name offers to create it", () => {
   expect(names(at("{{args.limit"))).toEqual(["create:args.limit"]);
-  expect(names(at("{{inputs.region"))).toEqual(["create:inputs.region", "create:inputs.region!"]);
+  expect(names(at("{{inputs.region"))).toEqual(["create:inputs.region"]);
+  expect(names(at("{{secrets.token"))).toEqual(["create:secrets.token"]);
   expect(at("{{region")).toBeNull();
-  expect(names(at("{{secrets"))).toEqual(["existing:inputs.apiKey"]);
+  expect(names(at("{{secrets"))).toEqual(["namespace:secrets.", "existing:secrets.apiKey"]);
   expect(names(at("{{args.query"))).toEqual(["existing:args.query"]);
 });
 

@@ -60,8 +60,11 @@ function fromOutput(output: OutputResult, base: Partial<Outcome>): Outcome {
 function resolveInputs(
   tool: CustomTool,
   values: Record<string, string>,
-): { ok: true; inputs: TemplateScope["inputs"] } | { ok: false; error: Record<string, unknown> } {
+):
+  | { ok: true; inputs: TemplateScope["inputs"]; secrets: TemplateScope["secrets"] }
+  | { ok: false; error: Record<string, unknown> } {
   const inputs: TemplateScope["inputs"] = {};
+  const secrets: TemplateScope["secrets"] = {};
   for (const field of tool.inputs) {
     const value = values[field.id] || field.defaultValue || "";
     if (!value) {
@@ -78,8 +81,9 @@ function resolveInputs(
       if (!isJson(value)) return { ok: false, error: { error: `The "${field.label}" input is not valid JSON.` } };
       inputs[field.id] = JSON.parse(value);
     } else inputs[field.id] = value;
+    if (field.type === "secret") secrets[field.id] = inputs[field.id];
   }
-  return { ok: true, inputs };
+  return { ok: true, inputs, secrets };
 }
 
 const codeLanguage = (config: CodeToolConfig) => getCodeLanguage(`${config.language}-compiler`);
@@ -227,7 +231,11 @@ async function runCodeTool(
   scope: TemplateScope,
   signal: AbortSignal,
 ): Promise<Outcome> {
-  const ran = await runCode(code, JSON.stringify({ args: scope.args, inputs: scope.inputs }), signal);
+  const ran = await runCode(
+    code,
+    JSON.stringify({ args: scope.args, inputs: scope.inputs, secrets: scope.secrets }),
+    signal,
+  );
   if (!ran.ok) return failed(ran.error, { exitCode: ran.exitCode });
   const output = await applyOutput(tool.output, ran.stdout, {
     responsePath: null,
@@ -268,7 +276,11 @@ export async function runCustomTool(
     });
   else if (!inputs.ok) report = failed(inputs.error);
   else {
-    const scope: TemplateScope = { args: (checked.data ?? {}) as Record<string, unknown>, inputs: inputs.inputs };
+    const scope: TemplateScope = {
+      args: (checked.data ?? {}) as Record<string, unknown>,
+      inputs: inputs.inputs,
+      secrets: inputs.secrets,
+    };
     if (tool.kind === "http" && tool.http) report = await runHttp(tool, tool.http, scope, signal);
     else if (tool.kind === "code" && tool.code) report = await runCodeTool(tool, tool.code, scope, signal);
     else report = failed({ error: "This tool is not set up." });

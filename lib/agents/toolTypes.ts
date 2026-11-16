@@ -145,11 +145,14 @@ export function httpTemplateIssues(http: HttpToolConfig, args: string[], inputs:
       const known =
         kind === "args"
           ? args.includes(name)
-          : inputs.some((f) => f.id === name && (name === path || f.type === "json"));
+          : inputs.some(
+              (f) =>
+                f.id === name && (kind === "secrets") === (f.type === "secret") && (name === path || f.type === "json"),
+            );
       if (!known)
         issues.push({
           path: ["http", part],
-          message: `{{${kind}.${path}}} is not a declared ${kind === "args" ? "argument" : "input"}.`,
+          message: `{{${kind}.${path}}} is not a declared ${{ args: "argument", inputs: "input", secrets: "secret" }[kind]}.`,
         });
     }
   }

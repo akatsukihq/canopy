@@ -58,7 +58,7 @@ export type ToolConnection = Omit<ToolConnectionInput, "secretValues"> & {
 
 type Issue = { path: (string | number)[]; message: string };
 
-/** Base URL origin rule and `{{inputs.*}}`-only placeholders in the base URL and headers. */
+/** Base URL origin rule and `{{inputs.*}}` / `{{secrets.*}}` placeholders in the base URL and headers. */
 function connectionIssues(connection: Pick<ToolConnectionInput, "baseUrl" | "headers" | "inputs">): Issue[] {
   const issues: Issue[] = [];
   const split = splitUrlTemplate(connection.baseUrl);
@@ -75,8 +75,14 @@ function connectionIssues(connection: Pick<ToolConnectionInput, "baseUrl" | "hea
     for (const { kind, path } of placeholders(value)) {
       if (kind === "args")
         issues.push({ path: [part], message: `{{args.${path}}} is not allowed here; endpoints use arguments.` });
-      else if (path.includes(".") || !connection.inputs.some((field) => field.id === path))
-        issues.push({ path: [part], message: `{{inputs.${path}}} is not a declared input.` });
+      else if (
+        path.includes(".") ||
+        !connection.inputs.some((field) => field.id === path && (kind === "secrets") === (field.type === "secret"))
+      )
+        issues.push({
+          path: [part],
+          message: `{{${kind}.${path}}} is not a declared ${kind === "secrets" ? "secret" : "input"}.`,
+        });
     }
   }
   return issues;

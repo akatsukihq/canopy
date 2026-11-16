@@ -247,8 +247,8 @@ const GROUP_COPY = {
           override it
         </strong>
         . Leave Shared value empty to make each agent bring its own key. Values are encrypted, never shown again and
-        never sent to the model. Use <code className="font-mono">{"{{inputs.id}}"}</code> in a header, e.g.{" "}
-        <code className="font-mono">{"Bearer {{inputs.apiKey}}"}</code>.
+        never sent to the model. Use <code className="font-mono">{"{{secrets.id}}"}</code> in a header, e.g.{" "}
+        <code className="font-mono">{"Bearer {{secrets.apiKey}}"}</code>.
       </>
     ),
     empty: "No secrets. Add one when the API needs a key or token.",

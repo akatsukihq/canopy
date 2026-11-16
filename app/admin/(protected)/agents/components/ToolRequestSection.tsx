@@ -351,7 +351,7 @@ function HttpFields({
             noun="header"
             onChange={(headers) => set({ headers })}
             pairs={form.headers}
-            valuePlaceholder="Bearer {{inputs.apiKey}}"
+            valuePlaceholder="Bearer {{secrets.apiKey}}"
           />
         </TabsContent>
         <TabsContent className="pt-3" value="body">
@@ -416,7 +416,7 @@ function CodeFields({
             />
           </div>
           <p className="min-w-0 flex-1 text-xs text-muted-foreground">
-            Reads {'{ "args", "inputs" }'} JSON from stdin, prints the result to stdout. No network access.
+            Reads {'{ "args", "inputs", "secrets" }'} JSON from stdin, prints the result to stdout. No network access.
           </p>
         </div>
         <JsonEditor

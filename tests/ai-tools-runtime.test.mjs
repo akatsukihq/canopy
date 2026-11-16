@@ -42,7 +42,7 @@ const httpTool = (http = {}, over = {}) => ({
   http: {
     method: "GET",
     url: "https://api.example.com/search",
-    headers: { Authorization: "Bearer {{inputs.apiKey}}" },
+    headers: { Authorization: "Bearer {{secrets.apiKey}}" },
     query: { q: "{{args.q}}" },
     body: null,
     responsePath: null,
@@ -212,11 +212,15 @@ test("schema pass returns the value; schema fail returns issues", async () => {
   expect(failed.result.issues[0].path).toBe("n");
 });
 
-test("code tools get args and inputs on stdin; failures carry stderr", async () => {
+test("code tools get args, inputs and secrets on stdin; failures carry stderr", async () => {
   executeCode.mockResolvedValueOnce(okRun("[1,2]"));
   const ok = await runCustomTool(codeTool(), { q: "x" }, keys, signal());
   expect(ok).toMatchObject({ ok: true, result: [1, 2], exitCode: 0 });
-  expect(JSON.parse(executeCode.mock.calls[0][2])).toEqual({ args: { q: "x" }, inputs: { apiKey: "sk-1" } });
+  expect(JSON.parse(executeCode.mock.calls[0][2])).toEqual({
+    args: { q: "x" },
+    inputs: { apiKey: "sk-1" },
+    secrets: { apiKey: "sk-1" },
+  });
   executeCode.mockResolvedValueOnce({
     status: "runtime-error",
     stdout: "",

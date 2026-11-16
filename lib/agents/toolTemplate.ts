@@ -1,18 +1,23 @@
 /**
  * Request templating for custom HTTP tools. Placeholders are `{{args.<path>}}` (model arguments) and
- * `{{inputs.<id>}}` (the agent's inputs); nothing else is substituted. Pure: safe for client and server.
+ * `{{inputs.<id>}}` (the agent's inputs), `{{secrets.<id>}}` (its secrets); nothing else is substituted. Pure: safe for client and server.
  */
 
-export type TemplateScope = { args: Record<string, unknown>; inputs: Record<string, unknown> };
-export type Placeholder = { kind: "args" | "inputs"; path: string };
+export type TemplateScope = {
+  args: Record<string, unknown>;
+  /** ponytail: also holds secret values so templates saved before `secrets` existed keep resolving. */
+  inputs: Record<string, unknown>;
+  secrets: Record<string, unknown>;
+};
+export type Placeholder = { kind: "args" | "inputs" | "secrets"; path: string };
 
 /** A template could not be resolved (missing value, bad URL, origin changed). The message is model-safe. */
 export class TemplateError extends Error {
   override name = "TemplateError";
 }
 
-const PLACEHOLDER = /\{\{\s*(args|inputs)\.([A-Za-z0-9_$-]+(?:\.[A-Za-z0-9_$-]+)*)\s*\}\}/g;
-const EXACT = /^\{\{\s*(args|inputs)\.([A-Za-z0-9_$-]+(?:\.[A-Za-z0-9_$-]+)*)\s*\}\}$/;
+const PLACEHOLDER = /\{\{\s*(args|inputs|secrets)\.([A-Za-z0-9_$-]+(?:\.[A-Za-z0-9_$-]+)*)\s*\}\}/g;
+const EXACT = /^\{\{\s*(args|inputs|secrets)\.([A-Za-z0-9_$-]+(?:\.[A-Za-z0-9_$-]+)*)\s*\}\}$/;
 export const ORIGIN_RULE =
   "The address must start with https:// and a fixed host, or with one URL input such as {{inputs.baseUrl}}.";
 const FIXED_ORIGIN = /^https:\/\/[^/?#{}\s]+/i;
@@ -70,12 +75,12 @@ export function substitute(value: unknown, scope: TemplateScope): unknown {
 }
 
 const ANY_BRACES = /\{\{([^{}]*)\}\}/g;
-/** Scopes a placeholder may read from. Secrets are inputs of type "secret", so they use `inputs`. */
-export const TEMPLATE_NAMESPACES = ["args", "inputs"] as const;
+/** Scopes a placeholder may read from: model arguments, per-agent settings, and secret values. */
+export const TEMPLATE_NAMESPACES = ["args", "inputs", "secrets"] as const;
 export const PLACEHOLDER_RULE =
-  "Use {{args.name}} for an argument the model passes, or {{inputs.id}} for an input or secret.";
+  "Use {{args.name}} for an argument the model passes, {{inputs.id}} for an input, or {{secrets.id}} for a secret.";
 
-/** `{{…}}` expressions in a template value that are not `{{args.…}}` or `{{inputs.…}}` and would be sent as-is. */
+/** `{{…}}` expressions in a template value that are not `{{args.…}}`, `{{inputs.…}}` or `{{secrets.…}}` and would be sent as-is. */
 export function invalidPlaceholders(value: unknown): string[] {
   if (typeof value === "string")
     return [...value.matchAll(ANY_BRACES)].filter((match) => !EXACT.test(match[0])).map((match) => match[0]);
@@ -100,7 +105,7 @@ export function placeholders(value: unknown): Placeholder[] {
 export function splitUrlTemplate(
   template: string,
 ): { origin: { fixed: string } | { input: string }; rest: string } | { error: string } {
-  const leading = /^\{\{\s*(args|inputs)\.([A-Za-z0-9_$-]+(?:\.[A-Za-z0-9_$-]+)*)\s*\}\}/.exec(template);
+  const leading = /^\{\{\s*(args|inputs|secrets)\.([A-Za-z0-9_$-]+(?:\.[A-Za-z0-9_$-]+)*)\s*\}\}/.exec(template);
   if (leading) {
     if (leading[1] !== "inputs" || leading[2].includes("."))
       return {

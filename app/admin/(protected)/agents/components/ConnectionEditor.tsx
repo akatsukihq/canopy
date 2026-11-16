@@ -411,7 +411,7 @@ export function ConnectionEditor({
                 <div className="grid gap-3">
                   <p className="text-xs text-muted-foreground">
                     Sent with every endpoint, e.g.{" "}
-                    <code className="font-mono">{"Authorization: Bearer {{inputs.apiKey}}"}</code>. An endpoint&apos;s
+                    <code className="font-mono">{"Authorization: Bearer {{secrets.apiKey}}"}</code>. An endpoint&apos;s
                     own header with the same name wins.
                   </p>
                   <PairRows
@@ -421,7 +421,7 @@ export function ConnectionEditor({
                     noun="header"
                     onChange={(headers) => set({ headers })}
                     pairs={form.headers}
-                    valuePlaceholder="Bearer {{inputs.apiKey}}"
+                    valuePlaceholder="Bearer {{secrets.apiKey}}"
                   />
                 </div>
               </TabsContent>

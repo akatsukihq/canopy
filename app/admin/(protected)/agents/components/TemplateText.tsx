@@ -13,18 +13,22 @@ import {
 } from "../lib/templateCompletion";
 
 const PLACEHOLDER = /(\{\{[^{}]*\}\})/;
-const REFERENCE = /^\{\{\s*(args|inputs)\.([A-Za-z0-9_$-]+)/;
+const REFERENCE = /^\{\{\s*(args|inputs|secrets)\.([A-Za-z0-9_$-]+)/;
 
 /** The names a request template may reference: what completion suggests and what gets flagged when undeclared. */
 const TemplateScopeContext = createContext<TemplateScope | null>(null);
 export const TemplateScopeProvider = TemplateScopeContext.Provider;
 
 function problemWith(part: string, scope: TemplateScope | null): string | null {
-  if (invalidPlaceholders(part).length) return "Not a valid placeholder. Use {{args.name}} or {{inputs.id}}.";
+  if (invalidPlaceholders(part).length)
+    return "Not a valid placeholder. Use {{args.name}}, {{inputs.id}} or {{secrets.id}}.";
   const reference = REFERENCE.exec(part);
   if (!scope || !reference) return null;
   const [, kind, name] = reference;
-  const declared = kind === "args" ? scope.args.includes(name) : scope.inputs.some((input) => input.id === name);
+  const declared =
+    kind === "args"
+      ? scope.args.includes(name)
+      : scope.inputs.some((input) => input.id === name && input.secret === (kind === "secrets"));
   return declared ? null : `${kind}.${name} is not declared.`;
 }
 
@@ -64,12 +68,14 @@ export function TemplateText({ value }: { value: string }) {
   );
 }
 
+const CREATE_NOUN = { args: "argument", inputs: "input", secrets: "secret" } as const;
+
 const suggestionLabel = (suggestion: TemplateSuggestion) =>
   suggestion.type === "namespace"
     ? `${suggestion.kind}.`
     : suggestion.type === "existing"
       ? `${suggestion.kind}.${suggestion.name}`
-      : `Create ${suggestion.kind === "args" ? "argument" : suggestion.secret ? "secret" : "input"} “${suggestion.name}”`;
+      : `Create ${CREATE_NOUN[suggestion.kind]} “${suggestion.name}”`;
 
 /** Sets a controlled input's value the way typing would, so the owner's onChange runs. */
 function setInputValue(input: HTMLInputElement, value: string) {
@@ -112,7 +118,7 @@ export function TemplateInput({
     const applied = applyTemplateSuggestion(input.value, completion, suggestion);
     if (suggestion.type === "create") {
       if (suggestion.kind === "args") scope?.createArg?.(suggestion.name);
-      else scope?.createInput?.(suggestion.name, suggestion.secret);
+      else scope?.createInput?.(suggestion.name, suggestion.kind === "secrets");
     }
     setInputValue(input, applied.value);
     input.setSelectionRange(applied.caret, applied.caret);
@@ -206,7 +212,7 @@ export function TemplateInput({
                   index === active && "bg-accent text-accent-text",
                 )}
                 id={`${listId}-${index}`}
-                key={`${suggestion.type}-${suggestion.kind}-${suggestion.name}-${suggestion.type === "create" && suggestion.secret}`}
+                key={`${suggestion.type}-${suggestion.kind}-${suggestion.name}`}
                 onMouseDown={(event) => {
                   event.preventDefault();
                   choose(suggestion);

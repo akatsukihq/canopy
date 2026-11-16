@@ -6,6 +6,7 @@ const { toolInputSchema } = await import("../lib/agents/toolTypes.ts");
 const scope = {
   args: { q: "a b&c", count: 5, filter: { tag: "x" }, path: "../admin" },
   inputs: { apiKey: "sk-1", baseUrl: "https://api.example.com/v2" },
+  secrets: { apiKey: "sk-1" },
 };
 
 test("an exact placeholder keeps its type; embedded ones are stringified", () => {
@@ -16,18 +17,20 @@ test("an exact placeholder keeps its type; embedded ones are stringified", () =>
     f: { tag: "x" },
     s: 'n=5 f={"tag":"x"}',
   });
-  expect(substitute(["Bearer {{inputs.apiKey}}", 3, null], scope)).toEqual(["Bearer sk-1", 3, null]);
+  expect(substitute(["Bearer {{secrets.apiKey}}", 3, null], scope)).toEqual(["Bearer sk-1", 3, null]);
   expect(substitute({ "{{args.q}}": "key" }, scope)).toEqual({ "{{args.q}}": "key" });
   expect(substitute("{{args.filter.tag}}", scope)).toBe("x");
 });
 
-test("only args and inputs are placeholders, and missing values throw", () => {
+test("only args, inputs and secrets are placeholders, and missing values throw", () => {
   expect(substitute("{{env.SECRET}} {{process}}", scope)).toBe("{{env.SECRET}} {{process}}");
   expect(() => substitute("{{args.missing}}", scope)).toThrow(TemplateError);
   expect(() => substitute("{{inputs.nope}}", scope)).toThrow(/inputs\.nope/);
-  expect(placeholders({ a: ["{{args.q}}"], b: "{{inputs.apiKey}}" })).toEqual([
+  expect(() => substitute("{{secrets.nope}}", scope)).toThrow(/secrets\.nope/);
+  expect(placeholders({ a: ["{{args.q}}"], b: "{{secrets.apiKey}} {{inputs.baseUrl}}" })).toEqual([
     { kind: "args", path: "q" },
-    { kind: "inputs", path: "apiKey" },
+    { kind: "secrets", path: "apiKey" },
+    { kind: "inputs", path: "baseUrl" },
   ]);
 });
 
@@ -95,7 +98,7 @@ const messages = (input) => {
 
 test("save-time validation: origin rule, declared placeholders, secret defaults", () => {
   expect(
-    messages(tool({ query: { q: "{{args.q}}" }, headers: { Authorization: "Bearer {{inputs.apiKey}}" } })),
+    messages(tool({ query: { q: "{{args.q}}" }, headers: { Authorization: "Bearer {{secrets.apiKey}}" } })),
   ).toEqual([]);
   expect(messages(tool({ url: "{{inputs.baseUrl}}/search" }))).toEqual([]);
   expect(messages(tool({ url: "https://{{args.q}}.example.com" })).join()).toMatch(/fixed host/);
@@ -129,17 +132,25 @@ test("save-time validation: schemas, transform and code limits", () => {
   expect(ok.http).toBeNull();
 });
 
-test("only args and inputs placeholders are allowed in a request template", async () => {
+test("only args, inputs and secrets placeholders are allowed in a request template", async () => {
   const { httpTemplateIssues } = await import("../lib/agents/toolTypes.ts");
   const { invalidPlaceholders } = await import("../lib/agents/toolTemplate.ts");
   expect(
-    invalidPlaceholders({ a: "{{secrets.apiKey}}", b: ["x {{ input.k }}", "{{args.q}}", "{{inputs.k}}"] }),
-  ).toEqual(["{{secrets.apiKey}}", "{{ input.k }}"]);
+    invalidPlaceholders({
+      a: "{{vault.apiKey}}",
+      b: ["x {{ input.k }}", "{{args.q}}", "{{inputs.k}}", "{{secrets.k}}"],
+    }),
+  ).toEqual(["{{vault.apiKey}}", "{{ input.k }}"]);
   const http = {
     method: "GET",
     url: "https://api.example.com/search",
-    headers: { Authorization: "Bearer {{secrets.apiKey}}" },
-    query: { q: "{{args.query}}", key: "{{inputs.apiKey}}", region: "{{inputs.filters.region}}" },
+    headers: { Authorization: "Bearer {{vault.apiKey}}" },
+    query: {
+      q: "{{args.query}}",
+      key: "{{secrets.apiKey}}",
+      region: "{{inputs.filters.region}}",
+      old: "{{inputs.apiKey}}",
+    },
     body: null,
     responsePath: null,
     timeoutMs: 15000,
@@ -149,6 +160,8 @@ test("only args and inputs placeholders are allowed in a request template", asyn
     { id: "filters", label: "Filters", type: "json", required: false, defaultValue: null, description: null },
   ];
   const messages = httpTemplateIssues(http, ["query"], inputs).map((issue) => issue.message);
-  expect(messages).toHaveLength(1);
-  expect(messages[0]).toContain("{{secrets.apiKey}} is not a valid placeholder");
+  expect(messages).toHaveLength(2);
+  expect(messages[0]).toContain("{{vault.apiKey}} is not a valid placeholder");
+  // A secret is read as {{secrets.id}}, never {{inputs.id}}.
+  expect(messages[1]).toBe("{{inputs.apiKey}} is not a declared input.");
 });
