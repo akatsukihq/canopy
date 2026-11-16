@@ -19,6 +19,9 @@ COPY . .
 # Next webpack needs more heap during compilation than the default ~2 GiB.
 # This setting stays in the builder and does not increase the runtime heap.
 ENV NODE_OPTIONS="--max-old-space-size=4096"
+# `pnpm build` re-checks node_modules and, on a cached dependencies layer, decides to reinstall; that
+# aborts without a TTY (ERR_PNPM_ABORTED_REMOVE_MODULES_DIR_NO_TTY). The install above is already exact.
+ENV npm_config_verify_deps_before_run=false
 ARG APP_URL
 # Only public values belong in image build arguments. Runtime secrets are supplied
 # by the deployment platform when the container starts.
