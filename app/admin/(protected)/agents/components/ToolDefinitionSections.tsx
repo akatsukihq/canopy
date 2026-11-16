@@ -29,8 +29,10 @@ import {
   follows,
   idFromLabel,
   isNewRow,
+  isSavedSecretMask,
   keyFromName,
   newInputField,
+  SAVED_SECRET_MASK,
   type InputFieldForm,
   type ToolForm,
 } from "./toolForm";
@@ -278,10 +280,11 @@ function SharedValue({
         autoComplete="new-password"
         disabled={disabled}
         maxLength={4000}
-        onChange={(e) => onChange(e.target.value || undefined)}
-        placeholder={cleared ? "Cleared — agents enter their own" : saved ? "Saved — blank keeps it" : "Optional"}
+        onChange={(e) => onChange(e.target.value && !isSavedSecretMask(e.target.value) ? e.target.value : undefined)}
+        onFocus={(e) => saved && !value && e.currentTarget.select()}
+        placeholder={cleared ? "Cleared — agents enter their own" : "Optional"}
         type="password"
-        value={value ?? ""}
+        value={value ?? (saved ? SAVED_SECRET_MASK : "")}
       />
       {saved && !value ? (
         <Button

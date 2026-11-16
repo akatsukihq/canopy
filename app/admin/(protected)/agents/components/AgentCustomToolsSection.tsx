@@ -7,6 +7,7 @@ import type { AgentConnectionAttachment, AgentToolAttachment } from "@/lib/agent
 import type { AgentForm } from "./agentForm";
 import { FormSection, SectionLink, type SectionProps } from "./FormSection";
 import { TemplateText } from "./TemplateText";
+import { isSavedSecretMask, SAVED_SECRET_MASK } from "./toolForm";
 
 const toolErrorKey = (toolId: string, fieldId: string) => `customTools.${toolId}.${fieldId}`;
 const connectionErrorKey = (connectionId: string, fieldId: string) => `connections.${connectionId}.${fieldId}`;
@@ -111,12 +112,16 @@ function InputsGrid({
               className={field.type === "json" ? "font-mono" : undefined}
               disabled={disabled}
               inputMode={field.type === "number" ? "decimal" : undefined}
-              onChange={(e) => onChange(field.id, stored && !e.target.value ? null : e.target.value)}
-              placeholder={
-                stored ? "Saved — leave blank to keep" : usesShared ? "Shared value" : (field.defaultValue ?? "")
+              onChange={(e) =>
+                onChange(
+                  field.id,
+                  stored && (!e.target.value || isSavedSecretMask(e.target.value)) ? null : e.target.value,
+                )
               }
+              onFocus={(e) => stored && !values[field.id] && e.currentTarget.select()}
+              placeholder={usesShared ? "Shared value" : (field.defaultValue ?? "")}
               type={field.type === "secret" ? "password" : field.type === "url" ? "url" : "text"}
-              value={values[field.id] ?? ""}
+              value={values[field.id] || (stored ? SAVED_SECRET_MASK : "")}
             />
           </Field>
         );
