@@ -24,7 +24,8 @@ ARG APP_URL
 # by the deployment platform when the container starts.
 ARG CANOPY_PUBLIC_BUILD_ENV={}
 RUN test -n "$APP_URL" && mkdir -p public
-RUN node --input-type=module <<'NODE'
+# Keeps Next's compile cache between builds so a small change does not recompile everything.
+RUN --mount=type=cache,id=next-cache,target=/app/.next/cache node --input-type=module <<'NODE'
 import { spawnSync } from "node:child_process";
 import { randomBytes } from "node:crypto";
 const publicValues = JSON.parse(process.env.CANOPY_PUBLIC_BUILD_ENV);
