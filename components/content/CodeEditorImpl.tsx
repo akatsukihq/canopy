@@ -56,32 +56,6 @@ const BASIC_EXTENSIONS = [
   keymap.of([...defaultKeymap, ...historyKeymap, ...foldKeymap]),
 ];
 
-const COMPLETION_LANGUAGES = new Set([
-  "js",
-  "javascript",
-  "jsx",
-  "ts",
-  "typescript",
-  "tsx",
-  "html",
-  "xml",
-  "css",
-  "sql",
-  "mermaid",
-  "python",
-  "c",
-  "cpp",
-  "java",
-  "csharp",
-  "kotlin",
-  "go",
-  "rust",
-  "ruby",
-  "php",
-  "bash",
-  "sh",
-  "shell",
-]);
 const AUTO_COMPLETION_MAX_LENGTH = 100_000;
 type CompletionExtensions = Awaited<ReturnType<typeof import("./codeEditorCompletions").loadCodeEditorCompletions>>;
 
@@ -468,13 +442,7 @@ export default function CodeEditorImpl({
   }, [languageName]);
 
   useEffect(() => {
-    if (
-      !(focused || engaged) ||
-      isReadOnly ||
-      !COMPLETION_LANGUAGES.has(languageName) ||
-      loadedCompletion?.name === languageName
-    )
-      return;
+    if (!(focused || engaged) || isReadOnly || loadedCompletion?.name === languageName) return;
     let active = true;
     const cancel = scheduleEditorFeatures(() => {
       import("./codeEditorCompletions")

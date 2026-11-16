@@ -13,11 +13,40 @@ const TS_LANGUAGES: Partial<Record<string, boolean>> = {
   tsx: false,
 };
 
+const COMPLETION_LANGUAGES = new Set([
+  "js",
+  "javascript",
+  "jsx",
+  "ts",
+  "typescript",
+  "tsx",
+  "html",
+  "xml",
+  "css",
+  "sql",
+  "mermaid",
+  "python",
+  "c",
+  "cpp",
+  "java",
+  "csharp",
+  "kotlin",
+  "go",
+  "rust",
+  "ruby",
+  "php",
+  "bash",
+  "sh",
+  "shell",
+]);
+
 type CompletionExtensions = { automatic: Extension; manual: Extension };
 const loadedCompletions = new Map<string, Promise<CompletionExtensions>>();
 
 async function build(language: string, ide: boolean): Promise<CompletionExtensions> {
   const support: Extension[] = [closeBrackets(), keymap.of([...closeBracketsKeymap, ...lintKeymap])];
+  // Other languages (JSON, YAML, Markdown...) only get quote/bracket auto-closing.
+  if (!COMPLETION_LANGUAGES.has(language)) return { automatic: support, manual: support };
   // `override` replaces the grammar's own suggestions when a richer source exists.
   let override: CompletionSource[] | undefined;
   if (language === "mermaid") {
