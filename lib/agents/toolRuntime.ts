@@ -298,7 +298,7 @@ export async function runCustomTool(
   return { ...report, durationMs };
 }
 
-/** The agent's custom tools as AI SDK tools named `custom_<key>`. Disabled tools are left out. */
+/** The agent's custom tools as AI SDK tools named `cs_<key>`. Disabled tools are left out. */
 export function customAITools(
   list: readonly CustomToolRuntime[],
   context: {

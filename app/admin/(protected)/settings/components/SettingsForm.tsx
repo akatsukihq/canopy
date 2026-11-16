@@ -1,5 +1,6 @@
 "use client";
 
+import { SAVED_SECRET_MASK } from "@/utils/secretMask.ts";
 import { AdminPageHeader } from "@/app/admin/(protected)/components/AdminPageHeader";
 import {
   Button,
@@ -313,19 +314,11 @@ function FieldRow({
         autoComplete="off"
         disabled={!editable}
         id={id}
-        onChange={(event) => onChange(event.target.value)}
-        placeholder={
-          resetting
-            ? "Removed on save"
-            : field.overridden
-              ? "Saved. Type to replace"
-              : field.secretSet
-                ? "From environment"
-                : "Not set"
-        }
+        onChange={(event) => onChange(event.target.value.replaceAll("•", ""))}
+        placeholder={resetting ? "Removed on save" : "Not set"}
         spellCheck={false}
         type="password"
-        value={draft ?? ""}
+        value={draft || (!resetting && (field.overridden || field.secretSet) ? SAVED_SECRET_MASK : "")}
         {...invalid}
       />
     ) : field.kind === "model" ? (

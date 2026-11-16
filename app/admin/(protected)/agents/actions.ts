@@ -146,7 +146,29 @@ export async function saveMcpServer(id: string | null, input: unknown): Promise<
       // The guard's messages are fixed, user-facing strings.
       throw new AgentConfigError(error instanceof Error ? error.message : "The MCP server address is not allowed.");
     });
-    const server = id ? await updateMcpServer(id, parsed) : await createMcpServer(parsed);
+    // Connect with the submitted settings first; an unreachable server is never saved.
+    const stored = id ? (await loadMcpServerRuntime(id)).headers : {};
+    const headers: Record<string, string> = {};
+    for (const [name, value] of Object.entries(parsed.headers)) {
+      const kept = value ?? stored[name];
+      if (kept === undefined) throw new AgentConfigError(`Header ${name} needs a value.`);
+      headers[name] = kept;
+    }
+    let tools: McpToolInfo[];
+    try {
+      tools = await listMcpTools(
+        { id: id ?? "new", name: parsed.name, url: parsed.url, transport: parsed.transport, headers, tools: [] },
+        AbortSignal.timeout(20_000),
+      );
+    } catch (error) {
+      logError("admin.agents.mcp_save_check_failed", error, { serverId: id });
+      throw new AgentConfigError(
+        `Not saved. ${describeMcpFailure(error).slice(0, 300)} Check the URL, the transport and any authorization header.`,
+      );
+    }
+    const saved = id ? await updateMcpServer(id, parsed) : await createMcpServer(parsed);
+    await saveMcpToolCache(saved.id, tools, null);
+    const server = { ...saved, tools, lastCheckedAt: new Date().toISOString(), lastError: null };
     // Header names only; values are never logged.
     await audit(actor, id ? "mcp_server.update" : "mcp_server.create", "ai_mcp_server", server.id, {
       name: server.name,

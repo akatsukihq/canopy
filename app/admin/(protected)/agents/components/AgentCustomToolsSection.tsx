@@ -7,7 +7,7 @@ import type { AgentConnectionAttachment, AgentToolAttachment } from "@/lib/agent
 import type { AgentForm } from "./agentForm";
 import { FormSection, SectionLink, type SectionProps } from "./FormSection";
 import { TemplateText } from "./TemplateText";
-import { isSavedSecretMask, SAVED_SECRET_MASK } from "./toolForm";
+import { isSavedSecretMask, SAVED_SECRET_MASK } from "@/utils/secretMask.ts";
 
 const toolErrorKey = (toolId: string, fieldId: string) => `customTools.${toolId}.${fieldId}`;
 const connectionErrorKey = (connectionId: string, fieldId: string) => `connections.${connectionId}.${fieldId}`;

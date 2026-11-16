@@ -161,7 +161,7 @@ export function httpTemplateIssues(http: HttpToolConfig, args: string[], inputs:
 
 export const toolInputSchema = z
   .object({
-    /** Becomes the model-facing tool name `custom_<key>`. */
+    /** Becomes the model-facing tool name `cs_<key>`. */
     key: z
       .string()
       .trim()
@@ -222,4 +222,4 @@ export type CustomTool = Omit<ToolInput, "secretValues"> & {
 };
 
 /** Model-facing name of a custom tool. */
-export const customToolName = (key: string) => `custom_${key}`;
+export const customToolName = (key: string) => `cs_${key}`;

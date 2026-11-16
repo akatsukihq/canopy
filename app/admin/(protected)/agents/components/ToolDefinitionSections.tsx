@@ -1,5 +1,6 @@
 "use client";
 
+import { isSavedSecretMask, SAVED_SECRET_MASK } from "@/utils/secretMask.ts";
 import { CodeEditor } from "@/components/content/CodeEditor";
 import {
   Button,
@@ -29,10 +30,8 @@ import {
   follows,
   idFromLabel,
   isNewRow,
-  isSavedSecretMask,
   keyFromName,
   newInputField,
-  SAVED_SECRET_MASK,
   type InputFieldForm,
   type ToolForm,
 } from "./toolForm";
@@ -147,7 +146,7 @@ export function DefinitionSection({ form, set, errors, disabled, autoKey }: Tool
           <Field
             description={
               <>
-                Model sees <code className="font-mono">custom_{form.key || "<key>"}</code>
+                Model sees <code className="font-mono">cs_{form.key || "<key>"}</code>
               </>
             }
             error={errors.key}

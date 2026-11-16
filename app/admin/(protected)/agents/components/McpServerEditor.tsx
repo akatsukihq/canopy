@@ -6,19 +6,23 @@ import {
   Button,
   Field,
   FieldDescription,
-  FieldLabel,
   Input,
   SectionCard,
-  SectionHeading,
   Select,
   SelectContent,
   SelectItem,
   SelectTrigger,
   SelectValue,
   Switch,
+  Tabs,
+  TabsContent,
+  TabsList,
+  TabsTrigger,
   toast,
   Toaster,
 } from "@/components/ui/index.tsx";
+import { cn } from "@/components/ui/lib/utils.ts";
+import { SAVED_SECRET_MASK } from "@/utils/secretMask.ts";
 import { mcpServerInputSchema, MCP_TRANSPORTS, type McpServer, type McpToolInfo } from "@/lib/agents/types.ts";
 import { appHref } from "@/lib/routing/subdomains.ts";
 import { Plus, Trash2 } from "lucide-react";
@@ -100,9 +104,13 @@ export function McpServerEditor({ server, canEdit }: { server: McpServer | null;
         toast.error(result.error);
         return;
       }
-      toast.success("MCP server saved.");
+      const savedServer = result.data as McpServer;
+      setTools(savedServer.tools);
+      setTestError(null);
+      setCheckedAt(savedServer.lastCheckedAt);
+      toast.success(`Connected and saved. ${savedServer.tools.length} tools found.`);
       if (!server) {
-        router.replace(appHref(`/admin/agents/mcp/${(result.data as McpServer).id}`));
+        router.replace(appHref(`/admin/agents/mcp/${savedServer.id}`));
         return;
       }
       // Saved values are now stored secrets: blank them but keep the rows.
@@ -184,166 +192,223 @@ export function McpServerEditor({ server, canEdit }: { server: McpServer | null;
         title={server ? server.name : "New MCP server"}
       />
       <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain pb-2">
-        <div className="grid gap-5">
+        <div className="grid gap-4">
           <SectionCard>
-            <Field error={errors.name} htmlFor="mcp-name" label="Name" required>
-              <Input
-                disabled={disabled}
-                maxLength={80}
-                onChange={(e) => set({ name: e.target.value })}
-                value={form.name}
-              />
-            </Field>
-            <Field
-              description="Must be https and reachable from the public internet. Private addresses are blocked."
-              error={errors.url}
-              htmlFor="mcp-url"
-              label="URL"
-              required
-            >
-              <Input
-                disabled={disabled}
-                onChange={(e) => set({ url: e.target.value })}
-                placeholder="https://mcp.example.com/mcp"
-                value={form.url}
-              />
-            </Field>
-            <Field
-              description="Streamable HTTP is the current standard. Use SSE only for older servers."
-              error={errors.transport}
-              htmlFor="mcp-transport"
-              label="Transport"
-            >
-              <Select
-                disabled={disabled}
-                onValueChange={(transport) => set({ transport: transport as McpForm["transport"] })}
-                value={form.transport}
-              >
-                <SelectTrigger className="w-full">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  {MCP_TRANSPORTS.map((value) => (
-                    <SelectItem key={value} value={value}>
-                      {value === "http" ? "Streamable HTTP" : "SSE"}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </Field>
-            <label className="flex items-center gap-3 text-sm font-semibold">
-              <Switch checked={form.enabled} disabled={disabled} onCheckedChange={(enabled) => set({ enabled })} />
-              Enabled
-            </label>
-          </SectionCard>
-          <SectionCard>
-            <SectionHeading
-              action={
-                <Button
-                  disabled={disabled}
-                  onClick={() => set({ headers: [...form.headers, { name: "", value: "", stored: false }] })}
-                  type="button"
-                  variant="outline"
-                >
-                  <Plus aria-hidden="true" /> Add header
-                </Button>
-              }
-              className="mb-0"
-              description="Sent with every request, for example Authorization. Values are encrypted and never shown again."
-              title="Headers"
-            />
-            {errors.headers ? (
-              <p className="text-xs text-destructive" role="alert">
-                {errors.headers}
-              </p>
-            ) : null}
-            {form.headers.map((row, index) => (
-              <div className="grid grid-cols-[minmax(0,1fr)_minmax(0,1.5fr)_auto] items-end gap-2" key={index}>
-                <div className="grid gap-1.5">
-                  <FieldLabel htmlFor={`mcp-h-name-${index}`}>Name</FieldLabel>
+            <div className="flex items-start gap-4">
+              <div className="min-w-0 flex-1">
+                <Field error={errors.name} htmlFor="mcp-name" label="Name" required>
                   <Input
-                    autoComplete="off"
-                    disabled={disabled || row.stored}
-                    id={`mcp-h-name-${index}`}
-                    onChange={(e) => setHeader(index, { name: e.target.value })}
-                    value={row.name}
-                  />
-                </div>
-                <div className="grid gap-1.5">
-                  <FieldLabel htmlFor={`mcp-h-value-${index}`}>Value</FieldLabel>
-                  <Input
-                    autoComplete="off"
                     disabled={disabled}
-                    id={`mcp-h-value-${index}`}
-                    onChange={(e) => setHeader(index, { value: e.target.value })}
-                    placeholder={row.stored ? "Saved — leave blank to keep" : ""}
-                    type="password"
-                    value={row.value}
+                    maxLength={80}
+                    onChange={(e) => set({ name: e.target.value })}
+                    value={form.name}
                   />
-                </div>
-                <Button
-                  aria-label={`Remove header ${row.name || index + 1}`}
-                  disabled={disabled}
-                  onClick={() => set({ headers: form.headers.filter((_, i) => i !== index) })}
-                  size="icon"
-                  type="button"
-                  variant="ghost"
-                >
-                  <Trash2 aria-hidden="true" />
-                </Button>
+                </Field>
               </div>
-            ))}
-            {form.headers.some((row) => row.stored) ? (
-              <FieldDescription>Saved headers keep their secret unless you type a new value.</FieldDescription>
-            ) : null}
+              <label className="flex h-9 shrink-0 items-center gap-2 pt-0 text-sm font-semibold sm:mt-6">
+                <Switch checked={form.enabled} disabled={disabled} onCheckedChange={(enabled) => set({ enabled })} />
+                Enabled
+              </label>
+            </div>
+            <div className="grid gap-4 md:grid-cols-[minmax(0,3fr)_minmax(0,1fr)]">
+              <Field
+                description="Must be https and reachable from the public internet. Private addresses are blocked."
+                error={errors.url}
+                htmlFor="mcp-url"
+                label="URL"
+                required
+              >
+                <Input
+                  disabled={disabled}
+                  onChange={(e) => set({ url: e.target.value })}
+                  placeholder="https://mcp.example.com/mcp"
+                  value={form.url}
+                />
+              </Field>
+              <Field
+                description="Use SSE only for older servers."
+                error={errors.transport}
+                htmlFor="mcp-transport"
+                label="Transport"
+              >
+                <Select
+                  disabled={disabled}
+                  onValueChange={(transport) => set({ transport: transport as McpForm["transport"] })}
+                  value={form.transport}
+                >
+                  <SelectTrigger className="w-full">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {MCP_TRANSPORTS.map((value) => (
+                      <SelectItem key={value} value={value}>
+                        {value === "http" ? "Streamable HTTP" : "SSE"}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </Field>
+            </div>
           </SectionCard>
-          {server ? (
-            <SectionCard>
-              <SectionHeading
-                action={
+          <SectionCard>
+            <Tabs defaultValue="headers">
+              <TabsList aria-label="Server details" className="w-full justify-start gap-4" variant="line">
+                <TabsTrigger className="flex-none px-1" value="headers">
+                  Headers{form.headers.length ? ` (${form.headers.length})` : ""}
+                  {errors.headers ? (
+                    <span aria-label="has an error" className="ml-1 size-1.5 rounded-full bg-destructive" role="img" />
+                  ) : null}
+                </TabsTrigger>
+                {server ? (
+                  <TabsTrigger className="flex-none px-1" value="tools">
+                    Tools{tools?.length ? ` (${tools.length})` : ""}
+                    {testError ? (
+                      <span
+                        aria-label="has an error"
+                        className="ml-1 size-1.5 rounded-full bg-destructive"
+                        role="img"
+                      />
+                    ) : null}
+                  </TabsTrigger>
+                ) : null}
+              </TabsList>
+              <TabsContent className="grid gap-3 pt-3" value="headers">
+                <div className="flex items-center justify-between gap-3">
+                  <p className="text-xs text-muted-foreground">
+                    Sent with every request, for example Authorization. Values are encrypted and never shown again.
+                  </p>
                   <Button
-                    disabled={!canEdit || testing || dirty}
-                    loading={testing}
-                    onClick={test}
+                    disabled={disabled}
+                    onClick={() => set({ headers: [...form.headers, { name: "", value: "", stored: false }] })}
+                    size="sm"
                     type="button"
                     variant="outline"
                   >
-                    {testing ? "Testing…" : "Test & refresh tools"}
+                    <Plus aria-hidden="true" /> Add header
                   </Button>
-                }
-                className="mb-0"
-                description={
-                  dirty
-                    ? "Save your changes first; the test uses the saved settings."
-                    : checkedAt
-                      ? `Last checked ${new Date(checkedAt).toLocaleString()}.`
-                      : "Not checked yet."
-                }
-                title="Tools"
-              />
-              {testError ? (
-                <AlertBanner variant="error">
-                  {testError} Check the URL, the transport and any authorization header, then test again.
-                </AlertBanner>
-              ) : null}
-              {tools ? (
-                tools.length ? (
-                  <ul className="grid gap-2">
-                    {tools.map((tool) => (
-                      <li key={tool.name}>
-                        <span className="text-sm font-semibold">{tool.name}</span>
-                        <p className="text-sm text-muted-foreground">{tool.description}</p>
-                      </li>
+                </div>
+                {errors.headers ? (
+                  <p className="text-xs text-destructive" role="alert">
+                    {errors.headers}
+                  </p>
+                ) : null}
+                {form.headers.length ? (
+                  <div className="grid gap-1.5">
+                    <div
+                      aria-hidden="true"
+                      className="grid grid-cols-[minmax(0,1fr)_minmax(0,1.5fr)_2rem] gap-2 px-0.5 text-xs font-semibold text-muted-foreground"
+                    >
+                      <span>Name</span>
+                      <span>Value</span>
+                    </div>
+                    {form.headers.map((row, index) => (
+                      <div
+                        className="grid grid-cols-[minmax(0,1fr)_minmax(0,1.5fr)_2rem] items-center gap-2"
+                        key={index}
+                      >
+                        <Input
+                          aria-label={`Header ${index + 1} name`}
+                          autoComplete="off"
+                          className="font-mono"
+                          disabled={disabled || row.stored}
+                          onChange={(e) => setHeader(index, { name: e.target.value })}
+                          placeholder="Authorization"
+                          spellCheck={false}
+                          value={row.name}
+                        />
+                        <Input
+                          aria-label={`Header ${index + 1} value`}
+                          autoComplete="off"
+                          disabled={disabled}
+                          onChange={(e) => setHeader(index, { value: e.target.value.replaceAll("•", "") })}
+                          placeholder="Bearer …"
+                          spellCheck={false}
+                          type="password"
+                          value={row.value || (row.stored ? SAVED_SECRET_MASK : "")}
+                        />
+                        <Button
+                          aria-label={`Remove header ${row.name || index + 1}`}
+                          disabled={disabled}
+                          onClick={() => set({ headers: form.headers.filter((_, i) => i !== index) })}
+                          size="icon-sm"
+                          type="button"
+                          variant="ghost"
+                        >
+                          <Trash2 aria-hidden="true" />
+                        </Button>
+                      </div>
                     ))}
-                  </ul>
+                    {form.headers.some((row) => row.stored) ? (
+                      <FieldDescription>Saved headers keep their secret unless you type a new value.</FieldDescription>
+                    ) : null}
+                  </div>
                 ) : (
-                  <p className="text-sm text-muted-foreground">Connected, but the server lists no tools.</p>
-                )
+                  <p className="text-sm text-muted-foreground">No headers. Add one if the server needs a key.</p>
+                )}
+              </TabsContent>
+              {server ? (
+                <TabsContent className="grid gap-3 pt-3" value="tools">
+                  <div className="flex items-center justify-between gap-3">
+                    <p className="text-xs text-muted-foreground">
+                      {dirty
+                        ? "Save your changes first; the test uses the saved settings."
+                        : checkedAt
+                          ? `Last checked ${new Date(checkedAt).toLocaleString()}.`
+                          : "Not checked yet."}
+                    </p>
+                    <Button
+                      disabled={!canEdit || testing || dirty}
+                      loading={testing}
+                      onClick={test}
+                      size="sm"
+                      type="button"
+                      variant="outline"
+                    >
+                      {testing ? "Testing…" : "Test & refresh tools"}
+                    </Button>
+                  </div>
+                  {testError ? (
+                    <AlertBanner variant="error">
+                      {testError} Check the URL, the transport and any authorization header, then test again.
+                    </AlertBanner>
+                  ) : null}
+                  {tools ? (
+                    tools.length ? (
+                      <ul className="max-h-80 divide-y divide-border overflow-y-auto rounded-lg border border-border">
+                        {tools.map((tool) => (
+                          <ToolRow key={tool.name} tool={tool} />
+                        ))}
+                      </ul>
+                    ) : (
+                      <p className="text-sm text-muted-foreground">Connected, but the server lists no tools.</p>
+                    )
+                  ) : null}
+                </TabsContent>
               ) : null}
-            </SectionCard>
-          ) : null}
+            </Tabs>
+          </SectionCard>
         </div>
       </div>
     </div>
+  );
+}
+
+/** One listed tool; long descriptions are clamped until the row is opened. */
+function ToolRow({ tool }: { tool: McpToolInfo }) {
+  const [open, setOpen] = useState(false);
+  return (
+    <li className="px-3 py-2">
+      <button
+        aria-expanded={open}
+        className="grid w-full gap-0.5 text-left"
+        onClick={() => setOpen((current) => !current)}
+        type="button"
+      >
+        <span className="font-mono text-[13px] font-semibold">{tool.name}</span>
+        {tool.description ? (
+          <span className={cn("text-xs text-muted-foreground", !open && "line-clamp-2")}>{tool.description}</span>
+        ) : null}
+      </button>
+    </li>
   );
 }

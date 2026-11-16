@@ -239,7 +239,7 @@ test("code tools fail closed when execution is not configured", async () => {
   expect(executeCode).not.toHaveBeenCalled();
 });
 
-test("AI tools: custom_<key>, approval flag, output schema, disabled tools left out", async () => {
+test("AI tools: cs_<key>, approval flag, output schema, disabled tools left out", async () => {
   const schema = { type: "object", properties: {} };
   const tools = customAITools(
     [
@@ -251,9 +251,9 @@ test("AI tools: custom_<key>, approval flag, output schema, disabled tools left 
     ],
     { signal: signal(), reportToolFailure: vi.fn() },
   );
-  expect(Object.keys(tools)).toEqual(["custom_search"]);
-  expect(tools.custom_search.needsApproval).toBe(true);
-  expect(tools.custom_search.outputSchema).toBeDefined();
+  expect(Object.keys(tools)).toEqual(["cs_search"]);
+  expect(tools.cs_search.needsApproval).toBe(true);
+  expect(tools.cs_search.outputSchema).toBeDefined();
   fetchMock.mockResolvedValue(json({}));
-  expect(await tools.custom_search.execute({ q: "x" }, { toolCallId: "c1" })).toEqual({});
+  expect(await tools.cs_search.execute({ q: "x" }, { toolCallId: "c1" })).toEqual({});
 });

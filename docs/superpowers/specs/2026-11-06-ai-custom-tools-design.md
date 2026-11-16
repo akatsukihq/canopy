@@ -24,7 +24,7 @@ Out of scope: client-side (browser) tools, OAuth flows, MCP changes, a marketpla
 | Column | Type | Notes |
 | --- | --- | --- |
 | `id` | text pk | nanoid |
-| `key` | text unique | `^[a-z][a-z0-9_]*$`, becomes the model-facing tool name `custom_<key>` |
+| `key` | text unique | `^[a-z][a-z0-9_]*$`, becomes the model-facing tool name `cs_<key>` |
 | `name` | text | admin label |
 | `description` | text | model-facing; decides when the model calls it (≤ 1000 chars) |
 | `kind` | `http` \| `code` | |
@@ -103,7 +103,7 @@ Placeholders: `{{args.<path>}}` (model arguments) and `{{inputs.<id>}}` (agent i
 ## Runtime
 
 Tools join the agent's tool set in `lib/agents/compile.ts` next to built-in and MCP tools, as
-`custom_<key>` with `inputSchema` from `args_schema`.
+`cs_<key>` with `inputSchema` from `args_schema`.
 
 ### HTTP
 
