@@ -27,7 +27,7 @@ import type { ClipboardEvent } from "react";
 import { schemaTextError } from "./agentForm";
 import { errorAt, JsonEditor, type ToolSectionProps } from "./ToolDefinitionSections";
 import { starterSource, type ToolForm } from "./toolForm";
-import { TemplateInput, TemplateText } from "./TemplateText";
+import { TemplateInput, TemplateText, useTemplateProblem } from "./TemplateText";
 
 type Pair = ToolForm["headers"][number];
 /** What the endpoint editor shows of its connection. */
@@ -87,6 +87,10 @@ function KindSwitch({
     />
   );
 }
+
+const ErrorDot = () => (
+  <span aria-label="has an error" className="ml-1 size-1.5 rounded-full bg-destructive" role="img" />
+);
 
 const count = (pairs: Pair[]) => (pairs.length ? ` (${pairs.length})` : "");
 
@@ -214,6 +218,10 @@ function HttpFields({
   const bodyError = errorAt(errors, "http.body") ?? (form.bodyText.trim() ? schemaTextError(form.bodyText) : null);
   const urlError = errorAt(errors, "http.url");
   const timeoutError = errors["http.timeoutSeconds"];
+  const queryProblem = useTemplateProblem(form.query);
+  const headersProblem = useTemplateProblem(form.headers);
+  const queryError = errorAt(errors, "http.query") ?? queryProblem;
+  const headersError = errorAt(errors, "http.headers") ?? headersProblem;
   return (
     <div className="grid gap-5">
       <div className="grid gap-1.5">
@@ -313,21 +321,21 @@ function HttpFields({
         <TabsList aria-label="Request parts" className="w-full justify-start gap-4" variant="line">
           <TabsTrigger className="flex-none px-1" value="query">
             Query{count(form.query)}
+            {queryError ? <ErrorDot /> : null}
           </TabsTrigger>
           <TabsTrigger className="flex-none px-1" value="headers">
             Headers{count(form.headers)}
+            {headersError ? <ErrorDot /> : null}
           </TabsTrigger>
           <TabsTrigger className="flex-none px-1" value="body">
             Body
-            {bodyError ? (
-              <span aria-label="has an error" className="ml-1 size-1.5 rounded-full bg-destructive" role="img" />
-            ) : null}
+            {bodyError ? <ErrorDot /> : null}
           </TabsTrigger>
         </TabsList>
         <TabsContent className="pt-3" value="query">
           <PairRows
             disabled={disabled}
-            error={errorAt(errors, "http.query")}
+            error={queryError}
             namePlaceholder="q"
             noun="parameter"
             onChange={(query) => set({ query })}
@@ -338,7 +346,7 @@ function HttpFields({
         <TabsContent className="pt-3" value="headers">
           <PairRows
             disabled={disabled}
-            error={errorAt(errors, "http.headers")}
+            error={headersError}
             namePlaceholder="Authorization"
             noun="header"
             onChange={(headers) => set({ headers })}

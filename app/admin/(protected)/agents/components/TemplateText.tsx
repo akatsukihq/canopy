@@ -28,6 +28,18 @@ function problemWith(part: string, scope: TemplateScope | null): string | null {
   return declared ? null : `${kind}.${name} is not declared.`;
 }
 
+/** First invalid or undeclared placeholder across name/value pairs, as a message, or null. */
+export function useTemplateProblem(pairs: readonly { name: string; value: string }[]): string | null {
+  const scope = useContext(TemplateScopeContext);
+  for (const { name, value } of pairs)
+    for (const text of [name, value])
+      for (const [index, part] of text.split(PLACEHOLDER).entries()) {
+        const problem = index % 2 ? problemWith(part, scope) : null;
+        if (problem) return `${part} — ${problem}`;
+      }
+  return null;
+}
+
 /** Text with each {{…}} placeholder highlighted; invalid or undeclared ones are flagged in the error color. */
 export function TemplateText({ value }: { value: string }) {
   const scope = useContext(TemplateScopeContext);
