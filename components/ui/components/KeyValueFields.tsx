@@ -1,7 +1,9 @@
 "use client";
 
-import { useId, useLayoutEffect, useRef, type KeyboardEvent } from "react";
+import { useId, useLayoutEffect, useRef, type ClipboardEvent, type KeyboardEvent } from "react";
 import { Plus, Trash2 } from "lucide-react";
+
+import { insertPairs, pairsFromPaste } from "@/utils/keyValuePaste.ts";
 
 import { Button } from "./button.tsx";
 import { FieldDescription, FieldError, FieldLabel } from "./field.tsx";
@@ -70,6 +72,18 @@ export function KeyValueFields({
     onSubmit();
   };
 
+  const paste = (event: ClipboardEvent<HTMLInputElement>, index: number, field: "key" | "value") => {
+    const pairs = pairsFromPaste(event.clipboardData.getData("text"), field);
+    if (!pairs) return;
+    event.preventDefault();
+    const next = insertPairs(rows, index, pairs, (pair) => pair);
+    pendingFocus.current = Math.min(
+      next.length - 1,
+      (rows[index]?.key || rows[index]?.value ? index + 1 : index) + pairs.length - 1,
+    );
+    onChange(next);
+  };
+
   return (
     <fieldset
       aria-describedby={help ? `${id}-help` : undefined}
@@ -118,6 +132,7 @@ export function KeyValueFields({
                     )
                   }
                   onKeyDown={submit}
+                  onPaste={(event) => paste(event, index, "key")}
                   placeholder={keyPlaceholder}
                   ref={(element) => {
                     keyInputs.current[index] = element;
@@ -146,6 +161,7 @@ export function KeyValueFields({
                     )
                   }
                   onKeyDown={submit}
+                  onPaste={(event) => paste(event, index, "value")}
                   placeholder={valuePlaceholder}
                   spellCheck={false}
                   value={row.value}

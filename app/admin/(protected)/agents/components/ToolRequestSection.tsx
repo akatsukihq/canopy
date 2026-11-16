@@ -20,8 +20,10 @@ import {
 import type { ToolConnection } from "@/lib/agents/toolConnections.ts";
 import { CODE_TOOL_LANGUAGES, HTTP_METHODS, TOOL_KINDS } from "@/lib/agents/toolTypes.ts";
 import { appHref } from "@/lib/routing/subdomains.ts";
+import { insertPairs, pairsFromPaste } from "@/utils/keyValuePaste.ts";
 import { Link2, Plus, Trash2 } from "lucide-react";
 import Link from "next/link";
+import type { ClipboardEvent } from "react";
 import { schemaTextError } from "./agentForm";
 import { errorAt, JsonEditor, type ToolSectionProps } from "./ToolDefinitionSections";
 import { starterSource, type ToolForm } from "./toolForm";
@@ -107,6 +109,19 @@ export function PairRows({
 }) {
   const update = (index: number, patch: Partial<Pair>) =>
     onChange(pairs.map((pair, i) => (i === index ? { ...pair, ...patch } : pair)));
+  const paste = (event: ClipboardEvent<HTMLInputElement>, index: number, field: "key" | "value") => {
+    const pasted = pairsFromPaste(event.clipboardData.getData("text"), field);
+    if (!pasted) return;
+    event.preventDefault();
+    onChange(
+      insertPairs(
+        pairs.map(({ name, value }) => ({ key: name, value })),
+        index,
+        pasted,
+        ({ key, value }) => ({ key, value }),
+      ).map(({ key, value }) => ({ name: key, value })),
+    );
+  };
   return (
     <div className="grid gap-1.5">
       {pairs.length ? (
@@ -128,6 +143,7 @@ export function PairRows({
             className="font-mono"
             disabled={disabled}
             onChange={(e) => update(index, { name: e.target.value })}
+            onPaste={(e) => paste(e, index, "key")}
             placeholder={namePlaceholder}
             spellCheck={false}
             value={pair.name}
@@ -138,6 +154,7 @@ export function PairRows({
             className="font-mono"
             disabled={disabled}
             onChange={(e) => update(index, { value: e.target.value })}
+            onPaste={(e) => paste(e, index, "value")}
             placeholder={valuePlaceholder}
             spellCheck={false}
             value={pair.value}

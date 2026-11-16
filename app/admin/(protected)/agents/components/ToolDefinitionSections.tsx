@@ -25,7 +25,15 @@ import { TOOL_INPUT_TYPES } from "@/lib/agents/toolTypes.ts";
 import { GripVertical, Plus, Trash2 } from "lucide-react";
 import { schemaTextError } from "./agentForm";
 import { FormSection } from "./FormSection";
-import { follows, idFromLabel, isNewRow, keyFromName, type InputFieldForm, type ToolForm } from "./toolForm";
+import {
+  follows,
+  idFromLabel,
+  isNewRow,
+  keyFromName,
+  newInputField,
+  type InputFieldForm,
+  type ToolForm,
+} from "./toolForm";
 
 export type ToolSectionProps = {
   form: ToolForm;
@@ -203,16 +211,6 @@ const TYPE_PLACEHOLDERS: Partial<Record<InputFieldForm["type"], string>> = {
   number: "10",
   url: "https://api.example.com",
 };
-
-const blankField = (type: InputFieldForm["type"]): InputFieldForm => ({
-  rowKey: crypto.randomUUID(),
-  id: "",
-  label: "",
-  type,
-  required: type === "secret",
-  defaultValue: "",
-  description: "",
-});
 
 const ROW_COLUMNS = {
   inputs: "grid-cols-[2rem_minmax(0,1.2fr)_minmax(0,1fr)_6.5rem_minmax(0,1fr)_4rem_2rem]",
@@ -499,7 +497,7 @@ export function InputsFields({
         <div className="px-2 py-1">
           <Button
             disabled={disabled}
-            onClick={() => set({ inputs: [...form.inputs, blankField(group === "secrets" ? "secret" : "text")] })}
+            onClick={() => set({ inputs: [...form.inputs, newInputField(group === "secrets" ? "secret" : "text")] })}
             size="sm"
             type="button"
             variant="ghost"

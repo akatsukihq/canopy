@@ -116,6 +116,30 @@ export const sharedSecretsFromForm = (rows: InputFieldForm[], values: Record<str
     rows.filter((field) => field.type === "secret" && field.id in values).map((field) => [field.id, values[field.id]]),
   );
 
+/** A new input or secret row; the label starts as the id so the row is valid immediately. */
+export const newInputField = (type: InputFieldForm["type"], id = ""): InputFieldForm => ({
+  rowKey: crypto.randomUUID(),
+  id,
+  label: id,
+  type,
+  required: type === "secret",
+  defaultValue: "",
+  description: "",
+});
+
+/** Arguments schema text with a new string property, or null when the text is not an object schema we can edit. */
+export function addArgumentProperty(argsText: string, name: string): string | null {
+  try {
+    const schema: unknown = JSON.parse(argsText);
+    if (!schema || typeof schema !== "object" || Array.isArray(schema)) return null;
+    const properties = (schema as { properties?: unknown }).properties ?? {};
+    if (!properties || typeof properties !== "object" || Array.isArray(properties)) return null;
+    return json({ ...schema, properties: { ...properties, [name]: { type: "string", description: "" } } });
+  } catch {
+    return null;
+  }
+}
+
 export const pairsOf = (record: Record<string, string> | undefined): Pair[] =>
   Object.entries(record ?? {}).map(([name, value]) => ({ name, value }));
 

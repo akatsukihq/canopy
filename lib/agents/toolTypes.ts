@@ -3,7 +3,7 @@
  * holds no secrets; secret values live on each agent's attachment.
  */
 import { z } from "zod";
-import { placeholders, splitUrlTemplate } from "./toolTemplate.ts";
+import { invalidPlaceholders, PLACEHOLDER_RULE, placeholders, splitUrlTemplate } from "./toolTemplate.ts";
 import { jsonObjectSchema } from "./types.ts";
 
 export const TOOL_KINDS = ["http", "code"] as const;
@@ -137,9 +137,15 @@ export function httpTemplateIssues(http: HttpToolConfig, args: string[], inputs:
   }
   const parts = { url: http.url, headers: http.headers, query: http.query, body: http.body };
   for (const [part, value] of Object.entries(parts)) {
+    for (const bad of invalidPlaceholders(value))
+      issues.push({ path: ["http", part], message: `${bad} is not a valid placeholder. ${PLACEHOLDER_RULE}` });
     for (const { kind, path } of placeholders(value)) {
       const name = path.split(".")[0];
-      const known = kind === "args" ? args.includes(name) : !path.includes(".") && inputs.some((f) => f.id === name);
+      // A dotted path reads a field of a JSON input; arguments may be nested objects.
+      const known =
+        kind === "args"
+          ? args.includes(name)
+          : inputs.some((f) => f.id === name && (name === path || f.type === "json"));
       if (!known)
         issues.push({
           path: ["http", part],

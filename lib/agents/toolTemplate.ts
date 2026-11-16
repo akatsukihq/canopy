@@ -69,6 +69,21 @@ export function substitute(value: unknown, scope: TemplateScope): unknown {
   return value;
 }
 
+const ANY_BRACES = /\{\{([^{}]*)\}\}/g;
+/** Scopes a placeholder may read from. Secrets are inputs of type "secret", so they use `inputs`. */
+export const TEMPLATE_NAMESPACES = ["args", "inputs"] as const;
+export const PLACEHOLDER_RULE =
+  "Use {{args.name}} for an argument the model passes, or {{inputs.id}} for an input or secret.";
+
+/** `{{…}}` expressions in a template value that are not `{{args.…}}` or `{{inputs.…}}` and would be sent as-is. */
+export function invalidPlaceholders(value: unknown): string[] {
+  if (typeof value === "string")
+    return [...value.matchAll(ANY_BRACES)].filter((match) => !EXACT.test(match[0])).map((match) => match[0]);
+  if (Array.isArray(value)) return value.flatMap(invalidPlaceholders);
+  if (value && typeof value === "object") return Object.values(value).flatMap(invalidPlaceholders);
+  return [];
+}
+
 /** Every placeholder used anywhere inside a template value. */
 export function placeholders(value: unknown): Placeholder[] {
   if (typeof value === "string")

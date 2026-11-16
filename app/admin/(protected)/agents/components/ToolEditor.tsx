@@ -1,7 +1,7 @@
 "use client";
 
 import { Card, Tabs, TabsContent, TabsList, TabsTrigger, toast, Toaster } from "@/components/ui/index.tsx";
-import type { CustomTool } from "@/lib/agents/toolTypes.ts";
+import { argumentNames, type CustomTool } from "@/lib/agents/toolTypes.ts";
 import { appHref } from "@/lib/routing/subdomains.ts";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
@@ -10,9 +10,10 @@ import { DeleteButton } from "./DeleteButton";
 import { EditorHeader } from "./EditorHeader";
 import { SaveActions } from "./SaveActions";
 import { ArgumentsFields, DefinitionSection, InputsFields } from "./ToolDefinitionSections";
-import { parseToolForm, toolToForm, type ToolForm } from "./toolForm";
+import { addArgumentProperty, newInputField, parseToolForm, toolToForm, type ToolForm } from "./toolForm";
 import { OutputFields } from "./ToolOutputSection";
 import { RequestFields, type ConnectionSummary } from "./ToolRequestSection";
+import { TemplateScopeProvider } from "./TemplateText";
 import { TestSection } from "./ToolTestSection";
 
 type ConfigTab = "request" | "arguments" | "inputs" | "secrets" | "output";
@@ -112,104 +113,131 @@ export function ToolEditor({
   }
 
   const section = { form, set, errors, disabled: !canEdit || saving };
-  return (
-    <div className="flex h-full min-h-0 flex-col gap-5">
-      <Toaster position="top-right" />
-      <EditorHeader
-        actions={
-          canEdit ? (
-            <SaveActions
-              dirty={dirty}
-              onDiscard={() => {
-                setForm(saved);
-                setErrors({});
-              }}
-              onSave={save}
-              saving={saving}
-            >
-              {tool ? (
-                <DeleteButton
-                  description="This permanently deletes the tool. It cannot be deleted while an agent uses it."
-                  label="Delete tool"
-                  name={tool.name}
-                  onConfirm={remove}
-                />
-              ) : null}
-            </SaveActions>
-          ) : null
+  // Placeholders resolve against these names only; an endpoint reads its connection's inputs, not its own.
+  const argsEditable = addArgumentProperty(form.argsText, "x") !== null;
+  let declaredArgs: string[] = [];
+  try {
+    declaredArgs = argumentNames(JSON.parse(form.argsText) as Record<string, unknown>);
+  } catch {
+    // The arguments tab reports the invalid JSON.
+  }
+  const templateScope = {
+    args: declaredArgs,
+    inputs: (connection ? connection.inputs : form.inputs).map((input) => ({
+      id: input.id,
+      secret: input.type === "secret",
+    })),
+    createArg: argsEditable
+      ? (name: string) => {
+          const next = addArgumentProperty(form.argsText, name);
+          if (next) set({ argsText: next });
         }
-        backHref={backHref}
-        backLabel={connection ? `Back to ${connection.name}` : "Back to custom tools"}
-        description={canEdit ? undefined : "You can view this tool but not change it."}
-        title={tool ? tool.name : connection ? `New ${connection.name} endpoint` : "New custom tool"}
-      />
-      <div className="grid min-h-0 flex-1 gap-5 overflow-y-auto overscroll-contain pb-2 lg:grid-cols-[minmax(0,1fr)_minmax(20rem,26rem)] lg:overflow-hidden lg:pb-0">
-        <div className="grid min-h-0 auto-rows-max content-start gap-5 lg:overflow-y-auto lg:overscroll-contain lg:pb-2">
-          <DefinitionSection {...section} autoKey={!tool} />
-          <Card className="min-w-0 gap-0 p-0 shadow-none">
-            <Tabs onValueChange={(value) => setTab(value as ConfigTab)} value={tab}>
-              <TabsList className="w-full justify-start gap-4 px-4" variant="line">
-                {(
-                  [
-                    ["request", form.kind === "http" ? "Request" : "Code"],
-                    ["arguments", "Arguments"],
-                    ...(connection
-                      ? []
-                      : ([
-                          ["inputs", `Inputs${counted(form.inputs.filter((field) => field.type !== "secret"))}`],
-                          ["secrets", `Secrets${counted(form.inputs.filter((field) => field.type === "secret"))}`],
-                        ] as const)),
-                    ["output", "Output"],
-                  ] as const
-                ).map(([value, label]) => (
-                  <TabsTrigger className="flex-none px-1" key={value} value={value}>
-                    {label}
-                    {tabHasError(errors, value, form) ? (
-                      <span
-                        className="ml-1.5 size-1.5 rounded-full bg-destructive"
-                        role="img"
-                        aria-label="has errors"
-                      />
-                    ) : null}
-                  </TabsTrigger>
-                ))}
-              </TabsList>
-              <TabsContent className="p-4" value="request">
-                <RequestFields {...section} codeConfigured={codeConfigured} connection={connection} isNew={!tool} />
-              </TabsContent>
-              <TabsContent className="p-4" value="arguments">
-                <ArgumentsFields {...section} />
-              </TabsContent>
-              <TabsContent className="p-4" value="inputs">
-                <InputsFields {...section} group="inputs" />
-              </TabsContent>
-              <TabsContent className="p-4" value="secrets">
-                <InputsFields {...section} group="secrets" />
-              </TabsContent>
-              <TabsContent className="p-4" value="output">
-                <OutputFields {...section} codeConfigured={codeConfigured} />
-              </TabsContent>
-            </Tabs>
-          </Card>
+      : undefined,
+    createInput: connection
+      ? undefined
+      : (id: string, secret: boolean) =>
+          set({ inputs: [...form.inputs, newInputField(secret ? "secret" : "text", id)] }),
+  };
+  return (
+    <TemplateScopeProvider value={templateScope}>
+      <div className="flex h-full min-h-0 flex-col gap-5">
+        <Toaster position="top-right" />
+        <EditorHeader
+          actions={
+            canEdit ? (
+              <SaveActions
+                dirty={dirty}
+                onDiscard={() => {
+                  setForm(saved);
+                  setErrors({});
+                }}
+                onSave={save}
+                saving={saving}
+              >
+                {tool ? (
+                  <DeleteButton
+                    description="This permanently deletes the tool. It cannot be deleted while an agent uses it."
+                    label="Delete tool"
+                    name={tool.name}
+                    onConfirm={remove}
+                  />
+                ) : null}
+              </SaveActions>
+            ) : null
+          }
+          backHref={backHref}
+          backLabel={connection ? `Back to ${connection.name}` : "Back to custom tools"}
+          description={canEdit ? undefined : "You can view this tool but not change it."}
+          title={tool ? tool.name : connection ? `New ${connection.name} endpoint` : "New custom tool"}
+        />
+        <div className="grid min-h-0 flex-1 gap-5 overflow-y-auto overscroll-contain pb-2 lg:grid-cols-[minmax(0,1fr)_minmax(20rem,26rem)] lg:overflow-hidden lg:pb-0">
+          <div className="grid min-h-0 auto-rows-max content-start gap-5 lg:overflow-y-auto lg:overscroll-contain lg:pb-2">
+            <DefinitionSection {...section} autoKey={!tool} />
+            <Card className="min-w-0 gap-0 p-0 shadow-none">
+              <Tabs onValueChange={(value) => setTab(value as ConfigTab)} value={tab}>
+                <TabsList className="w-full justify-start gap-4 px-4" variant="line">
+                  {(
+                    [
+                      ["request", form.kind === "http" ? "Request" : "Code"],
+                      ["arguments", "Arguments"],
+                      ...(connection
+                        ? []
+                        : ([
+                            ["inputs", `Inputs${counted(form.inputs.filter((field) => field.type !== "secret"))}`],
+                            ["secrets", `Secrets${counted(form.inputs.filter((field) => field.type === "secret"))}`],
+                          ] as const)),
+                      ["output", "Output"],
+                    ] as const
+                  ).map(([value, label]) => (
+                    <TabsTrigger className="flex-none px-1" key={value} value={value}>
+                      {label}
+                      {tabHasError(errors, value, form) ? (
+                        <span
+                          className="ml-1.5 size-1.5 rounded-full bg-destructive"
+                          role="img"
+                          aria-label="has errors"
+                        />
+                      ) : null}
+                    </TabsTrigger>
+                  ))}
+                </TabsList>
+                <TabsContent className="p-4" value="request">
+                  <RequestFields {...section} codeConfigured={codeConfigured} connection={connection} isNew={!tool} />
+                </TabsContent>
+                <TabsContent className="p-4" value="arguments">
+                  <ArgumentsFields {...section} />
+                </TabsContent>
+                <TabsContent className="p-4" value="inputs">
+                  <InputsFields {...section} group="inputs" />
+                </TabsContent>
+                <TabsContent className="p-4" value="secrets">
+                  <InputsFields {...section} group="secrets" />
+                </TabsContent>
+                <TabsContent className="p-4" value="output">
+                  <OutputFields {...section} codeConfigured={codeConfigured} />
+                </TabsContent>
+              </Tabs>
+            </Card>
+          </div>
+          <aside aria-label="Test the tool" className="min-h-0 lg:overflow-y-auto lg:overscroll-contain lg:pb-2">
+            <TestSection
+              canEdit={canEdit}
+              fields={connection?.inputs}
+              form={form}
+              onInvalid={setErrors}
+              shared={
+                connection
+                  ? connection.savedSecretValues
+                  : [
+                      ...form.savedSecretValues.filter((id) => form.secretValues[id] !== ""),
+                      ...Object.keys(form.secretValues).filter((id) => form.secretValues[id]),
+                    ]
+              }
+              toolId={tool?.id ?? null}
+            />
+          </aside>
         </div>
-        <aside aria-label="Test the tool" className="min-h-0 lg:overflow-y-auto lg:overscroll-contain lg:pb-2">
-          <TestSection
-            canEdit={canEdit}
-            fields={connection?.inputs}
-            form={form}
-            onInvalid={setErrors}
-            shared={
-              connection
-                ? connection.savedSecretValues
-                : [
-                    ...form.savedSecretValues.filter((id) => form.secretValues[id] !== ""),
-                    ...Object.keys(form.secretValues).filter((id) => form.secretValues[id]),
-                  ]
-            }
-            toolId={tool?.id ?? null}
-          />
-        </aside>
       </div>
-    </div>
+    </TemplateScopeProvider>
   );
 }

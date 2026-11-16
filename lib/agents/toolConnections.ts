@@ -3,7 +3,7 @@
  * `connectionId` set whose url is a path. Pure: safe for client and server.
  */
 import { z } from "zod";
-import { placeholders, splitUrlTemplate } from "./toolTemplate.ts";
+import { invalidPlaceholders, PLACEHOLDER_RULE, placeholders, splitUrlTemplate } from "./toolTemplate.ts";
 import {
   HEADER_NAME,
   sharedSecretIssue,
@@ -69,13 +69,16 @@ function connectionIssues(connection: Pick<ToolConnectionInput, "baseUrl" | "hea
       issues.push({ path: ["baseUrl"], message: `{{inputs.${id}}} must be a declared input of type URL.` });
   }
   const parts = { baseUrl: connection.baseUrl, headers: connection.headers };
-  for (const [part, value] of Object.entries(parts))
+  for (const [part, value] of Object.entries(parts)) {
+    for (const bad of invalidPlaceholders(value))
+      issues.push({ path: [part], message: `${bad} is not a valid placeholder. ${PLACEHOLDER_RULE}` });
     for (const { kind, path } of placeholders(value)) {
       if (kind === "args")
         issues.push({ path: [part], message: `{{args.${path}}} is not allowed here; endpoints use arguments.` });
       else if (path.includes(".") || !connection.inputs.some((field) => field.id === path))
         issues.push({ path: [part], message: `{{inputs.${path}}} is not a declared input.` });
     }
+  }
   return issues;
 }
 

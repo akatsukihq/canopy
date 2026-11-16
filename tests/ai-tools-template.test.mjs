@@ -128,3 +128,27 @@ test("save-time validation: schemas, transform and code limits", () => {
   const ok = toolInputSchema.parse(tool(undefined, { kind: "code", code: { language: "python", source: "print(1)" } }));
   expect(ok.http).toBeNull();
 });
+
+test("only args and inputs placeholders are allowed in a request template", async () => {
+  const { httpTemplateIssues } = await import("../lib/agents/toolTypes.ts");
+  const { invalidPlaceholders } = await import("../lib/agents/toolTemplate.ts");
+  expect(
+    invalidPlaceholders({ a: "{{secrets.apiKey}}", b: ["x {{ input.k }}", "{{args.q}}", "{{inputs.k}}"] }),
+  ).toEqual(["{{secrets.apiKey}}", "{{ input.k }}"]);
+  const http = {
+    method: "GET",
+    url: "https://api.example.com/search",
+    headers: { Authorization: "Bearer {{secrets.apiKey}}" },
+    query: { q: "{{args.query}}", key: "{{inputs.apiKey}}", region: "{{inputs.filters.region}}" },
+    body: null,
+    responsePath: null,
+    timeoutMs: 15000,
+  };
+  const inputs = [
+    { id: "apiKey", label: "Key", type: "secret", required: true, defaultValue: null, description: null },
+    { id: "filters", label: "Filters", type: "json", required: false, defaultValue: null, description: null },
+  ];
+  const messages = httpTemplateIssues(http, ["query"], inputs).map((issue) => issue.message);
+  expect(messages).toHaveLength(1);
+  expect(messages[0]).toContain("{{secrets.apiKey}} is not a valid placeholder");
+});
