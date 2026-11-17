@@ -131,7 +131,9 @@ test("the browser sends only its position; tool data comes from the database", a
   for (const extra of [{ english: { x: "y" } }, { current: {} }, { spec: {} }])
     expect(() => integration.validateRequest({ ...base, context: { ...base.context, ...extra } })).toThrow();
   expect(() => integration.validateRequest({ ...base, context: { section: "translations" } })).toThrow();
-  expect(() => integration.validateRequest({ ...base, context: { section: "translations", locale: "en" } })).toThrow();
+  expect(() =>
+    integration.validateRequest({ ...base, context: { section: "translations", locale: "en" } }),
+  ).not.toThrow();
   expect(() => integration.validateRequest({ ...base, attachmentIds: ["a"] })).toThrow();
   queueReads([]);
   await expect(loadToolAssistantData("devtools.missing")).rejects.toThrow(/not found/i);

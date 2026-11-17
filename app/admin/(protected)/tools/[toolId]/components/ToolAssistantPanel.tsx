@@ -133,6 +133,22 @@ const STARTERS: Record<ToolAssistantSection, AssistantIntegrationUI["launchActio
   ],
 };
 
+/** English is the source text, so there is nothing to translate; the helper polishes wording instead. */
+const ENGLISH_STARTERS: AssistantIntegrationUI["launchActions"] = [
+  {
+    label: "Improve the wording",
+    description: "Clearer, more concise English",
+    instruction: "Review the English text and suggest clearer, more concise wording for anything awkward.",
+    icon: Languages,
+  },
+  {
+    label: "Check consistency",
+    description: "Same terms and tone everywhere",
+    instruction: "Check the English text for inconsistent terms or tone and suggest fixes.",
+    icon: ListChecks,
+  },
+];
+
 /** The form's value for a proposal, as the proposal would replace it. */
 function liveValue(target: AssistantTarget | null, data: ToolAssistantProposalData): unknown {
   if (!target) return undefined;
@@ -168,7 +184,7 @@ function useIntegration(
   /** The field's value when its suggestion first became applicable; any later edit makes it stale. */
   const snapshots = useRef(new Map<string, string>());
   const active = target?.section ?? section;
-  const needsLanguage = active === "translations" && (!target?.locale || target.locale === "en");
+  const needsLanguage = active === "translations" && !target?.locale;
   return {
     key: "tool-admin",
     conversationOperation: "chat",
@@ -192,8 +208,8 @@ function useIntegration(
     placeholder: "Ask for a suggestion, alternatives or an explanation…",
     enabled: !needsLanguage,
     attachments: false,
-    launchActions: STARTERS[active],
-    contextProblem: () => (needsLanguage ? "Choose a language other than English to use the helper." : ""),
+    launchActions: active === "translations" && target?.locale === "en" ? ENGLISH_STARTERS : STARTERS[active],
+    contextProblem: () => (needsLanguage ? "Choose a language to use the helper." : ""),
     observeRuns: (_runs, ids) => {
       fresh.current = ids;
     },

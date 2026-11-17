@@ -330,7 +330,10 @@ function CatalogForm({
     data.set("published", String(!stored.published));
     startTransition(() => publish(data));
   }
-  const [category, setCategory] = useState(stored.category ?? "");
+  const savedCategory = CATEGORY_OPTIONS.some((option) => option.key === stored.category)
+    ? stored.category!
+    : inherited.category;
+  const [category, setCategory] = useState(savedCategory);
   const [keywords, setKeywords] = useState<string[]>([...(stored.keywords ?? [])]);
   const [seoTitle, setSeoTitle] = useState(stored.seoTitle ?? "");
   const [seoDescription, setSeoDescription] = useState(stored.seoDescription ?? "");
@@ -347,6 +350,11 @@ function CatalogForm({
   const storedDoc = contentRecord(stored.contentDoc ?? inherited.contentDoc);
   const inheritedCategory =
     CATEGORY_OPTIONS.find((option) => option.key === inherited.category)?.label ?? inherited.category;
+  const dirty =
+    category !== savedCategory ||
+    keywords.join("\n") !== (stored.keywords ?? []).join("\n") ||
+    seoTitle !== (stored.seoTitle ?? "") ||
+    seoDescription !== (stored.seoDescription ?? "");
 
   return (
     <TooltipProvider>
@@ -376,8 +384,8 @@ function CatalogForm({
                   defaultValue={inheritedCategory}
                   htmlFor={`${formId}-category`}
                   label="Category"
-                  onRevert={() => setCategory("")}
-                  overridden={Boolean(category)}
+                  onRevert={() => setCategory(inherited.category)}
+                  overridden={category !== inherited.category}
                 />
                 <Select
                   aria-describedby={`${formId}-guidance`}
@@ -386,7 +394,6 @@ function CatalogForm({
                   onChange={(event) => setCategory(event.target.value)}
                   value={category}
                 >
-                  <option value="">Default: {inheritedCategory || "None"}</option>
                   {CATEGORY_OPTIONS.map((option) => (
                     <option key={option.key} value={option.key}>
                       {option.label}
@@ -467,7 +474,11 @@ function CatalogForm({
             label="Content actions"
             loading={busy}
             menuLabel="More content actions"
-            primaryAction={{ label: "Save changes", onClick: () => form.current?.requestSubmit() }}
+            primaryAction={{
+              disabled: !dirty,
+              label: "Save changes",
+              onClick: () => form.current?.requestSubmit(),
+            }}
             size="sm"
           >
             <DropdownMenuItem disabled={!stored.published && !hasDraftContent} onSelect={togglePublished}>
@@ -853,6 +864,20 @@ function ContentDocumentForm({ inherited, relatedTools, stored, toolId }: Omit<T
     relatedToolIds: related.map((item) => item.value),
   };
 
+  const saved: ContentRecord = {
+    howToUse: initialDoc.howToUse,
+    limitations: initialDoc.limitations,
+    faq: initialDoc.faq.map(({ q, a }) => ({ q, a })),
+    examples: initialDoc.examples.map(({ label, text, secondary }) => ({
+      label,
+      text,
+      ...(secondary?.trim() ? { secondary } : {}),
+    })),
+    relatedToolIds: initialDoc.relatedToolIds,
+  };
+  const dirty =
+    overrideDoc !== (asRecord(stored.contentDoc) !== null) || JSON.stringify(current) !== JSON.stringify(saved);
+
   useAssistantTarget({
     section: "content",
     values: current,
@@ -1009,7 +1034,14 @@ function ContentDocumentForm({ inherited, relatedTools, stored, toolId }: Omit<T
           <AlertBanner variant={state.status === "success" ? "success" : "error"}>{state.message}</AlertBanner>
         ) : null}
         <HeaderActions>
-          <Button form={formId} loading={pending} onClick={() => setOverrideDoc(true)} size="sm" type="submit">
+          <Button
+            disabled={!dirty}
+            form={formId}
+            loading={pending}
+            onClick={() => setOverrideDoc(true)}
+            size="sm"
+            type="submit"
+          >
             <Save aria-hidden="true" /> {pending ? "Saving…" : "Save document"}
           </Button>
         </HeaderActions>
