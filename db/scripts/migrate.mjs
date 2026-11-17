@@ -1,13 +1,14 @@
-import config from "../../lib/config/config.ts";
-import publicConfig from "../../lib/config/public.ts";
 import { readFile, readdir } from "node:fs/promises";
-import { config as loadEnv } from "dotenv";
 import { existsSync } from "node:fs";
 import { parseArgs } from "node:util";
 import pg from "pg";
 
-const usage = "Usage: pnpm db:migrate <folder> [--env local|<name>]  (<name> loads .env.<name>)";
-const { values, positionals } = parseArgs({ allowPositionals: true, options: { env: { type: "string", default: "local" } } });
+const usage =
+  "Usage: pnpm db:migrate <folder> [--env local|process|<name>]  (<name> loads .env.<name>; process uses only the process environment; default is process when NODE_ENV=production, otherwise local)";
+const { values, positionals } = parseArgs({
+  allowPositionals: true,
+  options: { env: { type: "string", default: process.env.NODE_ENV === "production" ? "process" : "local" } },
+});
 const [folder, ...extra] = positionals;
 if (!folder || extra.length || !/^[a-zA-Z0-9][a-zA-Z0-9_-]*$/.test(folder)) throw new Error(usage);
 if (!/^[a-z][a-z0-9-]*$/.test(values.env)) throw new Error(usage);
@@ -29,16 +30,21 @@ const migrations = await Promise.all(
 // Plain Node needs dotenv. Local: shell variables win over .env.local/.env.
 // A named env loads only .env.<name> and wins over the shell, so a DATABASE_URL
 // exported for local work can never redirect a prod run.
-if (values.env === "local") {
+// `process` is for the production image, which has neither dotenv nor env files: its variables are already set.
+if (values.env === "process") {
+  // Nothing to load.
+} else if (values.env === "local") {
+  const { config: loadEnv } = await import("dotenv");
   for (const file of [".env.local", ".env"]) {
     loadEnv({ path: new URL(`../../${file}`, import.meta.url), override: false, quiet: true });
   }
 } else {
+  const { config: loadEnv } = await import("dotenv");
   const path = new URL(`../../.env.${values.env}`, import.meta.url);
   if (!existsSync(path)) throw new Error(`Missing env file: .env.${values.env}`);
   loadEnv({ path, override: true, quiet: true });
 }
-const databaseUrl = config.databaseUrl;
+const databaseUrl = process.env.DATABASE_URL;
 if (!databaseUrl) throw new Error(`DATABASE_URL is required (env: ${values.env})`);
 const target = URL.canParse(databaseUrl) ? new URL(databaseUrl) : null;
 console.log(`Env ${values.env}: migrating ${target ? `${target.hostname}${target.pathname}` : "database"}`);
@@ -46,7 +52,7 @@ const client = new pg.Client({ connectionString: databaseUrl, connectionTimeoutM
 
 try {
   await client.connect();
-  const cloudName = publicConfig.cloudinaryCloudName?.trim() || config.cloudinary.cloudName?.trim() || "";
+  const cloudName = (process.env.NEXT_PUBLIC_CLOUDINARY_CLOUD_NAME || process.env.CLOUDINARY_CLOUD_NAME || "").trim();
   await client.query("SELECT set_config('canopy.cloudinary_cloud_name', $1, false)", [cloudName]);
   for (const [name, migration] of migrations) {
     await client.query(migration);

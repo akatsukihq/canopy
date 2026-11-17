@@ -174,6 +174,22 @@ Only that folder's immediate `.sql` files run, in filename order. A folder is re
 there is no default or automatic run of every folder. Prefix SQL filenames with numbers
 to control execution order.
 
+In production the image contains `db/migration/` and the same script, with no dotenv or `pnpm`.
+From the app's terminal in Coolify (or `docker exec <container> ...`), run it against the
+container's own `DATABASE_URL`:
+
+```sh
+npm run db:migrate -- <folder>
+```
+
+`npm` ships with the Node image, and the standalone output includes the app's `package.json`,
+so the same `db:migrate` script is available. `node db/scripts/migrate.mjs <folder>` is equivalent.
+
+The image sets `NODE_ENV=production`, which makes `--env process` the default.
+
+Run it before or right after a release that needs it, then restart the app so the in-memory
+tool catalog refreshes. Folders are not tracked, so name the folder explicitly each time.
+
 The `0001-baseline` folder contains the existing `0001`–`0008` migrations.
 Put each new migration batch in its own folder and pass that name to the command.
 Migrations run only their SQL; run `pnpm db:seed` separately for templates and icons.

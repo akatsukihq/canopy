@@ -63,6 +63,10 @@ WORKDIR /app
 COPY --from=builder --chown=nextjs:nodejs /app/.next/standalone ./
 COPY --from=builder --chown=nextjs:nodejs /app/.next/static ./.next/static
 COPY --from=builder --chown=nextjs:nodejs /app/public ./public
+# Lets a release run a migration from inside the container (`pg` ships in the standalone output):
+#   npm run db:migrate -- <folder>   (NODE_ENV=production defaults to --env process)
+COPY --from=builder --chown=nextjs:nodejs /app/db/migration ./db/migration
+COPY --from=builder --chown=nextjs:nodejs /app/db/scripts/migrate.mjs ./db/scripts/migrate.mjs
 
 USER nextjs
 EXPOSE 3000
